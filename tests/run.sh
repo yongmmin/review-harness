@@ -448,6 +448,48 @@ eq "pre-tool-use: pnpm-lock.yaml → deny" deny "$(edit "$P/pnpm-lock.yaml")"
 eq "pre-tool-use: go.sum → deny" deny "$(edit "$P/go.sum")"
 eq "pre-tool-use: bun.lock → deny" deny "$(edit "$P/bun.lock")"
 
+# --- workflows: intent table, plan template and flows agree -----------------------------
+SK="$ROOT/skills/review-harness/SKILL.md"
+INTENTS=$(sed -n 's/^| `\([a-z-]*\)` | .*| .* |$/\1/p' "$SK" | tr '\n' ' ')
+eq "skill: intent table rows" "feature refactor bugfix review " "$INTENTS"
+WFLIST=$(grep -o '`<workflow>` = `[^`]*`' "$SK"); TMPL=$(grep '^\[feature' "$SK")
+for i in $INTENTS; do
+  has "skill: run-state workflow list names $i" "$i" "$WFLIST"
+  has "skill: plan template Intent names $i" "$i" "$TMPL"
+  eq "skill: ### section for $i" 1 "$(grep -ci "^### $i\$" "$SK")"
+done
+has "skill: description names bug fix" "bug fix" "$(sed -n 's/^description: //p' "$SK")"
+has "skill: review needs a diff and no symptom" "no failure symptom is described" "$(grep '^| `review`' "$SK")"
+has "skill: Small change excludes bugfix" 'not a `refactor` or `bugfix` intent' "$(cat "$SK")"
+for l in Symptom Repro Cause 'Regression test'; do
+  eq "skill: plan template ## Bug has $l" 1 "$(sed -n '/^## Bug (bugfix only)/,/^$/p' "$SK" | grep -c "^- $l: ")"
+done
+BF=$(sed -n '/^### Bugfix/,/^### Refactor/p' "$SK")
+has "skill: bugfix flow order" "reproduce -> plan.md (## Bug) -> user approval
+-> developer (regression test RED, then fix) -> test-runner -> reviewer" "$BF"
+has "skill: bugfix never fixes by guess" "Never fix by guess" "$BF"
+has "skill: bugfix harness loop" '`feature`, `bugfix` and `refactor`' "$(cat "$SK")"
+RV=$(cat "$ROOT/agents/reviewer.md")
+has "reviewer: bugfix regression gate" 'none named in the plan'"'"'s `Regression test` line, and no `Regression test: none — <reason>` → FAIL `[correctness]`' "$RV"
+has "reviewer: bugfix gate reads red:" 'no `red:` line' "$RV"
+has "reviewer: bugfix gate keys on ## Intent" 'plan `## Intent` is `bugfix`' "$RV"
+has "developer: bugfix may run an existing test" 'or run the existing test named there' "$(cat "$ROOT/agents/developer.md")"
+has "skill: handoff schema has optional red:" '- red: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
+has "skill: bugfix passes red: to reviewer" 'red:` line to `reviewer`' "$BF"
+has "skill: cause loop-back counts an attempt" 'run `run-state.sh attempt` (stop and report at `LIMIT REACHED`), then redo reproduce' "$BF"
+has "skill: plain review keyword unchanged" '| Keywords: `review`; `check`, `verify` only when a diff exists' "$(grep '^| `review`' "$SK")"
+has "skill: no intent match → one question" 'If no intent matches, ask one clarifying question.' "$(cat "$SK")"
+has "skill: trivial typo fix stays Small change" '"fix this typo") is not `bugfix` and stays on the Small change path' "$(cat "$SK")"
+has "reviewer: bugfix cause gate" '`Cause` line does not explain → FAIL `[scope]`' "$(cat "$ROOT/agents/reviewer.md")"
+has "developer: bugfix RED line in handoff" '`red: <line>`' "$(cat "$ROOT/agents/developer.md")"
+# The documented start command works as written.
+new_repo "$TMP/bugfix"; R="$TMP/bugfix"
+BFCMD=$(printf '%s\n' "$BF" | sed -n 's/^Run state: `\(start bugfix[^`]*\)`.*/\1/p')
+eq "run-state: documented bugfix start" "run-state: started 'bugfix'" "$(rs $BFCMD | sed 's/ →.*//')"
+has "run-state: bugfix status" "active: bugfix · done: - · pending: reproduce,developer,test-runner,reviewer,git-commit" "$(rs status)"
+rs step reproduce >/dev/null; rs verdict PASS >/dev/null
+eq "run-state: bugfix PASS passes check" 0 "$( (cd "$R" && bash "$H/run-state.sh" check >/dev/null 2>&1); echo $?)"
+
 # --- bench -----------------------------------------------------------------------------
 B="$ROOT/bench"
 IDS=$(ls "$B/cases" | tr '\n' '|')

@@ -79,6 +79,10 @@ Add these checks beyond the 4 generic categories (FAIL if any):
 **Scope**
 - Import from another app's repo instead of a published shared package → FAIL `[scope]`
 
+**Bugfix** (plan `## Intent` is `bugfix` — read `plan.md → ## Bug` and the handoff's `red:` line)
+- No regression test in the diff, none named in the plan's `Regression test` line, and no `Regression test: none — <reason>` → FAIL `[correctness]`; a regression test with no `red:` line (never shown failing before the fix) → FAIL `[correctness]`
+- A change the plan's `Cause` line does not explain → FAIL `[scope]`
+
 ---
 
 ## Constraints

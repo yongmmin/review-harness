@@ -8,7 +8,7 @@ Detailed description moved out of the [README](../README.md). The reference docu
 2. **Active Repo Gate** — `hooks/detect-repo.sh` matches cwd → repo. If there is no registry (`~/.review-harness/knowledge/<org>/repos.md`) it proceeds with the generic rules; for code work in a repo that is not registered (or with no registry at all) it offers `/register-repo` once per work tree; choosing to continue records `register-declined` in the state dir so it is not asked again
 3. **Ambiguity Check** — up to 2 questions when ambiguous. Detects requests whose target is unclear, such as demonstratives ("that", "this"), and asks for clarification. The organisation overlay can add detection items
 4. **Plan Gate** — writes `plan.md` to `~/.review-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
-5. **Workflow execution** — a different chain per intent (feature/refactor/review) or the Small change path. UI work is handled as feature
+5. **Workflow execution** — a different chain per intent (feature/bugfix/refactor/review) or the Small change path. A bugfix reproduces the failure and records its cause before any fix, and never takes the Small change path. UI work is handled as feature
 6. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
 
 ## 11 Skills

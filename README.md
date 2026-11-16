@@ -97,6 +97,9 @@ Feature        search-knowledge? → developer → test-runner → reviewer → 
 
 Small change   main session edits directly → test-runner → reviewer → git-commit → DONE
 
+Bugfix         reproduce → plan.md (Symptom, Repro, Cause, Regression test) → approval
+               → developer (regression test fails first, then fix) → test-runner → reviewer → git-commit → DONE
+
 Refactor       search-knowledge? → refactor-architect → user re-approval
                → developer → test-runner → reviewer → git-commit → DONE
 
@@ -104,7 +107,8 @@ Review         reviewer
 ```
 
 - `?` marks a step that is skipped when not needed. UI work is handled as Feature.
-- **Small change** is a change that touches at most 2 existing files and creates no new file, component, hook, store, endpoint or socket event. It skips writing `plan.md` and waiting for approval.
+- **Small change** is a change that touches at most 2 existing files and creates no new file, component, hook, store, endpoint or socket event. It skips writing `plan.md` and waiting for approval. A bug fix never takes this path.
+- **Bugfix** is any request that describes a failure. Nothing is fixed until the failure is reproduced (a failing test, or a command and its output) and traced to a `file:line` cause; if it cannot be reproduced, it asks you for the symptom and environment. A fix of at most 2 files skips the approval wait but shows you the cause and the regression test first. The reviewer FAILs a fix with no regression test (and no stated reason none is possible) or with changes the cause does not explain.
 - Everything else writes `plan.md` and runs after you approve it. The plan's `Reuse` line (what is reused, or one concrete reason for building something new) cannot be empty; the reviewer FAILs an empty one.
 - Test failures and reviewer FAILs share a limit of 3 retries. At the limit it stops and reports what is still wrong.
 - Everything after `DONE` (branch, push, PR) is yours to do.
