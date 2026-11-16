@@ -49,7 +49,7 @@ The `hooks/` directory. Hooked automatically into session/tool events, or called
 | **`pre-tool-use.sh`** | PreToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | Denies edits to `package.json`/`next.config.*`/`tsconfig.json`. After user approval, `pre-tool-use.sh --approve <path>` records an approval with a 30-minute TTL → the retry passes |
 | **`post-tool-use.sh`** | PostToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | On saving a TS/TSX file, runs incremental tsc + eslint in parallel, and on failure emits compact errors only (3-second debounce, automatic cache cleanup). Logs the token budget to stderr |
 | **`detect-repo.sh`** | session-start + skill load | Parses with awk which repo in `~/.review-harness/knowledge/<org>/repos.md` the `cwd` matches. On a match, prints compact metadata (`name`/`role`/`stack`/`layout`/`env`/`path_alias`/`doc_routing`, etc.). If there is no registry it prints nothing, and if there is no match it prints `not registered` |
-| **`extract-constraints.sh`** | Just before agent spawn | Extracts from `constraints.md` only the section tags that agent needs (`#code-rules`/`#filesystem`/`#completion`/`#review`/`#failure-patterns`) + appends the `#org` section of `~/.review-harness/org/constraints.md` and the agent overlay. Logs the token budget to stderr |
+| **`extract-constraints.sh`** | Just before agent spawn | `extract-constraints.sh <agent> [profile]`. Extracts from `constraints.md` only the section tags that agent needs (`#code-rules`/`#filesystem`/`#completion`/`#review`/`#failure-patterns`) + appends the `#org` section of `~/.review-harness/org/constraints.md`, the agent's sections of `profiles/<profile>.md` and the agent overlay. Unknown profile → exit 2, nothing printed. Logs the token budget to stderr |
 | **`org-overlay.sh`** | Skill load + `extract-constraints.sh` | Prints the organisation overlay (`~/.review-harness/org/skills\|agents/<name>.md`). If absent, prints nothing |
 | **`knowledge-has-content.sh`** | Just before a `/search-knowledge` call | Quickly verifies whether the knowledge/wisdom files have real content beyond placeholders. If empty, the `/search-knowledge` call itself is skipped |
 | **`rtk-wrap.sh`** | Plugin-internal Bash calls | Wraps calls to `git`/`gh`/`tsc`/`eslint`/`jest`/`vitest`/`grep`/`find`/`ls`, etc. in `rtk` to compress output (per mode). Falls back to the raw command when `rtk` is not installed. No effect on other projects |
@@ -102,7 +102,7 @@ done
 
 ## Constraints system
 
-[`constraints.md`](../constraints.md) is the single source of all rules. Each agent partially loads only its own tags.
+[`constraints.md`](../constraints.md) holds the generic rules; a profile ([`profiles/web-frontend.md`](../profiles/web-frontend.md)) holds the stack-specific rules in the same `## #tag` format. Each agent partially loads only its own tags. Every skill passes the `web-frontend` profile; without a profile argument no stack rules are loaded.
 
 ### Tag mapping
 
@@ -115,10 +115,19 @@ done
 | `#failure-patterns` | reviewer / test-runner |
 | `#org` | developer / reviewer / refactor-architect (lives in `~/.review-harness/org/constraints.md`. Omitted if absent) |
 
+Profile tags (`profiles/web-frontend.md`):
+
+| Tag | Target agents |
+|---|---|
+| `#code-rules` | developer / refactor-architect |
+| `#implementation` | developer |
+| `#review` | reviewer |
+| `#detection` | refactor-architect |
+
 ### Token budget measurement
 
 - `hooks/extract-constraints.sh` and `hooks/post-tool-use.sh` log bytes/estimated tokens to **stderr** on every call
-- Warning threshold: 8192 bytes (~2K tokens)
+- Warning threshold: 8192 bytes (~2K tokens). It measures the non-profile part; profile bytes are reported separately on the same line
 - Override with the environment variable `REVIEW_HARNESS_BUDGET_WARN_BYTES`
 - stderr does not reach the agent context — for observation only
 - If a `[warn]` line appears, shrink that `constraints.md` section or split it into a smaller tag
@@ -183,7 +192,7 @@ Content specific to an organisation or company is not kept in this repository. I
 
 - `hooks/org-overlay.sh <skills|agents> <name>` prints the overlay file. If the file does not exist it prints nothing
 - Every `SKILL.md` has its own overlay injected at load time
-- `hooks/extract-constraints.sh <agent>` appends the `#org` section and the agent overlay after the content the orchestrator passes to the agent
+- `hooks/extract-constraints.sh <agent> [profile]` appends the `#org` section, the profile sections and the agent overlay after the content the orchestrator passes to the agent
 - If `org/` and `knowledge/` do not exist, the overlay is empty, `detect-repo.sh` prints nothing, and `knowledge-has-content.sh` reports empty. The plugin runs on the generic rules alone
 - Detailed domain files are loaded on demand by `search-knowledge`. At session start only `index.md` is loaded automatically
 

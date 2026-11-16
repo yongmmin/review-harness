@@ -10,6 +10,12 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - No fallback to the old names. To migrate: `mv ~/.front-harness ~/.review-harness`, replace the old path inside your own overlay and knowledge files, uninstall `front-harness@front-harness` and install `review-harness@review-harness`
 - Added `tests/run.sh` (hook smoke tests) and CI on Linux and macOS
 
+**Stack rules moved into a profile** (wording unchanged, only the location)
+- New `profiles/web-frontend.md` (tags `#code-rules`, `#implementation`, `#review`, `#detection`) holds the TypeScript / React / Next.js / Tailwind / Zustand / TanStack Query / Socket.IO rules that were in `constraints.md`, `agents/developer.md`, `agents/reviewer.md`, `agents/refactor-architect.md` and the `code-review` / `refactor-scan` skills
+- `hooks/extract-constraints.sh <agent> [profile]`: appends the agent's profile sections as a `## Profile — <name>` block. No default profile; an unknown name exits 2 with nothing on stdout. The 8192-byte budget warning measures the non-profile part, profile bytes are reported separately
+- Every skill passes `web-frontend`, so agents receive the same rules as before
+- Review category `react-perf` renamed to `performance`. The Three.js / R3F gates (`three-perf`) left the public rules; keep them in your organisation overlay if you need them
+
 ### v0.5.0 (2026-11-16)
 
 **Focus on code development quality — UI/design-only features removed**

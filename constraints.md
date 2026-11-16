@@ -1,7 +1,8 @@
 # Global Constraints
 
 > **On-demand loading**: do not pass this whole file to every agent. Each agent gets only its tagged sections.
-> Extract via `bash hooks/extract-constraints.sh <agent-name>`. Never inline the full file.
+> Extract via `bash hooks/extract-constraints.sh <agent-name> [profile]`. Never inline the full file.
+> Stack-specific rules live in `profiles/<name>.md` with the same `## #tag` format.
 >
 > | Section tag | Target agents |
 > |-------------|---------------|
@@ -12,7 +13,7 @@
 > | `#failure-patterns` | reviewer, test-runner |
 > | `#org` | developer, reviewer, refactor-architect — organisation-specific rules, read from `~/.review-harness/org/constraints.md` (absent when no organisation overlay is installed) |
 >
-> **GC rule**: if `#failure-patterns` exceeds 3072 bytes (watch the `[token-budget]` stderr line from `extract-constraints.sh`), merge similar rules and drop entries older than 90 days. Never re-add a rule that is already a static gate in `agents/reviewer.md`, a rule in `#review`/`#org`, or enforced by ESLint/tsc — the ledger is only for gaps those layers miss.
+> **GC rule**: if `#failure-patterns` exceeds 3072 bytes (watch the `[token-budget]` stderr line from `extract-constraints.sh`), merge similar rules and drop entries older than 90 days. Never re-add a rule that is already a static gate in `agents/reviewer.md` or a profile (`profiles/*.md`), a rule in `#review`/`#org`, or enforced by ESLint/tsc — the ledger is only for gaps those layers miss.
 
 ---
 
@@ -20,8 +21,6 @@
 
 - No new libraries/packages. Use existing `package.json` deps only
 - No direct external API calls. Go through internal wrappers/service layer
-- No `any`. Explicit TS types required
-- No inline styles. Tailwind classes or CSS modules only
 - No `console.log` in production code
 - YAGNI: implement only what was requested
 
@@ -54,13 +53,6 @@
 - On FAIL, if mistake is repeatable, append to `#failure-patterns`
 - Do not record one-off mistakes (typos, file-specific edge cases) as patterns
 
-React performance — FAIL if any:
-- `useEffect` missing dep or unstable ref causing infinite loop
-- Inline object/function literal as prop without `useMemo`/`useCallback`
-- `React.memo` absent on pure component with stable props re-rendered from parent
-- `useMemo`/`useCallback` wrapping primitive or trivially cheap expression
-- Sync blocking op (sort/filter/heavy compute on large array) in render path without memo
-
 Logic correctness — FAIL if any:
 - Property access on nullable without guard
 - Async op without error surfaced to UI
@@ -83,8 +75,8 @@ Design quality — PASS notes:
 ## #failure-patterns
 
 > reviewer/test-runner appends here on repeatable AI mistakes.
-> Format: `- [YYYY-MM-DD] [category:correctness|react-perf|design|scope|three-perf|state-mgmt|org] [pattern] - [rule]`
+> Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|state-mgmt|org] [pattern] - [rule]`
 >
-> **Scope**: this ledger holds ONLY patterns not caught anywhere else. Do not add rules already enforced by ESLint/tsc, listed as static FAIL gates in `agents/reviewer.md`, or stated in `#review`/`#org`.
+> **Scope**: this ledger holds ONLY patterns not caught anywhere else. Do not add rules already enforced by ESLint/tsc, listed as static FAIL gates in `agents/reviewer.md` or a profile (`profiles/*.md`), or stated in `#review`/`#org`.
 > Distilled 2026-07-10: 34 seeded entries removed — all were duplicates of reviewer gates, `#org` rules, or ESLint-enforced rules. Which ESLint rules a repo actually enforces differs per repo; check the repo's own config (org overlays may list them).
-> GC 2026-11-16: 6 entries dropped (all older than 90 days). useEffect cleanup and index-as-key were promoted to static gates in `agents/reviewer.md`.
+> GC 2026-11-16: 6 entries dropped (all older than 90 days). useEffect cleanup and index-as-key were promoted to static gates in `agents/reviewer.md` (now in `profiles/web-frontend.md`).
