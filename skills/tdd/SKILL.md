@@ -51,9 +51,7 @@ For every agent spawned above, pass the output of `bash "${CLAUDE_PLUGIN_ROOT}/h
 ---
 
 ## RED (only when framework configured)
-- Write tests first
-- Confirm they fail for the intended reason
-- Tests describe behavior, not internals
+- `developer` writes the tests, runs them and confirms they fail before implementing (`agents/developer.md` → Workflow)
 
 ## GREEN
 - Implement smallest change to pass

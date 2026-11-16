@@ -93,15 +93,15 @@ Requests can be written in any language. On first use it asks once which output-
 ## Workflow
 
 ```
-Feature        search-knowledge? → developer → test-runner → reviewer → git-commit → DONE
+Feature        search-knowledge? → test-runner (baseline) → developer → test-runner → reviewer → git-commit → DONE
 
 Small change   main session edits directly → test-runner → reviewer → git-commit → DONE
 
 Bugfix         reproduce → plan.md (Symptom, Repro, Cause, Regression test) → approval
-               → developer (regression test fails first, then fix) → test-runner → reviewer → git-commit → DONE
+               → test-runner (baseline) → developer (regression test fails first, then fix) → test-runner → reviewer → git-commit → DONE
 
 Refactor       search-knowledge? → refactor-architect → user re-approval
-               → developer → test-runner → reviewer → git-commit → DONE
+               → test-runner (baseline) → developer → test-runner → reviewer → git-commit → DONE
 
 Review         reviewer
 ```
@@ -110,6 +110,8 @@ Review         reviewer
 - **Small change** is a change that touches at most 2 existing files and creates no new file, component, hook, store, endpoint or socket event. It skips writing `plan.md` and waiting for approval. A bug fix never takes this path.
 - **Bugfix** is any request that describes a failure. Nothing is fixed until the failure is reproduced (a failing test, or a command and its output) and traced to a `file:line` cause; if it cannot be reproduced, it asks you for the symptom and environment. A fix of at most 2 files skips the approval wait but shows you the cause and the regression test first. The reviewer FAILs a fix with no regression test (and no stated reason none is possible) or with changes the cause does not explain.
 - Everything else writes `plan.md` and runs after you approve it. The plan's `Reuse` line (what is reused, or one concrete reason for building something new) cannot be empty; the reviewer FAILs an empty one. The plan also lists `Done When` (2–5 observable outcomes, each with the test, command or manual step that checks it) and `Out of Scope`; the reviewer FAILs an unmet outcome, a TODO or stub left in new code, a new export nothing calls, or an edit outside scope. A Small change states one `Done when:` line instead.
+- The baseline run records tests that already fail before the change; afterwards only new failures count, and you are told in one line if there were any. After the tests, test-runner also runs the repo's `check_cmd` (or `tsc --noEmit` when there is a `tsconfig.json`) once and reports it.
+- In a repo with no test command, you are shown the manual checks from `Done When` and asked to confirm them before the commit.
 - Test failures and reviewer FAILs share a limit of 3 retries. At the limit it stops and reports what is still wrong.
 - Everything after `DONE` (branch, push, PR) is yours to do.
 
@@ -127,7 +129,7 @@ The model is the `model:` value in each `agents/*.md` frontmatter.
 ## Rules you need to know
 
 1. **You run the git operations.** The plugin commits automatically, but for branches, pushes and PRs it only writes the commands and text.
-2. **No commit without a reviewer PASS.** The verdict is stored in a file together with a hash of the work tree at review time. If you change code after the review, it must be reviewed again (`git add` does not count as a change). To commit anyway, say so explicitly; it is recorded as an override.
+2. **No commit without a reviewer PASS.** The verdict is stored in a file together with a hash of the work tree at review time. If you change code after the review, it must be reviewed again (`git add` does not count as a change). A failed test run, or a repo without tests whose manual checks you have not confirmed, also blocks the commit. To commit anyway, say so explicitly; it is recorded as an override.
 3. **An organisation overlay can add rules.** Example: a gate that requires QA documents to be updated when behaviour changes.
 4. **At 80% of the 5-hour usage limit it asks which model to use.** Before starting reviewer / refactor-architect it asks once: `Keep Fable` / `Opus for this run`. Usage is read from `~/.claude/usage-state.json`, written by your status line; if the file is missing or older than 10 minutes it does not ask.
 5. **Editing `package.json`, `next.config.*`, `tsconfig*.json`, lock files (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`, `go.sum`, …) or `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`) needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
@@ -138,7 +140,8 @@ The plugin never creates files inside the repo you are working in. Run state liv
 
 | File | Content |
 |---|---|
-| `run-state.json` | Current workflow, completed steps, retry count, reviewer verdict |
+| `run-state.json` | Current workflow, completed steps, retry count, reviewer verdict, test result |
+| `baseline.txt` | Tests that already failed before the current run's change |
 | `plan.md` | The plan awaiting approval. Its full path is reported every time it is written |
 | `rtk-session.flag` | Output-compression mode |
 | `register-declined` | You chose not to register this repo; `/review-harness` stops offering `/register-repo` here |

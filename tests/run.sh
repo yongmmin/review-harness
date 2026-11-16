@@ -466,7 +466,7 @@ for l in Symptom Repro Cause 'Regression test'; do
 done
 BF=$(sed -n '/^### Bugfix/,/^### Refactor/p' "$SK")
 has "skill: bugfix flow order" "reproduce -> plan.md (## Bug) -> user approval
--> developer (regression test RED, then fix) -> test-runner -> reviewer" "$BF"
+-> test-runner (baseline) -> developer (regression test RED, then fix) -> test-runner -> reviewer" "$BF"
 has "skill: bugfix never fixes by guess" "Never fix by guess" "$BF"
 has "skill: bugfix harness loop" '`feature`, `bugfix` and `refactor`' "$(cat "$SK")"
 RV=$(cat "$ROOT/agents/reviewer.md")
@@ -486,7 +486,7 @@ has "developer: bugfix RED line in handoff" '`red: <line>`' "$(cat "$ROOT/agents
 new_repo "$TMP/bugfix"; R="$TMP/bugfix"
 BFCMD=$(printf '%s\n' "$BF" | sed -n 's/^Run state: `\(start bugfix[^`]*\)`.*/\1/p')
 eq "run-state: documented bugfix start" "run-state: started 'bugfix'" "$(rs $BFCMD | sed 's/ →.*//')"
-has "run-state: bugfix status" "active: bugfix · done: - · pending: reproduce,developer,test-runner,reviewer,git-commit" "$(rs status)"
+has "run-state: bugfix status" "active: bugfix · done: - · pending: reproduce,baseline,developer,test-runner,reviewer,git-commit" "$(rs status)"
 rs step reproduce >/dev/null; rs verdict PASS >/dev/null
 eq "run-state: bugfix PASS passes check" 0 "$( (cd "$R" && bash "$H/run-state.sh" check >/dev/null 2>&1); echo $?)"
 
@@ -521,7 +521,8 @@ has "reviewer: export rule" 'A new export with no caller in the change or the re
 for x in "exported from the package's public entry (index or \`package.json\` exports)" 'is a file-routed, decorator/DI-registered or CLI entry point' 'is used only by tests' 'or `Out of Scope` names the later change that calls it'; do
   has "reviewer: export exception — $x" "$x" "$GG"
 done
-has "reviewer: Out of Scope edit is [scope]" 'An edit to something `Out of Scope` names → FAIL `[scope]`.' "$GG"
+has "reviewer: Out of Scope edit is [scope]" 'An edit to something `Out of Scope` names → FAIL `[scope]` (' "$GG"
+has "reviewer: Out of Scope [scope] rule excepts named stubs" 'a stub that `Out of Scope` names' "$(sed -n '/^An edit to something `Out of Scope` names/p' "$ROOT/agents/reviewer.md")"
 eq "refactor-architect: plan format has ## Intent refactor" "refactor" "$(sed -n '/^## Intent$/{n;p;}' "$ROOT/agents/refactor-architect.md")"
 has "skill: test-runner gets the Done When checks" 'for `test-runner`, include the `Done When` test/command checks (or the Small change `Done when:` check) so it runs them' "$(cat "$SK")"
 SC=$(sed -n '/^### Small change/,/^### Feature/p' "$SK")
@@ -531,6 +532,87 @@ has "skill: handoff max bullets allows red:" 'max 6 bullets plus `red:` for bugf
 has "skill: retries carry the first red: line" "bugfix: the first developer run's \`red:\` line — carry it through every retry" \
   "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SK")"
 has "developer: retry keeps the given red: line" 'On a retry, keep the `red:` line given in your prompt' "$(cat "$ROOT/agents/developer.md")"
+
+# --- verification: test results in the commit gate --------------------------------------
+R="$TMP/testsgate"; new_repo "$R"
+chk() { (cd "$R" && bash "$H/run-state.sh" check "$@" 2>&1); }
+rc() { "$@" >/dev/null 2>&1; echo $?; }
+has "tests: no active run → not recorded" "no active run" "$(rs tests pass)"
+eq "tests: no active run → exit 0" 0 "$(rc rs tests pass)"
+SD=$(bash "$H/state-dir.sh" --create "$R"); echo "old.spec.ts > x" > "$SD/baseline.txt"
+rs start feature baseline developer test-runner reviewer git-commit >/dev/null
+eq "run-state: start clears the previous run's baseline" absent "$([ -f "$SD/baseline.txt" ] && echo present || echo absent)"
+eq "tests: unknown status → exit 2" 2 "$(rc rs tests maybe)"
+rs verdict PASS >/dev/null
+eq "check: PASS, no tests record (older flows) → ok" 0 "$(rc chk)"
+rs tests pass >/dev/null
+eq "check: tests pass → ok" 0 "$(rc chk)"
+has "status shows the tests record" "tests: pass" "$(rs status)"
+has "tests: recorded line" "tests: fail recorded" "$(rs tests fail)"
+eq "check: tests fail → blocked" 1 "$(rc chk)"
+has "check: tests fail → reason" "the last test run failed" "$(chk)"
+eq "gate: tests fail → deny" deny "$(gate "$R")"
+eq "tests: manual-confirmed refused after fail" 1 "$(rc rs tests manual-confirmed)"
+eq "check: still blocked after the refused confirmation" 1 "$(rc chk)"
+rs tests none >/dev/null
+eq "check: tests none, not confirmed → blocked" 1 "$(rc chk)"
+has "check: tests none → asks for the user's confirmation" "only after the user explicitly confirms" "$(chk)"
+eq "gate: tests none → deny" deny "$(gate "$R")"
+rs tests manual-confirmed >/dev/null
+eq "check: manual-confirmed for this tree → ok" 0 "$(rc chk)"
+echo e >> "$R/f.txt"; rs verdict PASS >/dev/null
+eq "check: manual confirmation of an older tree → blocked" 1 "$(rc chk)"
+has "check: older confirmation → reason" "changed after the user's manual confirmation" "$(chk)"
+rs tests manual-confirmed >/dev/null
+eq "tests: re-confirm after a change → ok" 0 "$(rc chk)"
+rs tests fail >/dev/null; echo f >> "$R/f.txt"; rs verdict PASS >/dev/null
+eq "check: a fail recorded for an older tree still blocks" 1 "$(rc chk)"
+rs override "user said commit anyway" >/dev/null
+eq "check: user override passes a tests fail" 0 "$(rc chk)"
+rs tests pass >/dev/null; echo g >> "$R/f.txt"; rs verdict PASS >/dev/null
+eq "check: pass recorded for an older tree → ok (the review covers the tree)" 0 "$(rc chk)"
+# A new run starts with no tests record.
+rs abandon >/dev/null; rs start small-change test-runner reviewer >/dev/null; rs verdict PASS >/dev/null
+eq "check: a new run forgets the previous tests record" 0 "$(rc chk)"
+rs abandon >/dev/null
+
+# --- verification: docs of the flow -----------------------------------------------------
+TR=$(cat "$ROOT/agents/test-runner.md"); DV=$(cat "$ROOT/agents/developer.md")
+has "skill: test-runner baseline before developer (feature)" "test-runner (baseline) -> developer" "$(sed -n '/^### Feature/,/^### Bugfix/p' "$SK")"
+has "skill: test-runner baseline before developer (bugfix)" "test-runner (baseline) -> developer" "$BF"
+has "skill: test-runner baseline before developer (refactor)" "test-runner (baseline) -> developer" "$(sed -n '/^### Refactor/,/^### Review/p' "$SK")"
+has "skill: feature start example has the baseline step" "start feature baseline developer test-runner reviewer git-commit" "$(cat "$SK")"
+has "skill: baseline failures told to the user in one line" "already fail before this change" "$(cat "$SK")"
+has "skill: no-tests path needs the user's yes" 'Record `run-state.sh tests manual-confirmed` only after the user explicitly says yes' "$(cat "$SK")"
+has "skill: test-runner gets the tests command" 'hooks/run-state.sh" tests <pass|fail|none>' "$(cat "$SK")"
+has "test-runner: baseline file" "baseline.txt" "$TR"
+has "test-runner: only new failures count" "only failures not in" "$TR"
+has "test-runner: regression test always counts" "plan's \`Regression test\` always counts" "$TR"
+has "test-runner: records tests status" 'hooks/run-state.sh" tests <pass|fail|none>' "$TR"
+has "test-runner: Done When checks run without a test command" "also when no test command exists" "$TR"
+has "test-runner: no-tests wording matches the skill" "orchestrator asks the user to confirm the manual checks" "$TR"
+has "test-runner: whole-project check" 'otherwise `npx tsc --noEmit` when `tsconfig.json` exists' "$TR"
+has "developer: RED is run, not only written" "run them and confirm they fail for the intended reason before implementing" "$DV"
+lacks "developer: no 'code only' rule" "code only" "$DV"
+has "developer: handoff may carry assumptions" '`assumptions:`' "$DV"
+has "skill: handoff schema allows assumptions" "- assumptions: <" "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
+lacks "constraints: no 'Output code only'" "Output code only" "$(cat "$ROOT/constraints.md")"
+has "tdd: RED points at the developer rule" 'agents/developer.md` → Workflow' "$(cat "$ROOT/skills/tdd/SKILL.md")"
+lacks "tdd: RED wording not duplicated" "Confirm they fail for the intended reason" "$(cat "$ROOT/skills/tdd/SKILL.md")"
+has "git-commit: tests reasons named" "manual confirmation" "$(cat "$ROOT/skills/git-commit/SKILL.md")"
+
+# --- post-tool-use: tsc count of errors in other files -------------------------------
+TP="$TMP/tsproj"; mkdir -p "$TP/src" "$TMP/fakebin"; echo '{}' > "$TP/package.json"; echo '{}' > "$TP/tsconfig.json"
+printf '#!/bin/sh\ncat "$TSC_FAKE_OUT"; exit 2\n' > "$TMP/fakebin/npx"; chmod +x "$TMP/fakebin/npx"
+printf '%s\n' "src/other.ts(2,1): error TS2304: Cannot find name 'x'." "src/third.ts(3,1): error TS2304: Cannot find name 'y'." \
+  "src/a.ts(1,7): error TS2322: Type 'number' is not assignable to type 'string'." > "$TMP/tsc-mixed.out"
+printf '%s\n' "src/b.ts(1,1): error TS2304: Cannot find name 'z'." > "$TMP/tsc-own.out"
+tsctx() { echo 'x' > "$TP/src/$1"; PATH="$TMP/fakebin:$PATH" TSC_FAKE_OUT="$2" REVIEW_HARNESS_RTK=off ctx "$TP/src/$1"; }
+eq "post-tool-use: tsc block + other-files count" "[TypeScript Error]
+src/a.ts(1,7): error TS2322: Type 'number' is not assignable to type 'string'.
+other files: 2 more errors" "$(tsctx a.ts "$TMP/tsc-mixed.out" | sed -n '/^\[TypeScript Error\]/,/^$/p' | sed '/^$/d')"
+lacks "post-tool-use: no count when only the edited file has errors" "other files:" "$(tsctx b.ts "$TMP/tsc-own.out")"
+lacks "post-tool-use: no count on the all-files fallback" "other files:" "$(tsctx c.ts "$TMP/tsc-mixed.out")"
 
 # --- bench -----------------------------------------------------------------------------
 B="$ROOT/bench"
