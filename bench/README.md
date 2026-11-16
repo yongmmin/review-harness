@@ -85,7 +85,7 @@ Reading:
 
 ### Run 2 (clean method)
 
-Model: Fable (production reviewer model) · Date: 2026-11-16 · Plugin HEAD: `4c6d507` · One run per cell · Empty home (no org overlay) · Opaque fixture dirs · 12 cells spawned in parallel · Each agent was given the path of an opaquely named prompt file (`qNN.md`) and wrote its own output file (`aNN.md`); the transcripts show each read only its own prompt and its fixture
+Model: Fable (production reviewer model) · Date: 2026-11-16 · Plugin HEAD: `4c6d507` · One run per cell · Empty home (no org overlay) · Opaque fixture dirs · 12 cells spawned in parallel · Each agent was given the path of an opaquely named prompt file (`qNN.md`) and wrote its own output file (`aNN.md`); the transcripts show each read only its own prompt and its fixture. Deviations from the recipe: the prompt directory also held the other cells' prompts and outputs and a copy of the plugin files, and the case-to-fixture map sat one level up; no agent listed or read them. One agent ran `ls` on the plugin's state directory, which returned nothing
 
 | Case | pre-split | pre-stage4 | current |
 |------|-----------|------------|---------|
