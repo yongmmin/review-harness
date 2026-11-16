@@ -490,6 +490,48 @@ has "run-state: bugfix status" "active: bugfix · done: - · pending: reproduce,
 rs step reproduce >/dev/null; rs verdict PASS >/dev/null
 eq "run-state: bugfix PASS passes check" 0 "$( (cd "$R" && bash "$H/run-state.sh" check >/dev/null 2>&1); echo $?)"
 
+# --- definition of done: plan sections, goal gate, one category list --------------------
+PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SK")
+for s in 'Done When' 'Out of Scope'; do
+  eq "skill: plan template has ## $s" 1 "$(printf '%s\n' "$PLAN" | grep -c "^## $s\$")"
+  eq "refactor-architect: plan format has ## $s" 1 "$(grep -c "^## $s\$" "$ROOT/agents/refactor-architect.md")"
+done
+has "skill: Done When item names its check" '- [observable outcome] — check: [test name, command, or manual step]' "$PLAN"
+has "skill: Done When / Out of Scope required for feature, bugfix, refactor" \
+  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes' "$(cat "$SK")"
+cats() { tr -d ' ' | tr '|' '\n'; }
+C1=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/agents/reviewer.md" | cats)
+C2=$(sed -n 's/^- `\[category\]`: `\([a-z |-]*\)`$/\1/p' "$ROOT/agents/reviewer.md" | cats)
+C3=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/constraints.md" | cats)
+has "reviewer: category list names goal" "goal" "$C1"
+eq "reviewer: Output Format categories = failure-pattern categories" "$C1" "$C2"
+eq "constraints: failure-pattern categories = reviewer's" "$C1" "$C3"
+GG=$(sed -n '/^\*\*Goal gate\*\*/,/^---$/p' "$ROOT/agents/reviewer.md")
+has "reviewer: goal gate reads the plan sections" 'also read `## Intent`, `## Done When` and `## Out of Scope`' "$GG"
+lacks "reviewer: goal gate reads no unused ## Goal" '## Goal' "$GG"
+has "reviewer: goal gate uses the Small change line" 'the `Done when:` line in your prompt is the only Done When item' "$GG"
+has "reviewer: goal gate skip" 'With neither a plan_path nor a Small change `Done when:` line, skip this gate.' "$GG"
+has "reviewer: goal gate FAILs [goal]" 'FAIL `[goal]` if any:' "$GG"
+has "reviewer: missing Done When keyed on ## Intent" '`Done When` missing or empty when `## Intent` is `feature`, `bugfix` or `refactor`' "$GG"
+has "reviewer: unmet item judged from test output" 'Judge a test or command check from `test_status` / the test-runner output; when that evidence is missing, run the command yourself.' "$GG"
+has "reviewer: manual step never FAILs" 'A manual-step item never FAILs — list it in handoff `blockers` as `manual: <step>`' "$GG"
+has "reviewer: stub rule only where Done When expects work" 'placeholder return (hardcoded or empty value where the logic should be) in something a Done When item expects to work' "$GG"
+has "reviewer: stub exception — abstract/overridable, Out of Scope" 'Abstract/overridable members and stubs that `Out of Scope` names pass' "$GG"
+has "reviewer: export rule" 'A new export with no caller in the change or the repo' "$GG"
+for x in "exported from the package's public entry (index or \`package.json\` exports)" 'is a file-routed, decorator/DI-registered or CLI entry point' 'is used only by tests' 'or `Out of Scope` names the later change that calls it'; do
+  has "reviewer: export exception — $x" "$x" "$GG"
+done
+has "reviewer: Out of Scope edit is [scope]" 'An edit to something `Out of Scope` names → FAIL `[scope]`.' "$GG"
+eq "refactor-architect: plan format has ## Intent refactor" "refactor" "$(sed -n '/^## Intent$/{n;p;}' "$ROOT/agents/refactor-architect.md")"
+has "skill: test-runner gets the Done When checks" 'for `test-runner`, include the `Done When` test/command checks (or the Small change `Done when:` check) so it runs them' "$(cat "$SK")"
+SC=$(sed -n '/^### Small change/,/^### Feature/p' "$SK")
+has "skill: Small change states a done-when line" '`Done when: <observable outcome> — check: <test, command, or manual step>`' "$SC"
+has "skill: Small change passes it to reviewer" 'Put that `Done when:` line in the `reviewer` prompt.' "$SC"
+has "skill: handoff max bullets allows red:" 'max 6 bullets plus `red:` for bugfix' "$(cat "$SK")"
+has "skill: retries carry the first red: line" "bugfix: the first developer run's \`red:\` line — carry it through every retry" \
+  "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SK")"
+has "developer: retry keeps the given red: line" 'On a retry, keep the `red:` line given in your prompt' "$(cat "$ROOT/agents/developer.md")"
+
 # --- bench -----------------------------------------------------------------------------
 B="$ROOT/bench"
 IDS=$(ls "$B/cases" | tr '\n' '|')

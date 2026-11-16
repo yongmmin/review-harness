@@ -156,6 +156,12 @@ Create `plan.md`, then wait for explicit user approval before execution (Bugfix 
 ## Goal
 [what and why]
 
+## Done When
+- [observable outcome] — check: [test name, command, or manual step]
+
+## Out of Scope
+- [what this change leaves untouched]
+
 ## Intent
 [feature / bugfix / refactor / review]
 
@@ -197,6 +203,8 @@ Create `plan.md`, then wait for explicit user approval before execution (Bugfix 
 - `developer` reads `plan.md` as the canonical Design Check. The Reuse line is the single source of truth
 - Caught design mistakes BEFORE implementation. Read by user during approval and re-read by `reviewer` during design check
 
+**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes (behavior a user, caller or test sees — not "code written"), each with its check: a test name, a command, or a manual step. `Out of Scope` is 1–2 lines naming what the change must not touch. `reviewer` checks both.
+
 `plan.md` is a working artifact: write it to `<state dir>/plan.md`, never to the consumer repo. Every time you write or update it, tell the user its full absolute path in one line.
 
 Ask: `Please review <absolute path of plan.md>. Approve it and I will execute.`
@@ -220,7 +228,7 @@ Per agent call, include only:
 
 1. The relevant `agents/*.md`
 2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" <paths>)"`, where `<paths>` = the plan's Affected Files for developer / refactor-architect and nothing for reviewer / test-runner (current changes) — pass its output in the spawn prompt as-is (it carries the constraints, the selected profiles' sections and the agent's org overlay); never read `~/.review-harness/org/` separately
-3. Minimal `plan.md` excerpt
+3. Minimal `plan.md` excerpt — for `test-runner`, include the `Done When` test/command checks (or the Small change `Done when:` check) so it runs them
 4. Compact handoff block
 5. Exact files needed
 
@@ -239,7 +247,7 @@ Never inline full `constraints.md`. Never pass unrelated files or raw verbose lo
 - red: <regression test's failing output line before the fix> (bugfix only)
 ```
 
-Rules: omit empty fields, max 6 bullets, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
+Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
 
 ---
 
@@ -282,7 +290,7 @@ main session implements -> test-runner -> reviewer
 
 The main session makes the edit itself; spawning `developer` costs more than the change. `reviewer` stays the quality gate, and the org overlay's gates (if installed) apply as usual. If the change grows past the conditions above while you work, stop and switch to the Feature path.
 
-This path skips `plan.md` and the approval wait (Request Gate 6): say in one line what you are about to change, then make the edit.
+This path skips `plan.md` and the approval wait (Request Gate 6): say in one line what you are about to change and one `Done when: <observable outcome> — check: <test, command, or manual step>` line, then make the edit. Put that `Done when:` line in the `reviewer` prompt.
 
 ### Feature
 
@@ -391,6 +399,7 @@ Retry context must contain only:
 - failing command
 - failing file/test identifier
 - shortest useful error excerpt, or the reviewer's fix list
+- bugfix: the first developer run's `red:` line — carry it through every retry so a re-spawned developer's handoff, and the `reviewer` prompt, never drop it
 
 Never resend full previous transcript.
 

@@ -30,7 +30,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 1. Read feature spec from `plan.md`. `plan.md` is the absolute `plan_path` given in the handoff (plugin state dir, outside the repo). Never look for or create `plan.md` in the repo.
 2. Read `plan.md → ## Design Check`. `Reuse` is a directive; `Responsibility` defines file/layer split; `Risk` lists patterns to avoid. Deviating requires a one-line justification in handoff
 3. Use what the `Reuse` line names. If you find 3+ similar local patterns while searching, report it in the handoff (candidate for `refactor-scan`)
-4. Write tests (RED). Bugfix (`plan.md → ## Bug`): write the `Regression test` first (or run the existing test named there) and run it before touching the fix — it must fail for the `Cause`'s reason. Put its failing output line in the handoff as `red: <line>`. If it passes before the fix, stop and report: the `Cause` is wrong
+4. Write tests (RED). Bugfix (`plan.md → ## Bug`): write the `Regression test` first (or run the existing test named there) and run it before touching the fix — it must fail for the `Cause`'s reason. Put its failing output line in the handoff as `red: <line>`. If it passes before the fix, stop and report: the `Cause` is wrong. On a retry, keep the `red:` line given in your prompt
 5. Implement to pass tests (GREEN)
 6. Hand off to test-runner
 

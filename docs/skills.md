@@ -105,6 +105,6 @@ Uses a model alias per role — `fable`/`opus` (YAML frontmatter `model:` + `eff
 | Agent | Role |
 |---|---|
 | **developer** | TDD RED→GREEN implementation + API integration (handles types → hook/service → UI states inline). Follows the `Reuse` item of `plan.md` |
-| **reviewer** | Review in 4 categories (correctness/performance/design/scope) + static gates. The single quality gate before commit. FAILs if `Reuse` in `plan.md` is empty |
+| **reviewer** | Review in 4 categories (correctness/performance/design/scope) + static gates. The single quality gate before commit. FAILs if `Reuse` in `plan.md` is empty, `[goal]` when a `Done When` item is unmet or new code is a stub or never called, `[scope]` for an `Out of Scope` edit |
 | **test-runner** | Runs tests + summarises results. No fake PASS in repos without tests configured (`no_tests_configured`) |
 | **refactor-architect** | Detects pattern duplication + proposes extractions (writes `plan.md` only) |
