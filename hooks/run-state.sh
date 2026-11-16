@@ -100,7 +100,8 @@ case "${1:-}" in
       | if $v == "FAIL" then .attempts += 1 else . end
       | if $v == "PASS" and any(.steps[]; .name == "reviewer") then .steps |= map(if .name == "reviewer" then .done = true else . end) else . end' || exit 1
     echo "review: $v recorded for work tree $h"
-    [ "$v" = FAIL ] && { report_attempts; exit $?; }
+    # PASS exits 0; FAIL exits with report_attempts (2 at the limit)
+    [ "$v" = PASS ] || report_attempts
     ;;
   override)
     [ -z "${2:-}" ] && { echo "usage: run-state.sh override <reason>" >&2; exit 2; }

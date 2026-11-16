@@ -45,7 +45,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 1. detect-repo (already injected)
 2. spawn reviewer (Agent tool, subagent_type `review-harness:reviewer`; bare `reviewer` if not namespaced)
    -> pass ONLY: the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" reviewer web-frontend`
-      (it carries the constraints and the agent's org overlay),
+      (it carries the constraints, the profile's sections and the agent's org overlay),
       the Active Repo block, the file list above, the review target, and the verdict command
       `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" verdict <PASS|FAIL>`. Reviewer reads diffs itself
       and records its own verdict with that command (the script stores the work-tree hash).

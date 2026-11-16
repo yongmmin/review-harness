@@ -134,7 +134,7 @@ Profile tags (`profiles/web-frontend.md`):
 
 ### `#failure-patterns` ledger (distilled 2026-07-10)
 
-This ledger keeps **only patterns that other layers cannot catch** — rules already enforced by the reviewer.md static gates / `#review`·`#org` rules / ESLint(tsc) are not added. 34 of the 40 seeds were duplicates and were removed.
+This ledger keeps **only patterns that other layers cannot catch** — rules already enforced by the static gates in reviewer.md or a profile (`profiles/*.md`) / `#review`·`#org` rules / ESLint(tsc) are not added. 34 of the 40 seeds were duplicates and were removed.
 
 Currently 0 entries (2026-11-16 GC: all 6 removed as older than 90 days).
 

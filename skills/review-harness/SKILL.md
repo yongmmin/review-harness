@@ -208,7 +208,7 @@ Spawn specialists with the `Agent` tool. When installed as a plugin, the `subage
 Per agent call, include only:
 
 1. The relevant `agents/*.md`
-2. Relevant `constraints.md` sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> web-frontend` — pass its output in the spawn prompt (it carries the constraints and the agent's org overlay)
+2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> web-frontend` — pass its output in the spawn prompt (it carries the constraints, the profile's sections and the agent's org overlay)
 3. Minimal `plan.md` excerpt
 4. Compact handoff block
 5. Exact files needed

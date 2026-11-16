@@ -45,7 +45,7 @@ eq "gate: other git commands pass" allow "$(gate "$R" "git status")"
 eq "gate: git commit-tree is not a commit" allow "$(gate "$R" "git commit-tree abc")"
 eq "gate: git -c k=v commit is caught" deny "$(gate "$R" "git -c user.name=x commit -m x")"
 eq "gate: chained commit is caught" deny "$(gate "$R" "git add . && git commit -m x")"
-rs verdict PASS >/dev/null
+rs verdict PASS >/dev/null; eq "verdict PASS exits 0" 0 "$?"
 eq "gate: PASS, tree unchanged → allow" allow "$(gate "$R")"
 git -C "$R" add -A
 eq "gate: staging does not invalidate the review" allow "$(gate "$R")"
@@ -116,6 +116,8 @@ eq "profile: test-runner has no profile section" "$(bash "$H/extract-constraints
 OUT=$(bash "$H/extract-constraints.sh" reviewer nope 2>/dev/null); eq "profile: unknown → exit 2" 2 "$?"
 eq "profile: unknown → empty stdout" "" "$OUT"
 bash "$H/extract-constraints.sh" reviewer ../constraints >/dev/null 2>&1; eq "profile: rejects path traversal" 2 "$?"
+N=$(grep -h 'hooks/extract-constraints.sh"' "$ROOT"/skills/*/SKILL.md | wc -l | tr -d ' ')
+[ "$N" -ge 4 ]; eq "profile: skill call sites found (>= 4, got $N)" 0 "$?"
 eq "profile: every skill call site passes web-frontend" "" \
   "$(grep -h 'hooks/extract-constraints.sh"' "$ROOT"/skills/*/SKILL.md | grep -v web-frontend)"
 mkdir -p "$REVIEW_HARNESS_HOME/org/agents"
