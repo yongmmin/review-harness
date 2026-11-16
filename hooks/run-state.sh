@@ -10,10 +10,11 @@
 #   verdict PASS|FAIL           record the reviewer verdict + work-tree hash; FAIL counts as an attempt
 #   tests pass|fail|none|manual-confirmed
 #                               record the test result + work-tree hash (active run only); manual-confirmed
-#                               (the user's yes to the manual checks) only replaces none
+#                               (the user's yes to the manual checks) only replaces none; pass and
+#                               manual-confirmed hold only for the work tree they were recorded on
 #   override <reason>           record an explicit user override for the current work tree
 #   check [--active-only]       commit gate. exit 0 ok · 1 blocked · 3 nothing to enforce · 4 stale run
-#   done | abandon              close the run
+#   done | abandon              close the run (and delete its baseline.txt)
 #   status                      one-line summary ("none" when there is nothing to resume)
 #   hash                        print the current work-tree hash
 set -u
@@ -151,6 +152,8 @@ case "${1:-}" in
     # No tests record (older flows, review fast-path) leaves the gate to the review alone.
     case "$(get '.tests.status // ""')" in
       fail) echo "blocked: the last test run failed. Fix it and re-run test-runner."; exit 1 ;;
+      pass) [ "$(get .tests.tree)" = "$h" ] || {
+        echo "blocked: code changed after the last test run (tested work tree $(get .tests.tree), current $h). Re-run test-runner on the current changes."; exit 1; } ;;
       none) echo "blocked: no test command ran. Show the user the manual checks; record 'run-state.sh tests manual-confirmed' only after the user explicitly confirms them."; exit 1 ;;
       manual-confirmed) [ "$(get .tests.tree)" = "$h" ] || {
         echo "blocked: code changed after the user's manual confirmation. Ask the user to confirm the manual checks again."; exit 1; } ;;
@@ -158,6 +161,7 @@ case "${1:-}" in
     echo "ok: reviewer PASS matches the current work tree ($h)"
     ;;
   done|abandon)
+    rm -f "$STATE_DIR/baseline.txt"   # so /tdd or /refactor-scan never read this run's baseline
     [ -f "$FILE" ] || { echo "run-state: none"; exit 0; }
     [ "$1" = done ] && new=done || new=abandoned
     update --arg s "$new" '.status = $s' && echo "run-state: $new"

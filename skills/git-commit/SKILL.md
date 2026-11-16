@@ -33,7 +33,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 
 1. **Verify reviewer PASS from the state file** — run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" check`. Never rely on what the conversation says about the review
    - exit 0 → proceed
-   - exit 1 → abort and report the printed reason. "code changed after the review" means the reviewer must run again on the current changes; a failed test run means test-runner must pass again; a missing manual confirmation means the user must confirm the manual checks first (`review-harness` → No tests)
+   - exit 1 → abort and report the printed reason. "code changed after the review" means the reviewer must run again on the current changes; a failed test run, or code changed after the test run, means test-runner must pass again on the current changes; a missing manual confirmation means the user must confirm the manual checks first (`review-harness` → No tests)
    - exit 3 (no state) → no review is on record: ask the user to run `/code-review` first, or to explicitly override
    - exit 4 (stale run) → show the message and ask the user whether to resume or abandon that run
    - Explicit user override ("commit without review") → record it with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" override "<user's reason>"`, then proceed. The `commit-gate.sh` hook enforces the same check on `git commit`

@@ -182,10 +182,19 @@ Create `plan.md`, then wait for explicit user approval before execution (Bugfix 
 - Reuse: [component/hook/util to reuse, or "none — new primitive justified because X"]
 - Responsibility: [how logic splits across files]
 - Risk: [conflict with existing pattern, or "none"]
+- Callers/Consumers: [each changed export / route / event → files that use it, or "none — new"]
+- Pattern: [one neighbouring file to imitate]
+- Tests: [existing test files covering the area; new tests to add]
+
+## Only When Relevant (omit lines that do not apply)
+- Migration: [rollback path; what happens to existing data]
+- Dependency upgrade: [breaking changelog items that touch this repo]
+- Performance: [how it is measured; target value]
 
 ## Execution Steps
 - Step 1: [agent] - [task]
 - Step 2: [agent] - [task]
+- (more than 6 Affected Files) Task 1: [file group] — tests: [that task's test files or command]
 
 ## Branch
 [feat|fix|ui|refactor]/[task-name]
@@ -200,10 +209,14 @@ Create `plan.md`, then wait for explicit user approval before execution (Bugfix 
 - If `Reuse` says "new primitive", justification must be one concrete reason — not vague "for flexibility"
 - `Reuse` is filled at plan time by the main session — no agent does it for you. Before writing the plan, search the repo and the shared packages it depends on for an existing component/hook/util that covers the request, and use project knowledge
 - `Reuse` must never be empty: name what is reused, or write "none — new primitive justified because X". `reviewer` FAILs a plan whose `Reuse` line is empty
+- `Callers/Consumers`, `Pattern`, `Tests` are also filled by the main session before approval, from grep (not memory). `Callers/Consumers` names every file that uses each changed exported symbol, route or event; a file the change will leave alone gets `no change needed: <reason>` — `reviewer` FAILs a listed file that is neither changed nor marked
+- More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines (file group + that task's tests); `developer` runs each task's tests before the next
 - `developer` reads `plan.md` as the canonical Design Check. The Reuse line is the single source of truth
 - Caught design mistakes BEFORE implementation. Read by user during approval and re-read by `reviewer` during design check
 
 **Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes (behavior a user, caller or test sees — not "code written"), each with its check: a test name, a command, or a manual step. `Out of Scope` is 1–2 lines naming what the change must not touch. `reviewer` checks both.
+
+**Only When Relevant**: write a line only when the change has that part (a schema or data migration, a dependency version bump, a performance goal); otherwise omit the section. No new intent for these.
 
 `plan.md` is a working artifact: write it to `<state dir>/plan.md`, never to the consumer repo. Every time you write or update it, tell the user its full absolute path in one line.
 
@@ -270,7 +283,7 @@ with `<workflow>` = `small-change | feature | bugfix | refactor | review` and th
 - test result → recorded by `test-runner` itself: put `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" tests <pass|fail|none>` in its prompt (not in the baseline run)
 - last commit made, or a `review` workflow finished → `run-state.sh done`
 
-**Review gate**: `reviewer` is the single quality gate, and it is enforced from the state file, not from the conversation. `git-commit` proceeds only when `run-state.sh check` passes: a recorded PASS whose work-tree hash equals the current work tree and no blocking test result, or a recorded user override. FAIL, a missing verdict, code changed after the review, a `tests fail`, or a `tests none` the user has not confirmed all block the commit; the fix list feeds the retry loop. The `commit-gate.sh` PreToolUse hook denies `git commit` on the same check as a backstop.
+**Review gate**: `reviewer` is the single quality gate, and it is enforced from the state file, not from the conversation. `git-commit` proceeds only when `run-state.sh check` passes: a recorded PASS whose work-tree hash equals the current work tree and no blocking test result, or a recorded user override. FAIL, a missing verdict, code changed after the review or after the last test run, a `tests fail`, or a `tests none` the user has not confirmed all block the commit; the fix list feeds the retry loop. The `commit-gate.sh` PreToolUse hook denies `git commit` on the same check as a backstop.
 
 **Test baseline** (`feature`, `bugfix`, `refactor`): before `developer`, spawn `test-runner` with `mode: baseline`. It writes the already-failing tests to `<state dir>/baseline.txt`, and later runs count only new failures. If it lists any, tell the user in one line: `N tests already fail before this change: <ids> — they do not count against it.` Then `run-state.sh step baseline` (also on `no_tests_configured`). A bugfix's regression test appears there only if it already exists.
 
@@ -297,6 +310,8 @@ main session implements -> test-runner -> reviewer
 The main session makes the edit itself; spawning `developer` costs more than the change. `reviewer` stays the quality gate, and the org overlay's gates (if installed) apply as usual. If the change grows past the conditions above while you work, stop and switch to the Feature path.
 
 This path skips `plan.md` and the approval wait (Request Gate 6): say in one line what you are about to change and one `Done when: <observable outcome> — check: <test, command, or manual step>` line, then make the edit. Put that `Done when:` line in the `reviewer` prompt.
+
+It also has no test baseline: a test that already failed before the edit counts as a failure and blocks the commit. Tell the user which tests fail and that they may predate the edit; only the user can choose an override (`run-state.sh override <reason>`).
 
 ### Feature
 
@@ -331,6 +346,8 @@ search-knowledge? -> refactor-architect -> user re-approval
 -> test-runner (baseline) -> developer -> test-runner -> reviewer
 -> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
 ```
+
+If the user waives the characterization-test step at re-approval, remove it from `plan.md` and add `Characterization tests: waived by user — <reason>` under `## Risk`.
 
 ### Review
 
