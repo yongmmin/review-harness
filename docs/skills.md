@@ -2,12 +2,12 @@
 
 Detailed description moved out of the [README](../README.md). The reference documents at runtime are each `skills/*/SKILL.md` and `agents/*.md`.
 
-## `/front-harness` flow
+## `/review-harness` flow
 
 1. **RTK Mode Gate** — choose the output compression mode in the first session (off/standard/aggressive/git-only)
-2. **Active Repo Gate** — `hooks/detect-repo.sh` matches cwd → repo. If there is no registry (`~/.front-harness/knowledge/<org>/repos.md`) it proceeds with the generic rules; if there is one but the repo is not registered, it asks whether to register it or proceed temporarily
+2. **Active Repo Gate** — `hooks/detect-repo.sh` matches cwd → repo. If there is no registry (`~/.review-harness/knowledge/<org>/repos.md`) it proceeds with the generic rules; if there is one but the repo is not registered, it asks whether to register it or proceed temporarily
 3. **Ambiguity Check** — up to 2 questions when ambiguous. Detects requests whose target is unclear, such as demonstratives ("that", "this"), and asks for clarification. The organisation overlay can add detection items
-4. **Plan Gate** — writes `plan.md` to `~/.front-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
+4. **Plan Gate** — writes `plan.md` to `~/.review-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
 5. **Workflow execution** — a different chain per intent (feature/refactor/review) or the Small change path. UI work is handled as feature
 6. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
 
@@ -17,12 +17,12 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 
 ### Entry point (1)
 
-- **`/front-harness`** — the single public entry point. RTK Mode Gate → Active Repo Gate → Ambiguity Check → Intent Classification → API Spec Check → Plan Gate → workflow execution
+- **`/review-harness`** — the single public entry point. RTK Mode Gate → Active Repo Gate → Ambiguity Check → Intent Classification → API Spec Check → Plan Gate → workflow execution
 
 ### Context / knowledge (2)
 
-- **`/save-knowledge`** — routes organisation-specific learnings to `~/.front-harness/knowledge/<org>/*.md` and only truly cross-project ones to `~/.front-harness/wisdom/*.md`
-- **`/search-knowledge`** — returns only 3 or fewer bullets per source from `~/.front-harness/knowledge/` (`index.md`, `<org>/*.md`) and global wisdom. If knowledge is empty, the call itself is skipped
+- **`/save-knowledge`** — routes organisation-specific learnings to `~/.review-harness/knowledge/<org>/*.md` and only truly cross-project ones to `~/.review-harness/wisdom/*.md`
+- **`/search-knowledge`** — returns only 3 or fewer bullets per source from `~/.review-harness/knowledge/` (`index.md`, `<org>/*.md`) and global wisdom. If knowledge is empty, the call itself is skipped
 
 ### TDD (1)
 
@@ -44,7 +44,7 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 
 ### Plugin operations (1)
 
-- **`/rtk-toggle`** (`/front-harness:rtk-toggle`) — toggles the output compression mode of plugin-internal Bash calls (off/standard/aggressive/git-only). No effect on other projects (plugin-scoped)
+- **`/rtk-toggle`** (`/review-harness:rtk-toggle`) — toggles the output compression mode of plugin-internal Bash calls (off/standard/aggressive/git-only). No effect on other projects (plugin-scoped)
 
 ## Git steps (user-triggered)
 
@@ -98,7 +98,7 @@ https://github.com/<owner>/<repo>/compare/main...feat/user-login-form?expand=1&t
 
 ## 4 Agents
 
-Uses a model alias per role — `fable`/`opus` (YAML frontmatter `model:` + `effort:` + `color:`, including tool scoping). Each agent receives only the `constraints.md` sections it needs (the full file is not passed). If an organisation overlay (`~/.front-harness/org/agents/<agent>.md`, `#org` in `~/.front-harness/org/constraints.md`) exists, it is appended to the `hooks/extract-constraints.sh` output and passed along.
+Uses a model alias per role — `fable`/`opus` (YAML frontmatter `model:` + `effort:` + `color:`, including tool scoping). Each agent receives only the `constraints.md` sections it needs (the full file is not passed). If an organisation overlay (`~/.review-harness/org/agents/<agent>.md`, `#org` in `~/.review-harness/org/constraints.md`) exists, it is appended to the `hooks/extract-constraints.sh` output and passed along.
 
 | Agent | Role |
 |---|---|

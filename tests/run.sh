@@ -1,12 +1,12 @@
 #!/bin/bash
 # tests/run.sh — smoke tests for the hooks. Needs bash, git, jq. Run: bash tests/run.sh
-# Everything runs against a throwaway home and throwaway repos; nothing touches ~/.front-harness.
+# Everything runs against a throwaway home and throwaway repos; nothing touches ~/.review-harness.
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 H="$ROOT/hooks"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-export FRONT_HARNESS_HOME="$TMP/home"
-unset CLAUDE_PLUGIN_ROOT FE_HARNESS_ALLOW_CONFIG_EDITS FE_HARNESS_RUN_STALE_SECONDS
+export REVIEW_HARNESS_HOME="$TMP/home"
+unset CLAUDE_PLUGIN_ROOT REVIEW_HARNESS_ALLOW_CONFIG_EDITS REVIEW_HARNESS_RUN_STALE_SECONDS
 PASS=0; FAIL=0
 
 eq() { # eq <name> <expected> <actual>
@@ -31,7 +31,7 @@ rs() { (cd "$R" && bash "$H/run-state.sh" "$@" 2>&1); }
 
 # --- state-dir -------------------------------------------------------------------------
 R="$TMP/repo"; new_repo "$R"
-has "state-dir lives under FRONT_HARNESS_HOME" "$FRONT_HARNESS_HOME/state/repo-" "$(bash "$H/state-dir.sh" "$R")"
+has "state-dir lives under REVIEW_HARNESS_HOME" "$REVIEW_HARNESS_HOME/state/repo-" "$(bash "$H/state-dir.sh" "$R")"
 
 # --- review gate -----------------------------------------------------------------------
 eq "gate: no run → allow" allow "$(gate "$R")"
@@ -58,7 +58,7 @@ eq "gate: FAIL → deny" deny "$(gate "$R")"
 has "test failure shares the counter" "attempts: 2/3" "$(rs attempt)"
 has "third failure reaches the limit" "LIMIT REACHED" "$(rs verdict fail)"
 eq "gate: stale active run → advice only" advice \
-  "$(decision "$(jq -n --arg d "$R" '{tool_input:{command:"git commit"},cwd:$d}' | FE_HARNESS_RUN_STALE_SECONDS=-1 bash "$H/commit-gate.sh")")"
+  "$(decision "$(jq -n --arg d "$R" '{tool_input:{command:"git commit"},cwd:$d}' | REVIEW_HARNESS_RUN_STALE_SECONDS=-1 bash "$H/commit-gate.sh")")"
 rs abandon >/dev/null
 eq "gate: abandoned → allow" allow "$(gate "$R")"
 eq "status after abandon" none "$(rs status)"
@@ -71,8 +71,8 @@ eq "gate: idle FAIL is not enforced by the hook" allow "$(gate "$R")"
 
 # --- detect-repo -----------------------------------------------------------------------
 eq "detect-repo: no registry → silent" "" "$(bash "$H/detect-repo.sh" "$TMP")"
-mkdir -p "$FRONT_HARNESS_HOME/knowledge/acme" "$TMP/my-app/src" "$TMP/my-app-api"
-cat > "$FRONT_HARNESS_HOME/knowledge/acme/repos.md" <<EOF
+mkdir -p "$REVIEW_HARNESS_HOME/knowledge/acme" "$TMP/my-app/src" "$TMP/my-app-api"
+cat > "$REVIEW_HARNESS_HOME/knowledge/acme/repos.md" <<EOF
 ### my-app
 - **local_path**: \`$TMP/my-app\`
 - **role**: demo app
@@ -96,9 +96,9 @@ has "constraints: reviewer gets #review" "## #review" "$BASE"
 case "$BASE" in *"## #filesystem"*) eq "constraints: reviewer does not get #filesystem" absent present ;; *) PASS=$((PASS + 1)) ;; esac
 has "constraints: developer gets #filesystem" "## #filesystem" "$(bash "$H/extract-constraints.sh" developer 2>/dev/null)"
 eq "constraints: unknown agent → empty" "" "$(bash "$H/extract-constraints.sh" nobody 2>/dev/null)"
-mkdir -p "$FRONT_HARNESS_HOME/org/agents"
-printf '## #org\n\n- org rule one\n' > "$FRONT_HARNESS_HOME/org/constraints.md"
-printf 'run ${CLAUDE_PLUGIN_ROOT}/hooks/x.sh\n' > "$FRONT_HARNESS_HOME/org/agents/reviewer.md"
+mkdir -p "$REVIEW_HARNESS_HOME/org/agents"
+printf '## #org\n\n- org rule one\n' > "$REVIEW_HARNESS_HOME/org/constraints.md"
+printf 'run ${CLAUDE_PLUGIN_ROOT}/hooks/x.sh\n' > "$REVIEW_HARNESS_HOME/org/agents/reviewer.md"
 eq "org-overlay: substitutes the plugin root" "run $ROOT/hooks/x.sh" "$(bash "$H/org-overlay.sh" agents reviewer)"
 WITH=$(bash "$H/extract-constraints.sh" reviewer 2>/dev/null)
 has "constraints: #org section appended" "- org rule one" "$WITH"

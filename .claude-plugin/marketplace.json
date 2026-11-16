@@ -1,11 +1,11 @@
 {
-  "name": "front-harness",
+  "name": "review-harness",
   "owner": {
     "name": "yongmmin"
   },
   "plugins": [
     {
-      "name": "front-harness",
+      "name": "review-harness",
       "description": "Review-gated coding harness for Claude Code: plan → implement → test → review, no commit without a reviewer PASS",
       "source": ".",
       "version": "0.5.0"

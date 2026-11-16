@@ -1,20 +1,20 @@
 ---
 name: search-knowledge
-description: Return ≤3 compact bullets per source from ~/.front-harness/knowledge (knowledge/<org>/*.md for the active repo, knowledge/index.md, ~/.front-harness/wisdom) for a query — never full files. Auto-called by front-harness before planning; also "is anything recorded about this?" (any language).
+description: Return ≤3 compact bullets per source from ~/.review-harness/knowledge (knowledge/<org>/*.md for the active repo, knowledge/index.md, ~/.review-harness/wisdom) for a query — never full files. Auto-called by review-harness before planning; also "is anything recorded about this?" (any language).
 argument-hint: "<query>"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---
 
 # Skill: search-knowledge
 
-**Trigger**: `/search-knowledge <query>` or auto-called by `front-harness`
+**Trigger**: `/search-knowledge <query>` or auto-called by `review-harness`
 
 ## Injected Context (at load)
 
 ```!
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null | grep -E '^- (name|status):' || true
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/knowledge-has-content.sh" 2>/dev/null && echo "knowledge: has content" || echo "knowledge: EMPTY — answer 'No relevant entries found' and stop"
-echo "knowledge root: ${FRONT_HARNESS_HOME:-$HOME/.front-harness}/knowledge"
+echo "knowledge root: ${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/knowledge"
 ```
 
 ## Org Overlay
@@ -32,21 +32,21 @@ Query: `$ARGUMENTS`
 
 ## Search Order
 
-All `knowledge/...` paths below are relative to `~/.front-harness/`. Organisation knowledge lives in the `~/.front-harness/knowledge/` folder (outside the plugin): `knowledge/index.md` plus `knowledge/<org>/*.md`. It does not exist in a fresh clone (the injected `knowledge:` line then says EMPTY).
+All `knowledge/...` paths below are relative to `~/.review-harness/`. Organisation knowledge lives in the `~/.review-harness/knowledge/` folder (outside the plugin): `knowledge/index.md` plus `knowledge/<org>/*.md`. It does not exist in a fresh clone (the injected `knowledge:` line then says EMPTY).
 
 ### When the injected Active Repo `name:` matched a registered repo:
 1. `knowledge/<org>/*.md` — only the file(s) whose topic the query touches
 2. `knowledge/index.md` — fallback for general project overview
-3. `~/.front-harness/wisdom/summary.md` — only if query is broad/cross-project
-4. Detail files in `~/.front-harness/wisdom/` — last resort
+3. `~/.review-harness/wisdom/summary.md` — only if query is broad/cross-project
+4. Detail files in `~/.review-harness/wisdom/` — last resort
 
 ### When unmatched (no active registered repo):
-1. `~/.front-harness/wisdom/summary.md`
+1. `~/.review-harness/wisdom/summary.md`
 2. `knowledge/index.md`
 3. Detail files:
-   - `~/.front-harness/wisdom/learnings.md`
-   - `~/.front-harness/wisdom/decisions.md`
-   - `~/.front-harness/wisdom/issues.md`
+   - `~/.review-harness/wisdom/learnings.md`
+   - `~/.review-harness/wisdom/decisions.md`
+   - `~/.review-harness/wisdom/issues.md`
    - `knowledge/<org>/*.md` if query mentions organisation-related terms
 
 ---

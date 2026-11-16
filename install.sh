@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh — front-harness setup helper
+# install.sh — review-harness setup helper
 #
 # The plugin itself is installed via Claude Code's plugin system (see final
 # instructions this script prints). This script only:
@@ -16,13 +16,13 @@ PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 
-SKILLS="front-harness tdd code-review refactor-scan save-knowledge search-knowledge \
+SKILLS="review-harness tdd code-review refactor-scan save-knowledge search-knowledge \
 git-branch git-commit git-pr rtk-toggle"
 # Organisation skills that also had legacy symlinks (listed outside the plugin folder).
-ORG_LEGACY="${FRONT_HARNESS_HOME:-$HOME/.front-harness}/org/legacy-skill-names"
+ORG_LEGACY="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/org/legacy-skill-names"
 [ -f "$ORG_LEGACY" ] && SKILLS="$SKILLS $(cat "$ORG_LEGACY")"
 
-echo "=== front-harness — Setup ==="
+echo "=== review-harness — Setup ==="
 echo ""
 
 # 0. Check plugin registration first — legacy cleanup is only safe AFTER the
@@ -147,7 +147,7 @@ else
   echo "  plugin is properly installed. Run these inside a Claude Code session:"
   echo ""
   echo "    /plugin marketplace add $PLUGIN_DIR"
-  echo "    /plugin install front-harness@front-harness"
+  echo "    /plugin install review-harness@review-harness"
   echo ""
   echo "  Then start a new session. Verify with /plugin (hooks + agents listed)."
 fi

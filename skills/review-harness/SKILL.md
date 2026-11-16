@@ -1,13 +1,13 @@
 ---
-name: front-harness
+name: review-harness
 description: Single entry point for code work in a repo — feature/API wiring (UI work included), refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests (in any language) like "build this", "add this", "refactor", "review this". Not for git branch/PR creation (use /git-branch, /git-pr).
 argument-hint: "[request] [--rtk=off|standard|aggressive|git-only]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git branch *) Bash(git log *)
 ---
 
-# Skill: front-harness
+# Skill: review-harness
 
-**Trigger**: `/front-harness [request]` — or auto-invoked when a message looks like code work (feature, refactor, review)
+**Trigger**: `/review-harness [request]` — or auto-invoked when a message looks like code work (feature, refactor, review)
 **Purpose**: Handle setup, intent detection, planning, execution, verification with minimal context overhead.
 
 ---
@@ -28,12 +28,12 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || echo "de
 
 Plugin root for every hook call below: `${CLAUDE_PLUGIN_ROOT}` (never a cwd-relative `hooks/…` path — cwd is the consumer repo, not the plugin).
 
-**State dir**: the plugin never creates files inside the consumer repo. `plan.md`, `run-state.json`, the rtk flag, approvals and caches all live in the injected `state dir` (`~/.front-harness/state/<repo-id>/`, one per work tree). Every `plan.md` mentioned in this plugin means `<state dir>/plan.md`.
+**State dir**: the plugin never creates files inside the consumer repo. `plan.md`, `run-state.json`, the rtk flag, approvals and caches all live in the injected `state dir` (`~/.review-harness/state/<repo-id>/`, one per work tree). Every `plan.md` mentioned in this plugin means `<state dir>/plan.md`.
 
 ## Org Overlay
 
 ```!
-bash "${CLAUDE_PLUGIN_ROOT}/hooks/org-overlay.sh" skills front-harness 2>/dev/null || true
+bash "${CLAUDE_PLUGIN_ROOT}/hooks/org-overlay.sh" skills review-harness 2>/dev/null || true
 ```
 
 Anything printed above is organisation-specific and is part of this skill; where it conflicts with the generic rules below, it wins. Nothing printed means no overlay is installed — follow the generic rules alone.
@@ -45,7 +45,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 - This file is the canonical runtime workflow
 - `README.md` is documentation only — do not load during execution
 - Questions, option labels and report text in this skill are written in English. Present them in the user's language
-- `front-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents.
+- `review-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents.
 - Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 
 ---
@@ -59,7 +59,7 @@ Resolve rtk token-filter mode before any agent spawn. Plugin-scoped — no globa
 **Resolution order:**
 
 1. **Inline arg** — if user message contains `--rtk=<mode>` or `--no-rtk`, persist with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>` (use `off` for `--no-rtk`). Skip UI
-2. **Env var** — if `FE_HARNESS_RTK` is set, do nothing. Hard override
+2. **Env var** — if `REVIEW_HARNESS_RTK` is set, do nothing. Hard override
 3. **Session flag** — if the injected `session flag: present` line says present, reuse the injected mode
 4. **Otherwise** (flag absent, no env, no inline arg) — launch `AskUserQuestion`:
    - Q: `Compress command output with rtk for this work?`
@@ -80,7 +80,7 @@ If the injected `run state` line is not `none`, a previous run in this work tree
 
 ### 1. Lazy Setup
 
-If `~/.front-harness/knowledge/index.md` is missing, initialize project knowledge there automatically. Do not ask user to run `/setup`.
+If `~/.review-harness/knowledge/index.md` is missing, initialize project knowledge there automatically. Do not ask user to run `/setup`.
 
 ### 1.5. Active Repo Gate
 
@@ -88,8 +88,8 @@ The `=== Active Repo ===` block is already injected above — do not re-run `det
 
 - **Matched** → compact repo block becomes part of agent context. Apply repo-specific rules: path alias, layout (`src/` vs `app/`), env source, Tailwind version
 - **Unmatched** AND user request implies code work → ask: "This directory is not registered. Register the repo (see the `hint` line in the Active Repo block), or continue for this task only?"
-- **Unmatched** AND user request is generic (e.g. "/front-harness explain yourself") → continue without repo context
-- **No Active Repo block at all** (no repo registry installed, no `~/.front-harness/knowledge/<org>/repos.md`) → continue with the generic rules; do not ask
+- **Unmatched** AND user request is generic (e.g. "/review-harness explain yourself") → continue without repo context
+- **No Active Repo block at all** (no repo registry installed, no `~/.review-harness/knowledge/<org>/repos.md`) → continue with the generic rules; do not ask
 
 ### 2. Ambiguity Check
 
@@ -194,7 +194,7 @@ Ask: `Please review <absolute path of plan.md>. Approve it and I will execute.`
 
 ## Agent Spawning
 
-Spawn specialists with the `Agent` tool. When installed as a plugin, the `subagent_type` is namespaced: `front-harness:developer`, `front-harness:reviewer`, etc. If the namespaced type is not listed (legacy `.claude/agents/` copy), fall back to the bare name. Never re-implement an agent's role inline because the type was not found — report it.
+Spawn specialists with the `Agent` tool. When installed as a plugin, the `subagent_type` is namespaced: `review-harness:developer`, `review-harness:reviewer`, etc. If the namespaced type is not listed (legacy `.claude/agents/` copy), fall back to the bare name. Never re-implement an agent's role inline because the type was not found — report it.
 
 **Usage downgrade**: the injected `5h usage` line reads `N% (resets HH:MM)` or `unknown`.
 

@@ -1,6 +1,6 @@
 ---
 name: save-knowledge
-description: Persist a durable learning, decision, or repo fact after a task — routes organisation-specific knowledge to ~/.front-harness/knowledge/<org>/*.md and cross-project wisdom to ~/.front-harness/wisdom. Use for "record this", "remember this" (any language), or when a reusable pattern/gotcha emerged; skip one-off mistakes.
+description: Persist a durable learning, decision, or repo fact after a task — routes organisation-specific knowledge to ~/.review-harness/knowledge/<org>/*.md and cross-project wisdom to ~/.review-harness/wisdom. Use for "record this", "remember this" (any language), or when a reusable pattern/gotcha emerged; skip one-off mistakes.
 argument-hint: "<what to save>"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---
@@ -13,8 +13,8 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 
 ```!
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null | grep -E '^- (name|status):' || true
-echo "knowledge root: ${FRONT_HARNESS_HOME:-$HOME/.front-harness}/knowledge"
-W="$HOME/.front-harness/wisdom/summary.md"; echo "wisdom summary lines: $([ -f "$W" ] && wc -l < "$W" | tr -d ' ' || echo 0) / 20"
+echo "knowledge root: ${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/knowledge"
+W="$HOME/.review-harness/wisdom/summary.md"; echo "wisdom summary lines: $([ -f "$W" ] && wc -l < "$W" | tr -d ' ' || echo 0) / 20"
 ```
 
 ## Org Overlay
@@ -27,10 +27,10 @@ Anything printed above is organisation-specific and is part of this skill; where
 
 To save: `$ARGUMENTS`
 
-All `knowledge/...` destinations below are relative to `~/.front-harness/`.
+All `knowledge/...` destinations below are relative to `~/.review-harness/`.
 **Purpose**: Persist durable learnings. Organisation conventions go into `knowledge/<org>/`; truly cross-project wisdom goes to the global hub.
 
-Organisation knowledge lives in the `~/.front-harness/knowledge/` folder (outside the plugin): `knowledge/index.md` plus `knowledge/<org>/*.md`. It does not exist until an organisation sets it up. The org overlay, when installed, names `<org>` and the concrete file routing.
+Organisation knowledge lives in the `~/.review-harness/knowledge/` folder (outside the plugin): `knowledge/index.md` plus `knowledge/<org>/*.md`. It does not exist until an organisation sets it up. The org overlay, when installed, names `<org>` and the concrete file routing.
 
 ---
 
@@ -41,7 +41,7 @@ Classify the learning:
 | Type | Destination |
 |------|-------------|
 | Organisation-specific knowledge (repo registration / metadata, architecture / cross-repo invariant, convention, stack pattern, design system primitive, QA process) | `knowledge/<org>/<topic>.md` — the existing file for that topic |
-| **Truly cross-project** wisdom (works in any React/Next codebase, not organisation-specific) | `~/.front-harness/wisdom/<learnings\|decisions\|issues>.md` |
+| **Truly cross-project** wisdom (works in any React/Next codebase, not organisation-specific) | `~/.review-harness/wisdom/<learnings\|decisions\|issues>.md` |
 | Component pattern reusable across THIS active repo only | The repo's own docs (plugin doesn't touch — flag for user) |
 
 If unsure → ask user. Don't default to global wisdom for organisation-specific info.
@@ -53,7 +53,7 @@ If unsure → ask user. Don't default to global wisdom for organisation-specific
 1. Determine routing (table above)
 2. Open destination file, find appropriate section
 3. Append entry (do not delete existing entries unless explicitly compacting). Dedupe first: grep the destination for a key phrase of the new entry — if present, update that line in place
-4. Update `~/.front-harness/wisdom/summary.md` if a global-wisdom file was touched (keep summary under 20 lines, prune oldest)
+4. Update `~/.review-harness/wisdom/summary.md` if a global-wisdom file was touched (keep summary under 20 lines, prune oldest)
 5. Report to user: "Saved to <path> — <section>"
 
 ---

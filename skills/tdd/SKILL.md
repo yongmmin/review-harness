@@ -7,7 +7,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 
 # Skill: tdd
 
-**Trigger**: `/tdd <feature description>` — `front-harness` `feature` flow uses this cycle
+**Trigger**: `/tdd <feature description>` — `review-harness` `feature` flow uses this cycle
 
 ## Injected Context (at load)
 
@@ -43,7 +43,7 @@ Feature: `$ARGUMENTS`
     reviewer             -> final review
 3b. If no_tests_configured:
     developer            -> implementation
-    user manual verify   -> front-harness asks user to manually verify
+    user manual verify   -> review-harness asks user to manually verify
     reviewer             -> final review
 ```
 

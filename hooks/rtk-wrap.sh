@@ -1,14 +1,14 @@
 #!/bin/bash
 # rtk-wrap.sh — Plugin-scoped rtk command wrapper.
 #
-# Goal: let /front-harness opt into rtk per session without affecting any
+# Goal: let /review-harness opt into rtk per session without affecting any
 # other Claude Code project on the machine (no global hook installed).
 #
 # Resolution order for mode:
-#   1. FE_HARNESS_RTK env var — hard override
+#   1. REVIEW_HARNESS_RTK env var — hard override
 #        off | standard | aggressive | git-only
-#   2. <state dir>/rtk-session.flag — set by /front-harness UI or /rtk
-#        (state dir = ~/.front-harness/state/<repo-id>/, see state-dir.sh; per work tree)
+#   2. <state dir>/rtk-session.flag — set by /review-harness UI or /rtk
+#        (state dir = ~/.review-harness/state/<repo-id>/, see state-dir.sh; per work tree)
 #   3. default: off
 #
 # Usage:
@@ -34,8 +34,8 @@ STATE_DIR="$(bash "$PLUGIN_DIR/hooks/state-dir.sh" "$PWD" 2>/dev/null)"
 FLAG_FILE="${STATE_DIR:-/nonexistent}/rtk-session.flag"
 
 resolve_mode() {
-  if [ -n "${FE_HARNESS_RTK:-}" ]; then
-    printf '%s\n' "$FE_HARNESS_RTK"
+  if [ -n "${REVIEW_HARNESS_RTK:-}" ]; then
+    printf '%s\n' "$REVIEW_HARNESS_RTK"
     return
   fi
   if [ -f "$FLAG_FILE" ]; then

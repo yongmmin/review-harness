@@ -8,7 +8,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh *) Bash(bash $
 
 # Skill: git-branch
 
-**Trigger**: user-invoked only — `/git-branch [name]` or natural language like "create a branch" (`front-harness` routes the phrase here; this skill is hidden from model auto-invocation)
+**Trigger**: user-invoked only — `/git-branch [name]` or natural language like "create a branch" (`review-harness` routes the phrase here; this skill is hidden from model auto-invocation)
 **Purpose**: Help the user create a task branch by **first discovering existing branches**, then asking which base to fork from, then suggesting a name. **Plugin does NOT execute git commands** — it prints the command the user runs themselves.
 
 ## Org Overlay
