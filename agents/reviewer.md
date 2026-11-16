@@ -86,3 +86,4 @@ Add these checks beyond the 4 generic categories (FAIL if any):
 - Do not fail for style-only preferences
 - Do not add features outside scope
 - One-off mistakes do not belong in `#failure-patterns`
+- Run `git diff`/`git log` and `grep` via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`

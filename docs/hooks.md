@@ -1,6 +1,6 @@
 # Hooks and policy details
 
-Detailed description moved out of the [README](../README.md). The reference documents at runtime are [`CLAUDE.md`](../CLAUDE.md), [`constraints.md`](../constraints.md), and [`skills/review-harness/SKILL.md`](../skills/review-harness/SKILL.md).
+Detailed description moved out of the [README](../README.md). The reference documents at runtime are [`skills/review-harness/SKILL.md`](../skills/review-harness/SKILL.md), the other `skills/*/SKILL.md` and `agents/*.md`, and [`constraints.md`](../constraints.md) (through `extract-constraints.sh`). [`CLAUDE.md`](../CLAUDE.md) holds maintainer rules and is not loaded for plugin users.
 
 ## Core principles
 

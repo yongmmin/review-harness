@@ -1,6 +1,6 @@
 ---
 name: review-harness
-description: Single entry point for code work in a repo — feature/API wiring (UI work included), refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests (in any language) like "build this", "add this", "refactor", "review this". Not for git branch/PR creation (use /git-branch, /git-pr).
+description: Single entry point for code work in a repo — feature/API wiring (UI work included), refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests (in any language) like "build this", "add this", "fix this", "refactor", "review this". Not for git branch/PR creation (use /git-branch, /git-pr).
 argument-hint: "[request] [--rtk=off|standard|aggressive|git-only]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git branch *) Bash(git log *)
 ---
@@ -47,6 +47,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 - `README.md` is documentation only — do not load during execution
 - Questions, option labels and report text in this skill are written in English. Present them in the user's language
 - `review-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents.
+- In orchestration mode, Write/Edit limited to `plan.md` and the `register-declined` flag (Small change path excepted)
 - Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 
 ---
@@ -211,10 +212,12 @@ Spawn specialists with the `Agent` tool. When installed as a plugin, the `subage
 Per agent call, include only:
 
 1. The relevant `agents/*.md`
-2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" <paths>)"`, where `<paths>` = the plan's Affected Files for developer / refactor-architect and nothing for reviewer / test-runner (current changes) — pass its output in the spawn prompt (it carries the constraints, the selected profiles' sections and the agent's org overlay)
+2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" <paths>)"`, where `<paths>` = the plan's Affected Files for developer / refactor-architect and nothing for reviewer / test-runner (current changes) — pass its output in the spawn prompt as-is (it carries the constraints, the selected profiles' sections and the agent's org overlay); never read `~/.review-harness/org/` separately
 3. Minimal `plan.md` excerpt
 4. Compact handoff block
 5. Exact files needed
+
+Never inline full `constraints.md`. Never pass unrelated files or raw verbose logs.
 
 ### Compact Handoff Schema
 

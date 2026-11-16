@@ -98,3 +98,4 @@ When the change touches data fetching/mutation, developer owns the full slice: r
 - **Output**: code only. No explanations or narration
 - **Completion gate**: include test-runner results
 - Comments only where logic is non-obvious
+- Run `git`, `grep`/`find` and test commands via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`
