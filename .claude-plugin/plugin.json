@@ -17,7 +17,7 @@
     "code-review"
   ],
   "metadata": {
-    "knowledge": "knowledge/index.md",
+    "knowledge": "~/.front-harness/knowledge/index.md",
     "hookContract": "PreToolUse gate → JSON permissionDecision; PostToolUse feedback → JSON additionalContext"
   }
 }

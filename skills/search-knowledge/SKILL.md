@@ -1,6 +1,6 @@
 ---
 name: search-knowledge
-description: Return ≤3 compact bullets per source from plugin knowledge (knowledge/<org>/*.md for the active repo, knowledge/index.md, ~/.front-harness/wisdom) for a query — never full files. Auto-called by front-harness before planning; also "이거 관련해서 기록된 거 있어?".
+description: Return ≤3 compact bullets per source from ~/.front-harness/knowledge (knowledge/<org>/*.md for the active repo, knowledge/index.md, ~/.front-harness/wisdom) for a query — never full files. Auto-called by front-harness before planning; also "이거 관련해서 기록된 거 있어?".
 argument-hint: "<query>"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---
@@ -14,7 +14,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ```!
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null | grep -E '^- (name|status):' || true
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/knowledge-has-content.sh" 2>/dev/null && echo "knowledge: has content" || echo "knowledge: EMPTY — answer 'No relevant entries found' and stop"
-echo "knowledge root: ${CLAUDE_PLUGIN_ROOT}/knowledge"
+echo "knowledge root: ${FRONT_HARNESS_HOME:-$HOME/.front-harness}/knowledge"
 ```
 
 ## Org Overlay
@@ -32,7 +32,7 @@ Query: `$ARGUMENTS`
 
 ## Search Order
 
-All `knowledge/...` paths below are relative to `${CLAUDE_PLUGIN_ROOT}/`. Organisation knowledge lives in the gitignored `knowledge/` folder: `knowledge/index.md` plus `knowledge/<org>/*.md`. It does not exist in a fresh clone (the injected `knowledge:` line then says EMPTY).
+All `knowledge/...` paths below are relative to `~/.front-harness/`. Organisation knowledge lives in the `~/.front-harness/knowledge/` folder (outside the plugin): `knowledge/index.md` plus `knowledge/<org>/*.md`. It does not exist in a fresh clone (the injected `knowledge:` line then says EMPTY).
 
 ### When the injected Active Repo `name:` matched a registered repo:
 1. `knowledge/<org>/*.md` — only the file(s) whose topic the query touches

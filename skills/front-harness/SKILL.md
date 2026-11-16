@@ -80,7 +80,7 @@ If the injected `run state` line is not `none`, a previous run in this work tree
 
 ### 1. Lazy Setup
 
-If `knowledge/index.md` is missing, initialize project knowledge automatically. Do not ask user to run `/setup`.
+If `~/.front-harness/knowledge/index.md` is missing, initialize project knowledge there automatically. Do not ask user to run `/setup`.
 
 ### 1.5. Active Repo Gate
 
@@ -89,7 +89,7 @@ The `=== Active Repo ===` block is already injected above — do not re-run `det
 - **Matched** → compact repo block becomes part of agent context. Apply repo-specific rules: path alias, layout (`src/` vs `app/`), env source, Tailwind version
 - **Unmatched** AND user request implies frontend work → ask: "현재 디렉토리가 등록되지 않았습니다. 레포를 등록하시겠어요 (Active Repo 블록의 `hint` 참고), 아니면 이 작업만 임시로 진행할까요?"
 - **Unmatched** AND user request is generic (e.g. "/front-harness 설명해줘") → continue without repo context
-- **No Active Repo block at all** (no repo registry installed, e.g. a fresh clone without `knowledge/`) → continue with the generic rules; do not ask
+- **No Active Repo block at all** (no repo registry installed, no `~/.front-harness/knowledge/<org>/repos.md`) → continue with the generic rules; do not ask
 
 ### 2. Ambiguity Check
 

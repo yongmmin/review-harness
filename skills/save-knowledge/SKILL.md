@@ -1,6 +1,6 @@
 ---
 name: save-knowledge
-description: Persist a durable learning, decision, or repo fact after a task — routes organisation-specific knowledge to the plugin's knowledge/<org>/*.md and cross-project wisdom to ~/.front-harness/wisdom. Use for "이거 기록해둬", "기억해둬", or when a reusable pattern/gotcha emerged; skip one-off mistakes.
+description: Persist a durable learning, decision, or repo fact after a task — routes organisation-specific knowledge to ~/.front-harness/knowledge/<org>/*.md and cross-project wisdom to ~/.front-harness/wisdom. Use for "이거 기록해둬", "기억해둬", or when a reusable pattern/gotcha emerged; skip one-off mistakes.
 argument-hint: "<what to save>"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---
@@ -13,7 +13,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 
 ```!
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null | grep -E '^- (name|status):' || true
-echo "knowledge root: ${CLAUDE_PLUGIN_ROOT}/knowledge"
+echo "knowledge root: ${FRONT_HARNESS_HOME:-$HOME/.front-harness}/knowledge"
 echo "wisdom summary lines: $(wc -l < "$HOME/.front-harness/wisdom/summary.md" 2>/dev/null || echo 0) / 20"
 ```
 
@@ -27,10 +27,10 @@ Anything printed above is organisation-specific and is part of this skill; where
 
 To save: `$ARGUMENTS`
 
-All `knowledge/...` destinations below are relative to `${CLAUDE_PLUGIN_ROOT}/`.
+All `knowledge/...` destinations below are relative to `~/.front-harness/`.
 **Purpose**: Persist durable learnings. Organisation conventions go into `knowledge/<org>/`; truly cross-project wisdom goes to the global hub.
 
-Organisation knowledge lives in the gitignored `knowledge/` folder: `knowledge/index.md` plus `knowledge/<org>/*.md`. It does not exist in a fresh clone. The org overlay, when installed, names `<org>` and the concrete file routing.
+Organisation knowledge lives in the `~/.front-harness/knowledge/` folder (outside the plugin): `knowledge/index.md` plus `knowledge/<org>/*.md`. It does not exist until an organisation sets it up. The org overlay, when installed, names `<org>` and the concrete file routing.
 
 ---
 

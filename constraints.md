@@ -10,7 +10,7 @@
 > | `#completion` | developer, ui-builder, test-runner |
 > | `#review` | reviewer |
 > | `#failure-patterns` | reviewer, test-runner |
-> | `#org` | developer, ui-builder, reviewer, component-auditor, refactor-architect — organisation-specific rules, read from the gitignored `private/constraints.md` (absent in a fresh clone) |
+> | `#org` | developer, ui-builder, reviewer, component-auditor, refactor-architect — organisation-specific rules, read from `~/.front-harness/org/constraints.md` (absent when no organisation overlay is installed) |
 >
 > **GC rule**: if `#failure-patterns` exceeds 3072 bytes (watch the `[token-budget]` stderr line from `extract-constraints.sh`), merge similar rules and drop entries older than 90 days. Never re-add a rule that is already a static gate in `agents/reviewer.md`, a rule in `#review`/`#org`, or enforced by ESLint/tsc — the ledger is only for gaps those layers miss.
 

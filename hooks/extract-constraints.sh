@@ -37,9 +37,10 @@ case "$AGENT" in
 esac
 
 # Extract each section from first `## #tag` heading to next `## ` or `---`
-# `org` is the organisation-specific section: it lives in the gitignored private/constraints.md
-# and is simply absent in a fresh clone.
-ORG_CONSTRAINTS="$PLUGIN_DIR/private/constraints.md"
+# `org` is the organisation-specific section: it lives in ~/.front-harness/org/constraints.md
+# and is simply absent when no organisation overlay is installed.
+FH_HOME="${FRONT_HARNESS_HOME:-$HOME/.front-harness}"
+ORG_CONSTRAINTS="$FH_HOME/org/constraints.md"
 extract_section() {
   local tag="$1" file="$CONSTRAINTS"
   [ "$tag" = org ] && file="$ORG_CONSTRAINTS"
@@ -58,8 +59,8 @@ for tag in $SECTIONS; do
   OUTPUT="${OUTPUT}${SECTION_OUT}"$'\n\n'
 done
 
-# Org overlay for this agent (private/agents/<agent>.md) — the organisation-specific part of
-# the agent's instructions. Absent in a fresh clone.
+# Org overlay for this agent (~/.front-harness/org/agents/<agent>.md) — the organisation-specific part of
+# the agent's instructions. Absent when no overlay is installed.
 AGENT_OVERLAY=$(bash "$PLUGIN_DIR/hooks/org-overlay.sh" agents "$AGENT" 2>/dev/null)
 if [ -n "$AGENT_OVERLAY" ]; then
   OUTPUT="${OUTPUT}## Org overlay — ${AGENT} (part of this agent's instructions)"$'\n\n'"${AGENT_OVERLAY}"$'\n'

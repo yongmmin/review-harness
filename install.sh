@@ -19,8 +19,9 @@ SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 SKILLS="front-harness implement-figma match-style tdd code-review a11y-check \
 pixel-check refactor-scan component-audit save-knowledge search-knowledge \
 git-branch git-commit git-pr rtk-toggle"
-# Private (gitignored) skills that also had legacy symlinks.
-[ -f "$PLUGIN_DIR/private/legacy-skill-names" ] && SKILLS="$SKILLS $(cat "$PLUGIN_DIR/private/legacy-skill-names")"
+# Organisation skills that also had legacy symlinks (listed outside the plugin folder).
+ORG_LEGACY="${FRONT_HARNESS_HOME:-$HOME/.front-harness}/org/legacy-skill-names"
+[ -f "$ORG_LEGACY" ] && SKILLS="$SKILLS $(cat "$ORG_LEGACY")"
 
 echo "=== Frontend Harness — Setup ==="
 echo ""

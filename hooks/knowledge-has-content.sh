@@ -5,7 +5,7 @@
 # spawning search-knowledge agent when nothing would be found.
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-KNOWLEDGE_DIR="$PLUGIN_DIR/knowledge"
+KNOWLEDGE_DIR="${FRONT_HARNESS_HOME:-$HOME/.front-harness}/knowledge"
 
 if [ ! -d "$KNOWLEDGE_DIR" ]; then
   exit 1
@@ -29,7 +29,7 @@ has_real_content() {
 }
 
 # Check each candidate file; first hit wins.
-# Actual knowledge tree: knowledge/index.md + knowledge/<org>/*.md (gitignored, org-specific)
+# Knowledge tree: ~/.front-harness/knowledge/index.md + ~/.front-harness/knowledge/<org>/*.md
 # (unmatched glob passes through as a literal path and fails the -f check).
 for f in \
   "$WISDOM_SUMMARY" \

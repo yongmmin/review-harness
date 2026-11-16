@@ -69,6 +69,8 @@ Add these checks beyond the 4 generic categories (FAIL if any):
 **Code conventions**
 - `--no-verify` in any commit message → FAIL
 - Manual Content-Type on Axios FormData → FAIL (boundary breaks)
+- `.npmrc` staged → FAIL (registry auth token leak)
+- Raw hex/rgba color in production code when the app already imports design-system tokens → FAIL `[design]` (use the token)
 
 **React / Next**
 - Three.js import without `dynamic({ssr:false})` → FAIL `[correctness]` (SSR crash)
@@ -80,6 +82,7 @@ Add these checks beyond the 4 generic categories (FAIL if any):
 - Whole-store Zustand subscription on hot path → FAIL `[state-mgmt]`
 - Inline object selector creating new ref each render (without `shallow`) → FAIL `[state-mgmt]`
 - `persist` middleware schema change without version bump → FAIL `[state-mgmt]`
+- Server state (API response data) kept in a Zustand store when the repo uses TanStack Query for server state → FAIL `[state-mgmt]` (exception: `setQueryData` pre-cache)
 - Untyped socket event (not in the repo's shared socket event-type file) → FAIL `[correctness]`
 - Duplicate auth/polling hook created when one already exists → FAIL `[scope]` (reuse existing)
 
