@@ -4,7 +4,7 @@
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KNOWLEDGE_INDEX="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/knowledge/index.md"
-WISDOM_DIR="$HOME/.review-harness/wisdom"
+WISDOM_DIR="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/wisdom"
 WISDOM_SUMMARY="$WISDOM_DIR/summary.md"
 MAX_WISDOM_LINES=10
 
@@ -28,7 +28,7 @@ if [ -f "$WISDOM_SUMMARY" ]; then
 fi
 
 if [ ! -f "$KNOWLEDGE_INDEX" ]; then
-  echo "Project knowledge is not initialized yet. It will be created on first use."
+  echo "No project knowledge found (optional). Running with the generic rules."
   exit 0
 fi
 
@@ -39,7 +39,7 @@ fi
 
 echo "=== Project Knowledge Summary ==="
 echo "- Source: ~/.review-harness/knowledge/index.md ($LINE_COUNT lines)"
-grep -E '^- \*\*(Org|Stack|Shared 3D|Design System|Backend)\*\*:' "$KNOWLEDGE_INDEX" | head -n 5
+grep -E '^- \*\*[^*]+\*\*:' "$KNOWLEDGE_INDEX" | head -n 5
 echo "- Details: load on demand through search-knowledge"
 echo "=== End Project Knowledge Summary ==="
 echo ""

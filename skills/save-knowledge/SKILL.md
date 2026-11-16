@@ -14,7 +14,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ```!
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null | grep -E '^- (name|status):' || true
 echo "knowledge root: ${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/knowledge"
-W="$HOME/.review-harness/wisdom/summary.md"; echo "wisdom summary lines: $([ -f "$W" ] && wc -l < "$W" | tr -d ' ' || echo 0) / 20"
+W="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/wisdom/summary.md"; echo "wisdom summary lines: $([ -f "$W" ] && wc -l < "$W" | tr -d ' ' || echo 0) / 20"
 ```
 
 ## Org Overlay

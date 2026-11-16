@@ -52,8 +52,8 @@ esac
 # Extract each section from first `## #tag` heading to next `## ` or `---`
 # `org` is the organisation-specific section: it lives in ~/.review-harness/org/constraints.md
 # and is simply absent when no organisation overlay is installed.
-FH_HOME="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}"
-ORG_CONSTRAINTS="$FH_HOME/org/constraints.md"
+RH_HOME="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}"
+ORG_CONSTRAINTS="$RH_HOME/org/constraints.md"
 extract_section() {
   local tag="$1" file="${2:-$CONSTRAINTS}"
   [ "$tag" = org ] && file="$ORG_CONSTRAINTS"
@@ -90,7 +90,10 @@ if [ -n "$AGENT_OVERLAY" ]; then
   OVERLAY_OUT="## Org overlay — ${AGENT} (part of this agent's instructions)"$'\n\n'"${AGENT_OVERLAY}"$'\n'
 fi
 
-printf '%s%s%s' "$OUTPUT" "$PROFILE_OUT" "$OVERLAY_OUT"
+# `${CLAUDE_PLUGIN_ROOT}` in the text → the plugin path (same substitution as org-overlay.sh): this is
+# command output, so skill substitution never reaches it.
+printf '%s%s%s' "$OUTPUT" "$PROFILE_OUT" "$OVERLAY_OUT" \
+  | awk -v root="$PLUGIN_DIR" '{ out=""; s=$0; while ((i = index(s, "${CLAUDE_PLUGIN_ROOT}")) > 0) { out = out substr(s, 1, i-1) root; s = substr(s, i + 21) } print out s }'
 
 # Token budget instrumentation. 8KB ≈ 2K tokens at ~4 chars/token.
 # Emits to stderr only — never pollutes stdout consumed by the agent.

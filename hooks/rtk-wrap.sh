@@ -7,25 +7,25 @@
 # Resolution order for mode:
 #   1. REVIEW_HARNESS_RTK env var — hard override
 #        off | standard | aggressive | git-only
-#   2. <state dir>/rtk-session.flag — set by /review-harness UI or /rtk
+#   2. <state dir>/rtk-session.flag — set by /review-harness UI or /rtk-toggle
 #        (state dir = ~/.review-harness/state/<repo-id>/, see state-dir.sh; per work tree)
 #   3. default: off
 #
 # Usage:
-#   bash hooks/rtk-wrap.sh <command> [args...]
+#   bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <command> [args...]
 #     - Decides whether to prefix with `rtk` based on mode + command kind.
 #     - Always execs the command; falls back to raw if rtk missing or off.
 #
-#   bash hooks/rtk-wrap.sh --mode
+#   bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --mode
 #     - Prints resolved mode string (off/standard/aggressive/git-only).
 #
-#   bash hooks/rtk-wrap.sh --set <mode>
+#   bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>
 #     - Writes mode to session flag file.
 #
-#   bash hooks/rtk-wrap.sh --clear
+#   bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --clear
 #     - Removes session flag file.
 #
-#   bash hooks/rtk-wrap.sh --has-flag
+#   bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --has-flag
 #     - Prints "present" or "absent".
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

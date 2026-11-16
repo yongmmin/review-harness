@@ -31,16 +31,22 @@ need_file() { [ -f "$FILE" ] || { echo "run-state: no run state. Call: run-state
 # throwaway copy of the index. It changes only when file content changes: `git add` and
 # `git commit` leave it untouched, so a review stays valid across staging and commit units.
 tree_hash() {
-  local root idx tmp tree
+  local root idx objs tmp tree
   root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "nogit"; return; }
   tmp=$(mktemp -d) || { echo "error"; return; }
   idx=$(git -C "$root" rev-parse --git-path index 2>/dev/null)
   case "$idx" in /*) ;; *) idx="$root/$idx" ;; esac
+  objs=$(git -C "$root" rev-parse --git-path objects 2>/dev/null)
+  case "$objs" in /*) ;; *) objs="$root/$objs" ;; esac
   # -p keeps the index mtime: git's racy-timestamp check compares file mtimes against it, and a
   # fresh mtime would make a same-second, same-size edit look unchanged.
   [ -f "$idx" ] && cp -p "$idx" "$tmp/index"
-  tree=$(GIT_INDEX_FILE="$tmp/index" git -C "$root" add -A . >/dev/null 2>&1 \
-         && GIT_INDEX_FILE="$tmp/index" git -C "$root" write-tree 2>/dev/null)
+  # New blobs/trees go to the temp object store; the repo's store is an alternate, so no object is
+  # added to the consumer's .git/objects (git may only refresh mtimes of objects already there).
+  # The alternates file is newline-separated, unlike the ':'-separated env var, so any path works.
+  mkdir -p "$tmp/objects/info" && printf '%s\n' "$objs" > "$tmp/objects/info/alternates"
+  tree=$(export GIT_INDEX_FILE="$tmp/index" GIT_OBJECT_DIRECTORY="$tmp/objects"
+         git -C "$root" add -A . >/dev/null 2>&1 && git -C "$root" write-tree 2>/dev/null)
   rm -rf "$tmp"
   [ -n "$tree" ] && echo "$tree" || echo "error"
 }
@@ -105,7 +111,8 @@ case "${1:-}" in
     ;;
   override)
     [ -z "${2:-}" ] && { echo "usage: run-state.sh override <reason>" >&2; exit 2; }
-    [ -f "$FILE" ] && [ "$(st)" != none ] || new_file review idle '[]'
+    # No record, or a closed-out abandoned one: start an idle record so `check` sees the override.
+    case "$(st)" in none|abandoned) new_file review idle '[]' ;; esac
     h=$(tree_hash)
     update --arg r "$2" --arg h "$h" '.override = {reason: $r, tree: $h, at: $now}' && echo "override recorded for work tree $h: $2"
     ;;

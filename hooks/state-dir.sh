@@ -13,7 +13,11 @@ dir="${1:-$PWD}"
 root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
 [ -z "$root" ] && root=$(cd "$dir" 2>/dev/null && pwd -P)
 [ -z "$root" ] && { echo "state-dir: cannot resolve $dir" >&2; exit 1; }
-id="$(basename "$root" | tr -c 'A-Za-z0-9._\n-' '_')-$(printf '%s' "$root" | shasum | cut -c1-12)"
+# First hash tool available (shasum: macOS, sha1sum: coreutils, cksum: POSIX) so the id always has a hash.
+if command -v shasum >/dev/null 2>&1; then sum=shasum
+elif command -v sha1sum >/dev/null 2>&1; then sum=sha1sum
+else sum=cksum; fi
+id="$(basename "$root" | tr -c 'A-Za-z0-9._\n-' '_')-$(printf '%s' "$root" | $sum | cut -d' ' -f1 | cut -c1-12)"
 state="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/state/$id"
 if [ "$CREATE" = 1 ]; then
   mkdir -p "$state" || exit 1
