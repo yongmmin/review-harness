@@ -1,0 +1,3 @@
+- changed_files: src/components/CartBadge/CartBadge.tsx, src/components/CartBadge/CartBadge.test.tsx
+- test_status: passed:npm test
+- red: CartBadge > updates after addItem: expected '0' to be '1'

@@ -506,6 +506,12 @@ C3=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/constraints.md" | cats
 has "reviewer: category list names goal" "goal" "$C1"
 eq "reviewer: Output Format categories = failure-pattern categories" "$C1" "$C2"
 eq "constraints: failure-pattern categories = reviewer's" "$C1" "$C3"
+eq "run-state: verdict categories = reviewer's" "$(printf '%s\n' $C1 | sort | tr '\n' ' ')" \
+  "$(sed -n 's/^CATEGORIES="\([^"]*\)".*/\1/p' "$H/run-state.sh" | tr ' ' '\n' | sort | tr '\n' ' ')"
+has "reviewer: verdict FAIL carries its categories" '`… verdict FAIL` followed by the `[category]` tags of your FAIL issues' "$RV"
+for f in review-harness code-review; do
+  has "skill $f: verdict command takes FAIL categories" 'verdict <PASS|FAIL> [FAIL issue categories...]' "$(cat "$ROOT/skills/$f/SKILL.md")"
+done
 GG=$(sed -n '/^\*\*Goal gate\*\*/,/^---$/p' "$ROOT/agents/reviewer.md")
 has "reviewer: goal gate reads the plan sections" 'also read `## Intent`, `## Done When` and `## Out of Scope`' "$GG"
 lacks "reviewer: goal gate reads no unused ## Goal" '## Goal' "$GG"
@@ -647,6 +653,88 @@ other files: 2 more errors" "$(tsctx a.ts "$TMP/tsc-mixed.out" | sed -n '/^\[Typ
 lacks "post-tool-use: no count when only the edited file has errors" "other files:" "$(tsctx b.ts "$TMP/tsc-own.out")"
 lacks "post-tool-use: no count on the all-files fallback" "other files:" "$(tsctx c.ts "$TMP/tsc-mixed.out")"
 
+# --- run log (runs.jsonl) ----------------------------------------------------------------
+RH="$TMP/loghome"; LOG="$RH/state/runs.jsonl"
+rl() { (cd "$R" && REVIEW_HARNESS_HOME="$RH" bash "$H/run-state.sh" "$@" 2>&1); }
+lines() { wc -l < "$LOG" | tr -d ' '; }
+R="$TMP/logrepo"; new_repo "$R"   # f.txt already edited
+rl start feature developer reviewer >/dev/null; echo n > "$R/new.txt"
+rl verdict FAIL '[goal]' contract >/dev/null; rl attempt >/dev/null; rl verdict PASS >/dev/null; rl tests pass >/dev/null
+rl override "ship it" >/dev/null; rl done >/dev/null
+eq "run log: done appends one line" 1 "$(lines)"
+L=$(tail -n 1 "$LOG")
+eq "run log: fields" '{"workflow":"feature","attempts":2,"verdicts":[{"v":"FAIL","cats":["goal","contract"]},{"v":"PASS"}],"tests":"pass","override":"ship it","end":"done","files_changed":2}' \
+  "$(printf '%s' "$L" | jq -c '{workflow, attempts, verdicts, tests, override, end, files_changed}')"
+eq "run log: repo is the state folder id" "$(basename "$(REVIEW_HARNESS_HOME="$RH" bash "$H/state-dir.sh" "$R")")" "$(printf '%s' "$L" | jq -r .repo)"
+eq "run log: duration = ended_at - started_at" true "$(printf '%s' "$L" | jq '.duration_s == .ended_at - .started_at and .duration_s >= 0')"
+rl done >/dev/null
+eq "run log: closing a closed run adds nothing" 1 "$(lines)"
+rl start bugfix >/dev/null; rl abandon >/dev/null
+eq "run log: abandon appends, earlier lines kept" "2 abandoned feature" "$(lines) $(tail -n 1 "$LOG" | jq -r .end) $(head -n 1 "$LOG" | jq -r .workflow)"
+eq "run log: no reviewer verdict → empty sequence, null tests" '[] null' "$(tail -n 1 "$LOG" | jq -c .verdicts) $(tail -n 1 "$LOG" | jq .tests)"
+rl start feature >/dev/null; rl verdict FAIL >/dev/null; rl verdict FAIL >/dev/null; rl verdict FAIL >/dev/null; rl done >/dev/null
+eq "run log: attempts at the limit → end limit" limit "$(tail -n 1 "$LOG" | jq -r .end)"
+rl verdict PASS >/dev/null; rl done >/dev/null
+eq "run log: a standalone review record is not a run" 3 "$(lines)"
+R="$TMP/logrepo-nocommit"; mkdir -p "$R" && git -C "$R" init -q && echo x > "$R/a.txt"
+rl start small-change >/dev/null; rl done >/dev/null
+eq "run log: no base commit → files_changed omitted" false "$(tail -n 1 "$LOG" | jq 'has("files_changed")')"
+rm -f "$LOG"; mkdir "$LOG"   # an append that cannot succeed
+rl start feature >/dev/null; OUT=$(rl done); RC=$?
+eq "run log: failed append → done still exits 0" 0 "$RC"
+has "run log: failed append → warning" "could not append the run" "$OUT"
+eq "run log: failed append → run still closed" none "$(rl status)"
+rmdir "$LOG"
+# verdict categories
+R="$TMP/catrepo"; new_repo "$R"; SD=$(REVIEW_HARNESS_HOME="$RH" bash "$H/state-dir.sh" "$R")
+rl start feature >/dev/null
+OUT=$(rl verdict FAIL '[Goal]' 'scope,' bogus goal); RC=$?
+eq "verdict: FAIL with categories keeps the exit code" 0 "$RC"
+has "verdict: unknown category → warning" "unknown category ignored: bogus" "$OUT"
+has "verdict: categories do not change the attempt count" "attempts: 1/3" "$OUT"
+eq "verdict: tags normalised, deduplicated, in order" '{"v":"FAIL","cats":["goal","scope"]}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
+rl verdict FAIL >/dev/null
+eq "verdict: FAIL without tags stores no cats" '{"v":"FAIL"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
+has "verdict: PASS ignores categories" "categories are for FAIL only" "$(rl verdict PASS goal)"
+eq "verdict: PASS stored without cats" '{"v":"PASS"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
+eq "verdict: unknown first word still exit 2" 2 "$(rc rl verdict MAYBE goal)"
+# a run state written before categories (string verdicts) still logs as objects
+jq '.verdicts = ["FAIL"] + .verdicts' "$SD/run-state.json" > "$SD/x" && mv "$SD/x" "$SD/run-state.json"
+rl done >/dev/null
+eq "run log: old string verdicts read back" '[{"v":"FAIL"},{"v":"FAIL","cats":["goal","scope"]},{"v":"FAIL"},{"v":"PASS"}]' "$(tail -n 1 "$LOG" | jq -c .verdicts)"
+
+# --- run-stats -------------------------------------------------------------------------
+SH="$TMP/statshome"; mkdir -p "$SH/state"; NOW=$(date +%s)   # string verdicts = lines written before categories
+cat > "$SH/state/runs.jsonl" <<EOF
+{"repo":"web-aaaaaaaaaaaa","workflow":"feature","started_at":1000,"ended_at":2000,"duration_s":1000,"attempts":0,"verdicts":["PASS"],"tests":"pass","override":null,"end":"done","files_changed":4}
+{"repo":"web-aaaaaaaaaaaa","workflow":"feature","started_at":1000,"ended_at":2000,"duration_s":1000,"attempts":2,"verdicts":[{"v":"FAIL","cats":["goal"]},{"v":"FAIL","cats":["goal","scope"]},{"v":"PASS"}],"tests":"pass","override":null,"end":"done"}
+{"repo":"web-aaaaaaaaaaaa","workflow":"bugfix","started_at":1000,"ended_at":2000,"duration_s":1000,"attempts":3,"verdicts":["FAIL","FAIL","FAIL"],"tests":"fail","override":"user said ship it","end":"limit"}
+{"repo":"web-api-bbbbbbbbbbbb","workflow":"small-change","started_at":1000,"ended_at":2000,"duration_s":1000,"attempts":0,"verdicts":["PASS"],"tests":null,"override":null,"end":"done"}
+{"repo":"web-api-bbbbbbbbbbbb","workflow":"feature","started_at":$NOW,"ended_at":$NOW,"duration_s":0,"attempts":1,"verdicts":[],"tests":null,"override":null,"end":"abandoned"}
+{"repo":"torn
+EOF
+st() { REVIEW_HARNESS_HOME="$SH" bash "$H/run-stats.sh" "$@" 2>&1; }
+eq "run-stats: all runs" "runs: 5 (repo: all, since: all)
+mean attempts before PASS: 0.7 (3 runs ending in PASS)
+runs with a reviewer FAIL: 40% (2/5)
+FAIL categories: untagged 3, goal 2, scope 1
+override rate: 20% (1/5)
+limit reached: 1
+by workflow:
+  bugfix: runs 1 · attempts before PASS - · FAIL 100% (1/1) · override 100% (1/1) · limit 1 · FAIL categories untagged 3
+  feature: runs 3 · attempts before PASS 1 · FAIL 33% (1/3) · override 0% (0/3) · limit 0 · FAIL categories goal 2, scope 1
+  small-change: runs 1 · attempts before PASS 0 · FAIL 0% (0/1) · override 0% (0/1) · limit 0 · FAIL categories -" "$(st)"
+has "run-stats: --repo by work-tree name, not a longer name sharing the prefix" "runs: 3 (repo: web, since: all)" "$(st --repo web)"
+has "run-stats: --repo by full id" "runs: 2 (repo: web-api-bbbbbbbbbbbb" "$(st --repo web-api-bbbbbbbbbbbb)"
+has "run-stats: --since keeps recent runs only" "runs: 1 (repo: all, since: 7d)" "$(st --since 7)"
+eq "run-stats: nothing matches → count only" "runs: 0 (repo: nope, since: all)" "$(st --repo nope)"
+eq "run-stats: bad --since → exit 2" 2 "$(rc st --since x)"
+eq "run-stats: unknown flag → exit 2" 2 "$(rc st --all)"
+has "run-stats: no log yet" "no runs recorded yet" "$(REVIEW_HARNESS_HOME="$TMP/nolog" bash "$H/run-stats.sh")"
+mkdir -p "$TMP/nojq"
+has "run-stats: no jq → clear message" "jq is required" "$(PATH="$TMP/nojq" "$BASH" "$H/run-stats.sh" 2>&1)"
+eq "run-stats: no jq → exit 3" 3 "$(PATH="$TMP/nojq" "$BASH" "$H/run-stats.sh" >/dev/null 2>&1; echo $?)"
+
 # --- bench -----------------------------------------------------------------------------
 B="$ROOT/bench"
 IDS=$(ls "$B/cases" | tr '\n' '|')
@@ -657,7 +745,7 @@ for c in "$B"/cases/*/; do
   eq "bench $c: base commit exists" 0 "$(git -C "$FX" rev-parse -q --verify HEAD >/dev/null; echo $?)"
   eq "bench $c: base not made by git commit" "" "$(git -C "$FX" reflog --format=%gs | grep '^commit')"
   eq "bench $c: diff is non-empty" 1 "$(git -C "$FX" diff --quiet; echo $?)"
-  eq "bench $c: expect.txt has 3 lines" 3 "$(wc -l < "$B/cases/$c/expect.txt" | tr -d ' ')"
+  case "$(wc -l < "$B/cases/$c/expect.txt" | tr -d ' ')" in 3|4) PASS=$((PASS + 1)) ;; *) eq "bench $c: expect.txt has 3 or 4 lines" 3 "$(wc -l < "$B/cases/$c/expect.txt")" ;; esac
   META="$FX
 $(git -C "$FX" log --format='%an %ae %cn %ce %B') $(git -C "$FX" reflog --format=%gs)"
   eq "bench $c: no case id or 'bench' in path / log / reflog" "" "$(printf '%s\n' "$META" | grep -iE "bench|${IDS%|}")"
@@ -671,12 +759,46 @@ for c in fe-effect-cleanup:web-frontend api-unawaited:web-api; do
   eq "bench prompt ${c%%:*}: no case id" "" "$(printf '%s\n' "$OUT" | grep -E "${IDS%|}")"
 done
 lacks "bench prompt: frontmatter stripped" "model: " "$OUT"
+lacks "bench prompt: no case dir → no plan_path" "- plan_path: " "$OUT"
+lacks "bench prompt: case dir without plan.md → no plan_path" "- plan_path: " \
+  "$(TMPDIR="$TMP" bash "$B/prompt.sh" current "$(cat "$TMP/fx-api-unawaited")" "$B/cases/api-unawaited" 2>/dev/null)"
+# Plan-based cases: the plan reaches the reviewer as plan_path at an opaque path, and the fixture is what the plan describes.
+for c in goal-not-wired bug-cause-elsewhere contract-caller-missed; do
+  FX=$(cd "$(cat "$TMP/fx-$c")" && pwd -P); CD="$B/cases/$c"
+  eq "bench $c: plan and handoff name no case id or 'bench'" "" "$(cat "$CD/plan.md" "$CD/handoff.md" | grep -iE "bench|${IDS%|}")"
+  OUT=$(TMPDIR="$TMP" bash "$B/prompt.sh" current "$FX" "$CD" 2>/dev/null)
+  has "bench prompt $c: plan_path next to the fixture" "## Handoff"$'\n'"- plan_path: $FX.plan.md" "$OUT"
+  eq "bench prompt $c: plan copied unchanged" "" "$(diff "$CD/plan.md" "$FX.plan.md" 2>&1)"
+  has "bench prompt $c: handoff lines follow" "$(tail -n 1 "$CD/handoff.md")" "$OUT"
+  eq "bench prompt $c: no case id" "" "$(printf '%s\n' "$OUT" | grep -E "${IDS%|}")"
+  CATS4=$(sed -n 4p "$CD/expect.txt"); BAD=""
+  for k in $(printf '%s' "$CATS4" | tr '|' ' '); do case " correctness performance design scope goal security contract ops state-mgmt " in *" $k "*) ;; *) BAD="$BAD $k" ;; esac; done
+  eq "bench $c: expect line 4 lists known categories only" "" "$BAD"
+  [ -n "$CATS4" ]; eq "bench $c: expect line 4 lists at least one category" 0 "$?"
+done
+DIFF=$(git -C "$(cat "$TMP/fx-goal-not-wired")" diff --name-only)
+lacks "bench goal-not-wired: the page is not in the diff" "page.tsx" "$DIFF"
+has "bench goal-not-wired: the plan expects the page" "src/app/orders/page.tsx - " "$(cat "$B/cases/goal-not-wired/plan.md")"
+DIFF=$(git -C "$(cat "$TMP/fx-bug-cause-elsewhere")" diff --name-only)
+has "bench bug-cause-elsewhere: the symptom file is fixed" "CartBadge.tsx" "$DIFF"
+lacks "bench bug-cause-elsewhere: the Cause file is not" "cart.ts" "$DIFF"
+lacks "bench bug-cause-elsewhere: naming the file alone is not a keyword" "cart" "$(sed -n 2p "$B/cases/bug-cause-elsewhere/expect.txt")"
+has "bench bug-cause-elsewhere: Cause names it" "- Cause: src/store/cart.ts:" "$(cat "$B/cases/bug-cause-elsewhere/plan.md")"
+DIFF=$(git -C "$(cat "$TMP/fx-contract-caller-missed")" diff --name-only)
+CALLERS=$(sed -n 's/^- Callers\/Consumers: `formatPrice` → //p' "$B/cases/contract-caller-missed/plan.md" | tr ',' '\n' | tr -d ' ')
+eq "bench contract-caller-missed: 3 callers listed, 2 in the diff" "3 2" \
+  "$(printf '%s\n' "$CALLERS" | grep -c .) $(printf '%s\n' "$CALLERS" | grep -cxF "$DIFF")"
 printf '%s\n' rule 'await|promise' src/a.service.ts > "$TMP/expect.txt"
 printf '%s\n' '## Code Review Verdict: FAIL' '### Issues' '1. [correctness] [src/a.service.ts:3] - missing await' \
   '2. [design] [src/b.ts:1] - magic value' > "$TMP/out-hit.md"
 printf '%s\n' '## Code Review Verdict: PASS' '### Handoff' '- changed_files: src/a.service.ts' > "$TMP/out-miss.md"
 eq "bench score: FAIL with file + keyword → caught" "caught extra=1" "$(bash "$B/score.sh" "$TMP/expect.txt" "$TMP/out-hit.md")"
 eq "bench score: PASS → missed" "missed extra=0" "$(bash "$B/score.sh" "$TMP/expect.txt" "$TMP/out-miss.md")"
+echo 'correctness|ops' >> "$TMP/expect.txt"
+eq "bench score: line 4 category matched" "caught extra=1 category=match" "$(bash "$B/score.sh" "$TMP/expect.txt" "$TMP/out-hit.md")"
+printf '%s\n' rule 'await|promise' src/a.service.ts goal > "$TMP/expect.txt"
+eq "bench score: line 4 category not matched" "caught extra=1 category=other" "$(bash "$B/score.sh" "$TMP/expect.txt" "$TMP/out-hit.md")"
+eq "bench score: line 4, missed → no category" "missed extra=0" "$(bash "$B/score.sh" "$TMP/expect.txt" "$TMP/out-miss.md")"
 
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

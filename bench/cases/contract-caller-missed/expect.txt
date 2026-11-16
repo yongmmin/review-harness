@@ -1,0 +1,4 @@
+contract: a formatPrice caller listed in the plan's Callers/Consumers is neither updated nor marked; receipts stay USD (contract gate)
+receipt|currency|usd|caller|consumer|not updated
+src/lib/receipt.ts
+contract

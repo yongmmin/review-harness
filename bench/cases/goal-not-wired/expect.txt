@@ -1,0 +1,4 @@
+goal: the new hook and select are never used by the orders page; the plan's Done When is unmet (goal gate)
+wire|unused|not used|no caller|caller|never|not rendered|not connected|done when|page
+src/app/orders/page.tsx|src/app/orders/page.test.tsx|src/hooks/useOrderStatusFilter.ts|src/components/OrderStatusFilter/OrderStatusFilter.tsx
+goal

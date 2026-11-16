@@ -1,0 +1,4 @@
+bugfix scope: the fix patches the symptom in the badge, not the plan's Cause in the store; the drawer stays stale (bugfix Cause gate)
+mutat|same array|same reference|immutab|new array|push|drawer
+src/components/CartBadge/CartBadge.tsx|src/store/cart.ts
+scope|correctness
