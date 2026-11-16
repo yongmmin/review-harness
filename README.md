@@ -149,7 +149,8 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 - [docs/hooks.md](docs/hooks.md) — the 15 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
-- [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — agent rules and runtime rules
+- [constraints.md](constraints.md) — agent rules
+- [CLAUDE.md](CLAUDE.md) — maintainer rules for working on this repo (not loaded for plugin users; runtime rules live in `skills/` and `agents/`)
 - [profiles/web-frontend.md](profiles/web-frontend.md) — stack-specific agent rules (TypeScript / React / Next.js), loaded per agent by tag
 - [profiles/web-api.md](profiles/web-api.md) — API server rules (error mapping, validation, data integrity, access, contracts, realtime, migrations, boot), each from a real bug fix
 - [profiles/web-common.md](profiles/web-common.md) — rules for a change that spans frontend and API (consumers, CORS, env config, status codes)

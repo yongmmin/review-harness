@@ -1,60 +1,23 @@
-# review-harness Runtime
+# review-harness Maintainer Rules
 
-Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CHANGELOG.md`.
-
----
-
-## Entry Point
-
-- `/review-harness` is the only public entry
-- If a user message looks like code work (feature, refactor, review), invoke `review-harness` automatically
-- Canonical spec: `skills/review-harness/SKILL.md`
-- Do not load `README.md` at runtime
+Maintainer file for working on this repository. Claude Code does not load a plugin's root `CLAUDE.md` for plugin users, so nothing here reaches a consumer session. Consumer runtime rules live in `skills/` and `agents/` (hooks enforce them); a rule a consumer session needs goes into the one skill or agent that acts on it, never only here. Human docs belong in `README.md`, `docs/`, and `CHANGELOG.md`.
 
 ---
 
-## Intent Routing
+## Where Consumer Rules Live
 
-| Intent | Detection | Action |
-|--------|-----------|--------|
-| `feature` | Keywords: `feature`, `add`, `connect`, `API`, `logic`, `build`, `form`, `button`, `page`, `screen`, `component`, `endpoint`, `migration`, `schema`, `handler` | Feature flow |
-| `refactor` | Keywords: `refactor`, `clean up`, `improve`, `duplicate` | Refactor flow |
-| `review` | Keywords: `review`, `check`, `verify` | Review fast-path |
-
-Keywords are examples: match the same meaning in whatever language the user writes. Ask user-facing questions in the user's language.
-
-- UI work is `feature` work. A design URL (e.g. figma.com) is only a reference input recorded in `plan.md → Inputs.Design`
-- `feature` + API keywords (`fetch`, `axios`, `API`, `GraphQL`, `query`, `mutation`, `Apollo`, `WebSocket`, `endpoint`, `server`, `backend`, `connect`, `data`, `load`, `save`, `realtime`) → run API Spec Check before planning. Pass spec only to `developer`.
+- Entry, intent routing, API Spec Check, Plan Gate / Design Check, agent spawning, context budget, handoff schema, run state, review gate, harness loop, skip rules, git ops policy → `skills/review-harness/SKILL.md` (canonical runtime spec)
+- Injected session context and org overlay → each `skills/*/SKILL.md`
+- rtk modes, resolution order, no global install → `skills/rtk-toggle/SKILL.md`; rtk wrapping inside agents → `agents/test-runner.md`, `agents/developer.md`, `agents/reviewer.md`
+- Agent rules → `agents/*.md`, plus the `hooks/extract-constraints.sh` output passed at spawn (`constraints.md` and `profiles/*.md` tagged sections, `#org`, agent overlay)
 
 ---
 
-## Runtime Rules
+## Repo Rules
 
-- `review-harness` orchestrates; specialists implement — except on the Small change path (`skills/review-harness/SKILL.md → Workflow Selection`), where the main session edits directly. Spawn via `Agent` with `subagent_type` `review-harness:<agent>` (plugin install) — bare `<agent>` only for a legacy `.claude/agents/` copy
-- Skills inject session context at load (`!`cmd`` blocks: detect-repo, rtk mode, knowledge presence, git state). Never re-run what a skill already injected
-- In orchestration mode, Write/Edit limited to `plan.md` and the `register-declined` flag (Small change path excepted)
-- The plugin writes nothing into the consumer repo. `plan.md`, `run-state.json`, `rtk-session.flag`, `register-declined`, `approved/`, `cache/` live in `~/.review-harness/state/<repo-id>/` (`hooks/state-dir.sh`; id = work-tree basename + hash of its absolute path, so parallel worktrees stay separate). Report the full path whenever `plan.md` is written
-- Every workflow starts with `hooks/run-state.sh start`; the script owns attempts, timestamps and the work-tree hash
-- Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
-- Never inline full `constraints.md`
-- Never pass unrelated files or raw verbose logs
-- `git-commit` requires `hooks/run-state.sh check` to pass: reviewer PASS recorded for the current work tree, or a recorded user override. Only `reviewer` records the verdict (`run-state.sh verdict`); if it is missing after one re-spawn, the run has no verdict and the commit stays blocked — the orchestrator never records it. Reviewer FAIL shares `MAX_ATTEMPTS = 3` with test failures
-- **Git ops are user-driven** — plugin NEVER auto-creates branches, NEVER auto-pushes, NEVER auto-submits PRs. `git-branch` and `git-pr` skills only generate names/bodies/commands for the user to run. See `skills/review-harness/SKILL.md → Git Operations Policy`
-- Organisation overlay: `hooks/org-overlay.sh <skills|agents> <name>` prints `~/.review-harness/org/<kind>/<name>.md` or nothing. Every `SKILL.md` injects its overlay at load; treat injected overlay text as part of that skill's rules
-- `hooks/extract-constraints.sh <agent> "$(hooks/detect-profile.sh [paths])"` appends the agent's sections of each selected stack profile (`profiles/<name>.md`, followed inside the same block by those sections of `~/.review-harness/org/profiles/<name>.md` when present; developer / refactor-architect pass the plan's Affected Files, reviewer / test-runner pass no paths = current changes), the `#org` section (`~/.review-harness/org/constraints.md`) and the agent overlay (`~/.review-harness/org/agents/<agent>.md`) — pass its output as-is, never read `~/.review-harness/org/` separately
-- Organisation content lives outside the plugin folder: overlays in `~/.review-harness/org/`, repo registry and domain knowledge in `~/.review-harness/knowledge/` (`index.md`, `<org>/*.md` incl. `repos.md`). When absent, overlays are empty, `detect-repo.sh` prints nothing, knowledge reports empty, and the generic rules apply alone — never treat that as an error
 - Files in this repository must never contain organisation-specific names, paths or URLs. Such content goes to `~/.review-harness/org/` (rules) or `~/.review-harness/knowledge/` (repo registry, domain knowledge)
-
----
-
-## RTK Wrapping (Plugin-Scoped)
-
-- Plugin-internal Bash calls for `git`, `gh`, `tsc`, `eslint`, `jest`, `vitest`, `playwright`, `pytest`, `ls`, `tree`, `find`, `grep`, `rg`, `cat`, `diff` MUST go through `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]` — always the absolute plugin path; cwd is the consumer repo
-- Mode source: `REVIEW_HARNESS_RTK` env → `<state dir>/rtk-session.flag` (per work tree) → `off` default
-- Modes: `off | standard | aggressive | git-only`
-- If rtk missing or mode disables category, runs raw
-- Never run `rtk init -g`. Never write to `~/.claude/settings.json` hooks for rtk
-- User chooses mode via Request Gate step 0 or `/rtk-toggle` (`/review-harness:rtk-toggle`)
+- Organisation content lives outside the plugin folder: overlays in `~/.review-harness/org/`, repo registry and domain knowledge in `~/.review-harness/knowledge/` (`index.md`, `<org>/*.md` incl. `repos.md`). When absent, overlays are empty, `detect-repo.sh` prints nothing, knowledge reports empty, and the generic rules apply alone — never treat that as an error
+- Session start: compact summaries only (`hooks/session-start.sh`)
 
 ---
 
@@ -67,54 +30,12 @@ Keywords are examples: match the same meaning in whatever language the user writ
 
 ---
 
-## Context Budget
-
-Per agent spawn, pass only:
-
-1. The agent file
-2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" [paths])"`
-3. Minimal `plan.md` excerpt
-4. Compact handoff block
-5. Exact files needed
-
-### Compact Handoff Format
-
-```markdown
-## Handoff
-- plan_path: /abs/path/to/state-dir/plan.md
-- changed_files: path1, path2
-- reusable_components: Button, Card
-- decisions: reuse existing ProductCard layout
-- blockers: cart.spec.ts failing
-- test_status: not_run | passed:npm run test | failed:npm run test
-```
-
-Rules: omit empty fields, max 6 bullets, one line each, no prose, identifiers over explanation.
-
-### Budget Measurement
+## Budget Measurement
 
 - `hooks/extract-constraints.sh` and `hooks/post-tool-use.sh` log bytes/tokens to stderr
 - Warn threshold: 8192 bytes (~2K tokens), override via `REVIEW_HARNESS_BUDGET_WARN_BYTES`
 - stderr never reaches agent context
 - `[warn]` line → prune that `constraints.md` section or split into a tighter tag
-
----
-
-## On-Demand Loading
-
-- `constraints.md`: tagged sections only
-- `profiles/<name>.md`: tagged sections only, for the profiles `detect-profile.sh` selects from the changed files (only names with a profile file; empty → no stack rules)
-- Test command: `hooks/detect-test-cmd.sh [dir]` (registry `test_cmd`, then JS / Python / Go / Rust markers); empty → `no_tests_configured`
-- Project knowledge: load via `search-knowledge`
-- Session start: compact summaries only
-- `search-knowledge` returns compact bullets, not excerpts
-
-### Skip Rules
-
-- Skip `search-knowledge` if knowledge is empty/irrelevant (the skill's injected `knowledge:` line already ran `knowledge-has-content.sh`)
-- `plan.md → Design Check → Reuse` is filled by the main session at plan time and must never be empty; `reviewer` FAILs an empty `Reuse` line
-- Pass API spec to `developer` only when UI fetching/mutation changes
-- Skip `save-knowledge` if no durable pattern, decision, or issue emerged
 
 ---
 

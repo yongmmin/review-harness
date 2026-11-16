@@ -64,7 +64,7 @@ if [ -z "$MATCHED" ]; then
   echo "- status: not registered"
   echo "- cwd: $ABS_CWD"
   # Org overlays can supply their own hint line (~/.review-harness/org/detect-repo-hint.txt).
-  HINT=$(head -n 1 "$RH_HOME/org/detect-repo-hint.txt" 2>/dev/null)
+  HINT=$(head -n 1 "$RH_HOME/org/detect-repo-hint.txt" 2>/dev/null) || true  # set -e: a missing file must not cut the block
   echo "- hint: ${HINT:-register the repo in $REPOS_FILE}"
   echo "=== End Active Repo ==="
   exit 0

@@ -86,6 +86,6 @@ No prose, no emojis, no explanation of rtk internals.
 
 ## Guarantees
 
-- Never installs or uninstalls rtk globally
+- Never installs or uninstalls rtk globally: never run `rtk init -g`, never write rtk hooks to `~/.claude/settings.json`
 - Only writes `rtk-session.flag` in the plugin state dir (`~/.review-harness/state/<repo-id>/`) — nothing in the consumer repo
 - If rtk is not installed, mode still writes; `rtk-wrap.sh` silently falls back to raw at runtime

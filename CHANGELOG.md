@@ -2,6 +2,17 @@
 
 This plugin is a rebuild that carries over the Harness Engineering principles of the earlier `front-agent` (a generic React/Next plugin).
 
+### Unreleased
+
+**Runtime rules now reach plugin users**
+- A plugin's root `CLAUDE.md` is not loaded in a user's session (`claude plugin validate` warns about it), so rules kept only there never applied outside this repo. They now live in the skill or agent that acts on them: Write/Edit limits, context-budget limits and "pass `extract-constraints.sh` output as-is" in `/review-harness`; rtk wrapping in the `developer` and `reviewer` agents; "never `rtk init -g`" in `/rtk-toggle`. `CLAUDE.md` is now the maintainer file
+- The `review-harness` skill description also lists bug-fix requests ("fix this") for auto-invocation
+
+**Fixed**
+- `detect-repo.sh` printed no `hint` line and no `=== End Active Repo ===` marker when the org hint file was missing
+- `/register-repo` printed `no matches found` under zsh when no org registry exists
+- `scan-repo.sh` printed a broken `local_path` for a folder name containing a backtick (backticks are now stripped)
+
 ### v0.6.0 (2026-11-16)
 
 **Register a repo without writing `repos.md` by hand**

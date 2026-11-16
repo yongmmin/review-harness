@@ -121,6 +121,9 @@ has "detect-repo: subdirectory matches" "- name: my-app" "$OUT"
 has "detect-repo: prints registry keys" "- role: demo app" "$OUT"
 case "$OUT" in *"not this one"*) eq "detect-repo: stops at the next repo" clean leaked ;; *) PASS=$((PASS + 1)) ;; esac
 has "detect-repo: sibling with the same prefix is not matched" "not registered" "$(bash "$H/detect-repo.sh" "$TMP/my-app-api")"
+OUT=$(bash "$H/detect-repo.sh" "$TMP/my-app-api")   # no org/detect-repo-hint.txt exists yet
+has "detect-repo: unmatched, no hint file → default hint" "- hint: register the repo in" "$OUT"
+eq "detect-repo: unmatched, no hint file → end marker" "=== End Active Repo ===" "$(printf '%s\n' "$OUT" | tail -n 1)"
 
 # --- detect-test-cmd -------------------------------------------------------------------
 REG="$TMP/reg-app"; mkdir -p "$REG/app" && git -C "$REG" init -q && echo 'x = 1' > "$REG/app/x.py"
@@ -342,6 +345,10 @@ lacks "scan-repo: empty paths array is skipped, no null" "null" "$OUT"
 mkdir -p "$TMP/injhome/knowledge" && printf '%s\n' "$OUT" > "$TMP/injhome/knowledge/repos.md"
 has "scan-repo: injected block is still registered" "- name: inject" "$(REVIEW_HARNESS_HOME="$TMP/injhome" bash "$H/detect-repo.sh" "$INJ")"
 eq "scan-repo: injected tsconfig gives no test_cmd" "" "$(REVIEW_HARNESS_HOME="$TMP/injhome" dt "$INJ")"
+# A backtick in the repo folder name cannot cut the local_path span short.
+BT="$TMP/tick\`dir"; mkdir -p "$BT"
+eq "scan-repo: backtick in the folder name → stripped, one backtick pair" "- **local_path**: \`$TMP/tickdir\`" \
+  "$(sr "$BT" | grep '^- \*\*local_path')"
 # Round trip: the proposed block, appended to a flat registry, is matched by detect-repo.sh and read by detect-test-cmd.sh.
 RT="$TMP/rthome"; mkdir -p "$RT/knowledge"; sr "$NX" > "$RT/knowledge/repos.md"
 OUT=$(REVIEW_HARNESS_HOME="$RT" bash "$H/detect-repo.sh" "$NX/src")
@@ -364,6 +371,18 @@ eq "register-repo: no registry file → 0 same-name headings" 0 "$(dups "$TMP/rr
 printf '### next-app\n- **local_path**: `/elsewhere/next-app`\n' >> "$TMP/rr4/knowledge/repos.md"
 eq "register-repo: same-name heading counted" 1 "$(dups "$TMP/rr4")"
 has "register-repo: injects the scan" "- **role**: TODO" "$(cd "$NX" && REVIEW_HARNESS_HOME="$TMP/rr0" CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$(awk '/^```!$/{f=1;next} /^```$/{if(f)exit} f' "$RR")" 2>/dev/null)"
+# The injected block runs in the user's shell: under zsh an unmatched glob must not print "no matches found".
+if command -v zsh >/dev/null 2>&1; then
+  zt() { (cd "$NX" && REVIEW_HARNESS_HOME="$1" CLAUDE_PLUGIN_ROOT="$ROOT" zsh -f -c "$(awk '/^```!$/{f=1;next} /^```$/{if(f)exit} f' "$RR")" 2>&1); }
+  OUT=$(zt "$TMP/rr0")
+  lacks "register-repo: zsh, no org folder → no glob error" "no matches found" "$OUT"
+  has "register-repo: zsh, no org folder → flat registry" "registry file: $TMP/rr0/knowledge/repos.md" "$OUT"
+  OUT=$(zt "$TMP/rr1")
+  lacks "register-repo: zsh, one org folder → no glob error" "no matches found" "$OUT"
+  has "register-repo: zsh, one org folder → its repos.md" "registry file: $TMP/rr1/knowledge/acme/repos.md" "$OUT"
+else
+  echo "skip: register-repo zsh tests (zsh not installed)"
+fi
 # review-harness: the injected register line follows the per-work-tree decline flag.
 RCMD=$(sed -n 's/^- register: !`\(.*\)`$/\1/p' "$ROOT/skills/review-harness/SKILL.md")
 reg() { (cd "$NX" && CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$RCMD"); }

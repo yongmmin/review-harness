@@ -89,7 +89,9 @@ fi
 one() { printf '%s' "$1" | tr '\n\r' '  '; }
 line() { [ -n "$2" ] && printf -- '- **%s**: %s\n' "$1" "$(one "$2")"; }
 printf '### %s\n' "$(one "$(basename "$R")")"
-line local_path "\`$R\`"
+# A backtick would end the `…` span detect-repo.sh reads, so it is stripped. The stripped path is not the
+# repo root, so detect-repo.sh does not match the repo (register-repo's verify step then stops).
+line local_path "\`$(printf '%s' "$R" | tr -d '`')\`"
 line role TODO
 line stack "$STACK"
 line layout "${LAYOUT:+\`$LAYOUT\`}"
