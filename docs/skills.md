@@ -41,7 +41,7 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 ### Git (3) — **all user-driven**
 
 - **`/git-branch`** — lists existing branches → selects a base (main/stage/production, etc.) → asks for the name → prints the `git checkout -b` command. **Never runs it**
-- **`/git-commit`** — runs automatically when `run-state.sh check` passes (a reviewer PASS record for the current work tree, or a recorded user override). Generates a Conventional Commit message, protects .npmrc/.env, forbids --no-verify
+- **`/git-commit`** — runs automatically when `run-state.sh check` passes (a reviewer PASS record for the current work tree and no failed or unconfirmed test result, or a recorded user override). Generates a Conventional Commit message, protects .npmrc/.env, forbids --no-verify
 - **`/git-pr`** — generates the title + body + `gh pr create` command + prefilled GitHub compare URL. **Never runs `gh`**
 
 ### Plugin operations (1)
@@ -106,5 +106,5 @@ Uses a model alias per role — `fable`/`opus` (YAML frontmatter `model:` + `eff
 |---|---|
 | **developer** | TDD RED→GREEN implementation + API integration (handles types → hook/service → UI states inline). Follows the `Reuse` item of `plan.md` |
 | **reviewer** | Review in 4 categories (correctness/performance/design/scope) + static gates. The single quality gate before commit. FAILs if `Reuse` in `plan.md` is empty, `[goal]` when a `Done When` item is unmet or new code is a stub or never called, `[scope]` for an `Out of Scope` edit |
-| **test-runner** | Runs tests + summarises results. No fake PASS in repos without tests configured (`no_tests_configured`) |
+| **test-runner** | Records a baseline of already-failing tests before developer, then runs tests (only new failures count), the `Done When` command checks and one whole-project check (`check_cmd` or `tsc --noEmit`), and records the result in `run-state.json`. No fake PASS in repos without tests configured (`no_tests_configured`) |
 | **refactor-architect** | Detects pattern duplication + proposes extractions (writes `plan.md` only) |

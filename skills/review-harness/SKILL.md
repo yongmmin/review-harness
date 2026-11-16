@@ -245,9 +245,10 @@ Never inline full `constraints.md`. Never pass unrelated files or raw verbose lo
 - blockers: cart.spec.ts failing
 - test_status: not_run | passed:npm run test | failed:npm run test
 - red: <regression test's failing output line before the fix> (bugfix only)
+- assumptions: <what developer assumed where the plan was silent> (developer only)
 ```
 
-Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
+Rules: omit empty fields, max 6 bullets plus `red:` for bugfix and `assumptions:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
 
 ---
 
@@ -261,14 +262,19 @@ Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, one line each, n
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" start <workflow> <step> <step> ...
 ```
 
-with `<workflow>` = `small-change | feature | bugfix | refactor | review` and the workflow's steps in order (e.g. `start feature developer test-runner reviewer git-commit`). If it refuses because a run is already active, go back to Request Gate 0.5. Then keep the file current — the script computes every counter, timestamp and hash; never write those values yourself:
+with `<workflow>` = `small-change | feature | bugfix | refactor | review` and the workflow's steps in order (e.g. `start feature baseline developer test-runner reviewer git-commit`). If it refuses because a run is already active, go back to Request Gate 0.5. Then keep the file current — the script computes every counter, timestamp and hash; never write those values yourself:
 
 - step finished → `run-state.sh step <name>`
 - tests failed → `run-state.sh attempt`
 - reviewer verdict → recorded by `reviewer` itself with `run-state.sh verdict PASS|FAIL`. Give the reviewer the `plan_path` (when a plan exists) and put this absolute command in its prompt: `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" verdict <PASS|FAIL>`. If the reviewer's reply has no `review: … recorded` line, spawn `reviewer` once more to record it. If the line is still missing, treat the run as having no verdict: never record a verdict yourself, stop, and report to the user that the review was not recorded. `git-commit` stays blocked in that state
+- test result → recorded by `test-runner` itself: put `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" tests <pass|fail|none>` in its prompt (not in the baseline run)
 - last commit made, or a `review` workflow finished → `run-state.sh done`
 
-**Review gate**: `reviewer` is the single quality gate, and it is enforced from the state file, not from the conversation. `git-commit` proceeds only when `run-state.sh check` passes: a recorded PASS whose work-tree hash equals the current work tree, or a recorded user override. FAIL, a missing verdict, or code changed after the review all block the commit; the fix list feeds the retry loop. The `commit-gate.sh` PreToolUse hook denies `git commit` on the same check as a backstop.
+**Review gate**: `reviewer` is the single quality gate, and it is enforced from the state file, not from the conversation. `git-commit` proceeds only when `run-state.sh check` passes: a recorded PASS whose work-tree hash equals the current work tree and no blocking test result, or a recorded user override. FAIL, a missing verdict, code changed after the review, a `tests fail`, or a `tests none` the user has not confirmed all block the commit; the fix list feeds the retry loop. The `commit-gate.sh` PreToolUse hook denies `git commit` on the same check as a backstop.
+
+**Test baseline** (`feature`, `bugfix`, `refactor`): before `developer`, spawn `test-runner` with `mode: baseline`. It writes the already-failing tests to `<state dir>/baseline.txt`, and later runs count only new failures. If it lists any, tell the user in one line: `N tests already fail before this change: <ids> — they do not count against it.` Then `run-state.sh step baseline` (also on `no_tests_configured`). A bugfix's regression test appears there only if it already exists.
+
+**No tests** (`test-runner` reports `no_tests_configured`): after reviewer PASS, show the user the `Done When` manual steps (Small change: the `Done when:` check) with the test-runner's command results, and ask with `AskUserQuestion`: `Checked — commit` | `Not yet`. Record `run-state.sh tests manual-confirmed` only after the user explicitly says yes; otherwise stop before `git-commit`.
 
 ### Shared Skip Rules
 
@@ -295,7 +301,7 @@ This path skips `plan.md` and the approval wait (Request Gate 6): say in one lin
 ### Feature
 
 ```
-search-knowledge? -> developer
+search-knowledge? -> test-runner (baseline) -> developer
 -> test-runner -> reviewer
 -> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
 ```
@@ -306,11 +312,11 @@ search-knowledge? -> developer
 
 ```
 reproduce -> plan.md (## Bug) -> user approval
--> developer (regression test RED, then fix) -> test-runner -> reviewer
+-> test-runner (baseline) -> developer (regression test RED, then fix) -> test-runner -> reviewer
 -> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
 ```
 
-Run state: `start bugfix reproduce developer test-runner reviewer git-commit`.
+Run state: `start bugfix reproduce baseline developer test-runner reviewer git-commit`.
 
 - **Reproduce first**: run the failing test, or a command that shows the failure (request, script, CLI), and record it in `Repro`. Then trace it to `Cause` (`file:line` + why). If neither reproduces it, stop and ask the user for the exact symptom and environment (input, logs, version). Never fix by guess
 - **Fix of at most 2 files**: skip the approval wait, but show the user the `Cause` and `Regression test` lines before `developer` starts. The plan is still written
@@ -322,7 +328,7 @@ Run state: `start bugfix reproduce developer test-runner reviewer git-commit`.
 
 ```
 search-knowledge? -> refactor-architect -> user re-approval
--> developer -> test-runner -> reviewer
+-> test-runner (baseline) -> developer -> test-runner -> reviewer
 -> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
 ```
 

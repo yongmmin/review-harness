@@ -48,7 +48,7 @@ tools: Read, Glob, Grep, Bash, Edit
 - New code leaves a TODO/FIXME, a stub, or a placeholder return (hardcoded or empty value where the logic should be) in something a Done When item expects to work. Abstract/overridable members and stubs that `Out of Scope` names pass
 - A new export with no caller in the change or the repo (built but not wired in), unless it is exported from the package's public entry (index or `package.json` exports), is a file-routed, decorator/DI-registered or CLI entry point, is used only by tests, or `Out of Scope` names the later change that calls it
 
-An edit to something `Out of Scope` names → FAIL `[scope]`.
+An edit to something `Out of Scope` names → FAIL `[scope]` (a stub that `Out of Scope` names, left for the later change, is not such an edit).
 
 ---
 

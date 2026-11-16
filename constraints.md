@@ -43,7 +43,7 @@
 
 - Never declare completion without test results
 - If `harness_loop` reaches `MAX_ATTEMPTS` (3 — test failures and reviewer FAILs share one counter kept by `run-state.sh`), do not declare completion. Stop and report the full failure context (failing command, file, error excerpt, attempted fixes) to the user. The user decides whether to file an issue
-- Output code only. No explanations, summaries, or "I did X" narration
+- No explanations, summaries, or "I did X" narration
 
 ---
 

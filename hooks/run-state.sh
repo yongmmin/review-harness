@@ -8,6 +8,9 @@
 #   step <name>                 mark a step done
 #   attempt                     count a failed attempt (test failure); exit 2 at the limit
 #   verdict PASS|FAIL           record the reviewer verdict + work-tree hash; FAIL counts as an attempt
+#   tests pass|fail|none|manual-confirmed
+#                               record the test result + work-tree hash (active run only); manual-confirmed
+#                               (the user's yes to the manual checks) only replaces none
 #   override <reason>           record an explicit user override for the current work tree
 #   check [--active-only]       commit gate. exit 0 ok · 1 blocked · 3 nothing to enforce · 4 stale run
 #   done | abandon              close the run
@@ -62,7 +65,7 @@ new_file() { # $1 workflow, $2 status, $3 steps json
   mkdir -p "$STATE_DIR" && bash "$HERE/state-dir.sh" --create "$PWD" >/dev/null
   jq -n --arg wf "$1" --arg s "$2" --argjson steps "$3" --argjson now "$(now)" --argjson max "$MAX_ATTEMPTS" \
     '{version:1, workflow:$wf, status:$s, started_at:$now, updated_at:$now, steps:$steps,
-      attempts:0, max_attempts:$max, review:null, override:null}' > "$FILE.$$.tmp" && mv -f "$FILE.$$.tmp" "$FILE"
+      attempts:0, max_attempts:$max, review:null, tests:null, override:null}' > "$FILE.$$.tmp" && mv -f "$FILE.$$.tmp" "$FILE"
 }
 
 is_stale() { [ "$(st)" = active ] && [ $(( $(now) - $(get '.updated_at // 0') )) -gt "$STALE_SECONDS" ]; }
@@ -84,6 +87,7 @@ case "${1:-}" in
       exit 1
     fi
     wf="$2"; shift 2
+    rm -f "$STATE_DIR/baseline.txt"   # the previous run's already-failing tests
     steps=$(printf '%s\n' "$@" | jq -R . | jq -cs 'map(select(length > 0) | {name: ., done: false})')
     new_file "$wf" active "$steps" && echo "run-state: started '$wf' → $FILE"
     ;;
@@ -108,6 +112,16 @@ case "${1:-}" in
     echo "review: $v recorded for work tree $h"
     # PASS exits 0; FAIL exits with report_attempts (2 at the limit)
     [ "$v" = PASS ] || report_attempts
+    ;;
+  tests)
+    case "${2:-}" in pass|fail|none|manual-confirmed) ;; *) echo "usage: run-state.sh tests pass|fail|none|manual-confirmed" >&2; exit 2 ;; esac
+    [ "$(st)" = active ] || { echo "run-state: no active run — tests result not recorded"; exit 0; }
+    if [ "$2" = manual-confirmed ]; then
+      case "$(get '.tests.status // ""')" in none|manual-confirmed) ;;
+        *) echo "run-state: manual-confirmed applies only after 'tests none' (no test command ran)" >&2; exit 1 ;; esac
+    fi
+    h=$(tree_hash)
+    update --arg t "$2" --arg h "$h" '.tests = {status: $t, tree: $h, at: $now}' && echo "tests: $2 recorded for work tree $h"
     ;;
   override)
     [ -z "${2:-}" ] && { echo "usage: run-state.sh override <reason>" >&2; exit 2; }
@@ -134,6 +148,13 @@ case "${1:-}" in
       echo "blocked: code changed after the review (reviewed work tree $(get .review.tree), current $h). Re-run the reviewer on the current changes."
       exit 1
     fi
+    # No tests record (older flows, review fast-path) leaves the gate to the review alone.
+    case "$(get '.tests.status // ""')" in
+      fail) echo "blocked: the last test run failed. Fix it and re-run test-runner."; exit 1 ;;
+      none) echo "blocked: no test command ran. Show the user the manual checks; record 'run-state.sh tests manual-confirmed' only after the user explicitly confirms them."; exit 1 ;;
+      manual-confirmed) [ "$(get .tests.tree)" = "$h" ] || {
+        echo "blocked: code changed after the user's manual confirmation. Ask the user to confirm the manual checks again."; exit 1; } ;;
+    esac
     echo "ok: reviewer PASS matches the current work tree ($h)"
     ;;
   done|abandon)
@@ -150,9 +171,10 @@ case "${1:-}" in
       + " · done: \([.steps[] | select(.done) | .name] | join(",") | if . == "" then "-" else . end)"
       + " · pending: \([.steps[] | select(.done | not) | .name] | join(",") | if . == "" then "-" else . end)"
       + " · attempts \(.attempts)/\(.max_attempts)"
+      + " · tests: \(.tests.status // "-")"
       + " · review: \(if .review == null then "none" elif .review.verdict == "FAIL" then "FAIL" elif .review.tree == $h then "PASS(current)" else "PASS(outdated — code changed)" end)"
       + " · updated \((($now - .updated_at) / 60) | floor)m ago"' "$FILE"
     ;;
   hash) tree_hash ;;
-  *) echo "usage: run-state.sh start|step|attempt|verdict|override|check|done|abandon|status|hash" >&2; exit 2 ;;
+  *) echo "usage: run-state.sh start|step|attempt|verdict|tests|override|check|done|abandon|status|hash" >&2; exit 2 ;;
 esac

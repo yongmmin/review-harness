@@ -205,10 +205,18 @@ if [ -f "$PROJECT_ROOT/tsconfig.json" ]; then
   if [ "$TSC_EXIT" != "0" ]; then
     TSC_OUTPUT=$(cat "$TSC_OUT_FILE")
     RELEVANT=$(printf '%s\n' "$TSC_OUTPUT" | grep -F "$FILENAME" -A 1 | head -n $((MAX_TSC_LINES * 2)))
+    OWN_BLOCK=1
     if [ -z "$RELEVANT" ]; then
       RELEVANT=$(printf '%s\n' "$TSC_OUTPUT" | head -n "$MAX_TSC_LINES")
+      OWN_BLOCK=""
     fi
     RELEVANT=$(compact_block "$RELEVANT" "$MAX_TSC_LINES")
+    if [ -n "$OWN_BLOCK" ]; then
+      # Errors in other files that the edited-file block does not show (a context line may show one).
+      OTHER=$(( $(printf '%s\n' "$TSC_OUTPUT" | grep -F -v "$FILENAME" | grep -c 'error TS') \
+              - $(printf '%s\n' "$RELEVANT" | grep -F -v "$FILENAME" | grep -c 'error TS') ))
+      [ "$OTHER" -gt 0 ] && RELEVANT="${RELEVANT}"$'\n'"other files: $OTHER more errors"
+    fi
     if [ -n "$RELEVANT" ]; then
       ERRORS="${ERRORS}\n[TypeScript Error]\n${RELEVANT}"
     fi

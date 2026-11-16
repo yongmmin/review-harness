@@ -17,6 +17,15 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - `test-runner` gets the `Done When` test/command checks in its prompt, so the reviewer has evidence for them
 - Handoff: "max 6 bullets plus `red:` for bugfix"; a bugfix retry carries the first developer run's `red:` line to the re-spawned developer and the reviewer
 
+**Verification**
+- Test baseline: in `feature`, `bugfix` and `refactor`, `test-runner` runs once before `developer` (`mode: baseline`, run-state step `baseline`) and writes the already-failing tests to `<state dir>/baseline.txt`; later runs count only new failures (a bugfix's regression test always counts). The user is told in one line when the baseline has failures. `run-state.sh start` deletes the previous run's baseline
+- Test results in the commit gate: new `run-state.sh tests pass|fail|none|manual-confirmed` (recorded by `test-runner` with the work-tree hash; active run only). `check` blocks on `fail`, on `none` the user has not confirmed, and on a confirmation of an older work tree; `manual-confirmed` is accepted only over `none`. A run with no tests record (review fast-path, older flows) is gated as before. `status` shows the tests record
+- No-tests repos: on `no_tests_configured`, `/review-harness` shows the `Done When` manual steps (or the Small change `Done when:` check) after reviewer PASS and records `manual-confirmed` only after the user's explicit yes
+- `test-runner` runs the `Done When` command checks also when the repo has no test command, then one whole-project check (registry `check_cmd`, else `npx tsc --noEmit` with a `tsconfig.json`) reported as `check:`
+- `developer` runs the new tests and confirms they fail for the intended reason before implementing (`/tdd` points to that rule instead of repeating it). Its output is the handoff block only, with an optional `assumptions:` line (also in the handoff schema); "Output code only" is gone from `developer` and `constraints.md #completion`
+- `post-tool-use.sh`: when the tsc block shows the edited file's errors, a line `other files: N more errors` counts the errors elsewhere that are not shown
+- `reviewer`: a stub that `Out of Scope` names is not an out-of-scope edit
+
 **Runtime rules now reach plugin users**
 - A plugin's root `CLAUDE.md` is not loaded in a user's session (`claude plugin validate` warns about it), so rules kept only there never applied outside this repo. They now live in the skill or agent that acts on them: Write/Edit limits, context-budget limits and "pass `extract-constraints.sh` output as-is" in `/review-harness`; rtk wrapping in the `developer` and `reviewer` agents; "never `rtk init -g`" in `/rtk-toggle`. `CLAUDE.md` is now the maintainer file
 - The `review-harness` skill description also lists bug-fix requests ("fix this") for auto-invocation
