@@ -1,0 +1,3 @@
+contract: response field renamed while a consumer in the same repo still reads it (web-common / web-api gate)
+fullname|consumer|comment
+apps/web/src/components/CommentItem.tsx|apps/web/src/types/comment.ts|apps/api/src/users/user-response.dto.ts

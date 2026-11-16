@@ -343,5 +343,36 @@ eq "pre-tool-use: pnpm-lock.yaml → deny" deny "$(edit "$P/pnpm-lock.yaml")"
 eq "pre-tool-use: go.sum → deny" deny "$(edit "$P/go.sum")"
 eq "pre-tool-use: bun.lock → deny" deny "$(edit "$P/bun.lock")"
 
+# --- bench -----------------------------------------------------------------------------
+B="$ROOT/bench"
+IDS=$(ls "$B/cases" | tr '\n' '|')
+for c in "$B"/cases/*/; do
+  c=$(basename "$c"); FX=$(mktemp -d "$TMP/review.XXXXXX")   # README recipe: opaque fixture dir
+  echo "$FX" > "$TMP/fx-$c"
+  bash "$B/cases/$c/setup.sh" "$FX" >/dev/null 2>&1; eq "bench $c: setup exits 0" 0 "$?"
+  eq "bench $c: base commit exists" 0 "$(git -C "$FX" rev-parse -q --verify HEAD >/dev/null; echo $?)"
+  eq "bench $c: base not made by git commit" "" "$(git -C "$FX" reflog --format=%gs | grep '^commit')"
+  eq "bench $c: diff is non-empty" 1 "$(git -C "$FX" diff --quiet; echo $?)"
+  eq "bench $c: expect.txt has 3 lines" 3 "$(wc -l < "$B/cases/$c/expect.txt" | tr -d ' ')"
+  META="$FX
+$(git -C "$FX" log --format='%an %ae %cn %ce %B') $(git -C "$FX" reflog --format=%gs)"
+  eq "bench $c: no case id or 'bench' in path / log / reflog" "" "$(printf '%s\n' "$META" | grep -iE "bench|${IDS%|}")"
+  eq "bench $c: no case id in any fixture file" "" "$(grep -rlE "${IDS%|}" "$FX")"
+  eq "bench $c: no expect.txt in fixture" "" "$(find "$FX" -name expect.txt)"
+done
+for c in fe-effect-cleanup:web-frontend api-unawaited:web-api; do
+  OUT=$(TMPDIR="$TMP" bash "$B/prompt.sh" current "$(cat "$TMP/fx-${c%%:*}")" 2>/dev/null)
+  has "bench prompt ${c%%:*}: reviewer Output Format" "## Output Format" "$OUT"
+  has "bench prompt ${c%%:*}: profile block" "## Profile — ${c#*:}" "$OUT"
+  eq "bench prompt ${c%%:*}: no case id" "" "$(printf '%s\n' "$OUT" | grep -E "${IDS%|}")"
+done
+lacks "bench prompt: frontmatter stripped" "model: " "$OUT"
+printf '%s\n' rule 'await|promise' src/a.service.ts > "$TMP/expect.txt"
+printf '%s\n' '## Code Review Verdict: FAIL' '### Issues' '1. [correctness] [src/a.service.ts:3] - missing await' \
+  '2. [design] [src/b.ts:1] - magic value' > "$TMP/out-hit.md"
+printf '%s\n' '## Code Review Verdict: PASS' '### Handoff' '- changed_files: src/a.service.ts' > "$TMP/out-miss.md"
+eq "bench score: FAIL with file + keyword → caught" "caught extra=1" "$(bash "$B/score.sh" "$TMP/expect.txt" "$TMP/out-hit.md")"
+eq "bench score: PASS → missed" "missed extra=0" "$(bash "$B/score.sh" "$TMP/expect.txt" "$TMP/out-miss.md")"
+
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

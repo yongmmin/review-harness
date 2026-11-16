@@ -1,0 +1,3 @@
+security: read/update by client-supplied id without an owner predicate (web-api gate)
+owner|idor|authoriz|another user
+src/notes/notes.service.ts|src/notes/notes.controller.ts
