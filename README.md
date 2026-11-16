@@ -148,12 +148,18 @@ The plugin never creates files inside the repo you are working in. Run state liv
 | `approved/` | Approvals for config-file edits (30-minute TTL) |
 | `cache/` | tsc / eslint temporary files (cleaned after 1 hour) |
 
+One file sits directly in `~/.review-harness/state/`, shared by all repos:
+
+| File | Content |
+|---|---|
+| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed. `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it |
+
 If a run is interrupted, the next `/review-harness` asks whether to resume it or start new.
 
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 11 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 15 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 16 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md) — agent rules

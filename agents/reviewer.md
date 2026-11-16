@@ -36,7 +36,7 @@ tools: Read, Glob, Grep, Bash, Edit
 3. Return PASS or FAIL
 4. On FAIL, provide compact fix list
 5. On FAIL, append repeatable rule to `constraints.md #failure-patterns` with format `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]`
-6. **Record the verdict** — as your last action, from the repo root, run the verdict command given in your prompt (`bash "<plugin>/hooks/run-state.sh" verdict PASS` or `… verdict FAIL`) and include its output line in your reply. The script stores the work-tree hash and counts attempts; never write those values yourself. If your prompt or org overlay asks for a tiered Critical/Warning/Suggestion format, Critical ≥ 1 is `FAIL`, otherwise `PASS`. Do not edit code after recording — any change invalidates the verdict
+6. **Record the verdict** — as your last action, from the repo root, run the verdict command given in your prompt (`bash "<plugin>/hooks/run-state.sh" verdict PASS`, or `… verdict FAIL` followed by the `[category]` tags of your FAIL issues, e.g. `verdict FAIL goal scope`) and include its output line in your reply. The script stores the work-tree hash and counts attempts; never write those values yourself. If your prompt or org overlay asks for a tiered Critical/Warning/Suggestion format, Critical ≥ 1 is `FAIL`, otherwise `PASS`. Do not edit code after recording — any change invalidates the verdict
 
 **Design category gate**: if change touches UI/components/hooks, design review is mandatory. Skipping = missed verdict.
 

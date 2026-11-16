@@ -14,9 +14,22 @@ bug in otherwise reasonable code (a reviewer may still raise a minor real issue 
 | `api-unawaited` | audit-log write in a request path is not awaited | web-api: floating promise |
 | `api-no-owner` | note read/update by client id with no owner predicate | web-api: owner predicate |
 | `x-removed-field` | response field renamed; a web consumer in the same repo still reads the old name | web-common / web-api: contract |
+| `goal-not-wired` | plan: a status filter on the orders page. The diff adds the hook and the select with passing tests; the page never uses them | reviewer goal gate: `[goal]` (Done When unmet, export with no caller) |
+| `bug-cause-elsewhere` | plan `## Bug`: the `Cause` is a store action that mutates and returns the same array. The diff patches the symptom component instead (its regression test passes); other subscribers stay stale | reviewer bugfix gate: `[scope]` / `[correctness]` against `Cause` |
+| `contract-caller-missed` | plan `Callers/Consumers` lists 3 callers of a function whose signature grows an optional argument; the diff updates 2, the third is neither changed nor marked | reviewer contract gate: `[contract]` |
 
 `cases/<id>/expect.txt`: line 1 = expected rule, line 2 = `|`-separated lowercase keywords a correct finding
-contains, line 3 = the file the bug is in (`|` separates acceptable files).
+contains, line 3 = the file the bug is in (`|` separates acceptable files), optional line 4 = `|`-separated
+categories the matching finding should carry (`score.sh` then adds `category=match|other`).
+
+### Plan-based cases
+
+The last three cases are built so that the diff alone looks fine: what is wrong is only visible against the plan
+(`Done When`, `## Bug → Cause`, `Callers/Consumers`). They are the cases a reviewer is likely to miss without the
+plan gates and without the plan. Each ships `plan.md` and a `handoff.md` (the developer's handoff lines, e.g.
+`test_status`, `red:`). Given the case dir as a third argument, `prompt.sh` copies `plan.md` to `<fixture>.plan.md`
+(as opaque as the fixture path) and appends `## Handoff` with `- plan_path: <that file>` and the handoff lines, the
+way `/review-harness` passes them. Without the case dir the prompt has no plan, which is the "no plan context" cell.
 
 ## Arms
 
@@ -25,6 +38,11 @@ contains, line 3 = the file the bug is in (`|` separates acceptable files).
 | `pre-split` | `9c81361` | reviewer agent + generic constraints (frontend gates lived in the agent file) |
 | `pre-stage4` | `53dd721` | reviewer agent + constraints + profiles chosen by that revision's `detect-profile.sh` (web-frontend only) |
 | `current` | `HEAD` | same as `pre-stage4` with HEAD's files (web-frontend, web-api, web-common) |
+
+Cells for the plan-based cases: `pre-stage4` with the case dir (a plan, but the rules from before the goal,
+bugfix and contract gates; its plan gate reads only `Reuse`), `current` without the case dir (the rules, no plan),
+`current` with the case dir. The difference between the first and the last isolates the rules; between the second
+and the last, the plan context.
 
 `prompt.sh` unpacks the revision with `git archive` into a temp dir under `$TMPDIR` and runs its own scripts with
 an empty `REVIEW_HARNESS_HOME`, so no organisation overlay reaches the prompt. The prompt never comes from an
@@ -37,7 +55,7 @@ export TMPDIR=<scratch dir>/w          # any path whose names do not start with 
 RES=<scratch dir>/r; mkdir -p "$TMPDIR" "$RES"
 FX=$(mktemp -d "$TMPDIR/review.XXXXXX")                         # opaque fixture dir, one per case
 bash bench/cases/<id>/setup.sh "$FX"                            # fixture repo, base + uncommitted change
-bash bench/prompt.sh <arm> "$FX" > "$RES/<id>.<arm>.prompt.md"
+bash bench/prompt.sh <arm> "$FX" > "$RES/<id>.<arm>.prompt.md"   # plan-based cell: add bench/cases/<id> as a 3rd arg
 # spawn a general-purpose agent on the production reviewer model and give it that prompt: paste its content,
 # or copy it to an opaque name (e.g. q07.md) in a directory holding nothing else and give that path.
 # Never a path that names the case or arm. Save its reply to "$RES/<id>.<arm>.out.md"
@@ -51,6 +69,10 @@ names carry the case id) live in `$RES`, outside the fixture dir. Keep a `<id>` 
 `setup.sh` refuses a non-empty directory; use a fresh one per case. One fixture can serve all arms because the
 reviewer is told not to edit files. Read every output by hand; `score.sh`'s `caught` / `extra=N` are a first pass
 and `extra` is a lower bound (an extra finding that names the bug's file and a keyword counts as the match).
+
+**Three runs per cell** for every new result: spawn the same prompt three times (three fresh agents, three output
+files `<id>.<arm>.<n>.out.md`) and report the cell as `caught k/3`, extra findings summed over the three. One run
+per cell (runs 1 and 2 below) cannot separate an effect from chance.
 
 ## Results
 
@@ -105,4 +127,43 @@ Reading (both runs):
 - **The run-1 "missing test" findings did not recur** (0 in run 2), so the noise difference in run 1 was chance or an effect of the method change between runs; the two cannot be separated.
 - **One consistent difference:** with `web-common`/`web-api` loaded, the reviewer also flags the API-side rename that breaks consumers (2 of 2 runs), not only the stale consumer. That is the contract gate (mined from 12 cross-repo breaks) doing what it says.
 
-Next: subtler cases (a bug the model misses without the rule) and three runs per cell before drawing conclusions about detection.
+Next: run the three plan-based cases in the cells above, three runs per cell.
+
+## Developer-side bench (deferred — design only)
+
+The cases above measure only the reviewer. A developer-side case would measure the whole loop on a small task:
+
+- `cases-dev/<id>/setup.sh` builds a fixture repo at the base commit (same `lib.sh` helpers, same opacity rules),
+  `task.md` is the issue text the developer gets, and `accept/` holds acceptance tests the agent never sees.
+- An arm runs the task end to end (plain Claude Code, or `/review-harness` at a given revision) in the fixture.
+- Scoring copies `accept/` into the finished fixture and runs the repo's test command: hidden tests passing,
+  previously passing tests now failing (regressions), plus attempts, tokens and wall time from the transcript and
+  `runs.jsonl`.
+- Deferred: the fixtures need installable dependencies, so this bench is slower and needs network or a package
+  cache. It is not built yet; this section is the design to build it from.
+
+## A/B on real tasks
+
+To compare plugin revisions on real work rather than planted bugs:
+
+1. **Pick 15–20 tasks** from one repo's merged history: bug fixes and small features, each one PR or commit with
+   its own tests and an issue or PR text that states the problem without the solution. Skip pure refactors,
+   dependency bumps and changes without tests.
+2. **Prepare each task**: a worktree at the commit's parent; the commit's test files are set aside as hidden
+   acceptance tests (not in the worktree); the task prompt is the original issue text, unedited except for links
+   that give the fix away.
+3. **Arms**: plain Claude Code (plugin disabled), the current harness, the harness at a candidate revision (a
+   branch checked out in the plugin folder; a new session per arm, since a session keeps the agent definitions it
+   started with). Same model in every arm, and each arm's own `REVIEW_HARNESS_HOME` with the same content (empty, or the same org
+   overlay and knowledge).
+4. **Three runs per task per arm**, each in a fresh worktree and a fresh session; the order of arms shuffled.
+5. **Measure** per run: hidden acceptance tests passing (all / some / none), new regressions (tests that passed at
+   the base and fail after), attempts and reviewer FAILs, tokens, wall time, and whether the run needed a user
+   override or stopped at the limit.
+6. **Read `runs.jsonl` alongside**: point each harness arm at its own `REVIEW_HARNESS_HOME`, then
+   `REVIEW_HARNESS_HOME=<arm home> bash hooks/run-stats.sh` gives attempts, FAIL rate, overrides and limit hits per
+   arm (plain Claude Code writes no run log; take its attempts from the transcript). A run that ends `abandoned` or
+   `limit` counts as not done whatever the tests say.
+7. **Report** a table per arm (tasks solved k/n with hidden tests, regressions, median attempts, median tokens,
+   median wall time) and the per-task cells, so one large task cannot hide behind a mean. With 15–20 tasks × 3
+   runs, treat differences of one or two tasks as noise.

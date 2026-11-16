@@ -1,0 +1,2 @@
+- changed_files: src/lib/formatPrice.ts, src/lib/formatPrice.test.ts, src/components/CartSummary/CartSummary.tsx, src/components/OrderRow/OrderRow.tsx
+- test_status: passed:npm test

@@ -7,19 +7,23 @@
 #   start <workflow> [step...]  create a run; refuses while another run is active
 #   step <name>                 mark a step done
 #   attempt                     count a failed attempt (test failure); exit 2 at the limit
-#   verdict PASS|FAIL           record the reviewer verdict + work-tree hash; FAIL counts as an attempt
+#   verdict PASS|FAIL [category...]
+#                               record the reviewer verdict + work-tree hash; FAIL counts as an attempt and may
+#                               carry the [category] tags of its issues (kept for the run log; unknown words warn)
 #   tests pass|fail|none|manual-confirmed
 #                               record the test result + work-tree hash (active run only); manual-confirmed
 #                               (the user's yes to the manual checks) only replaces none; pass and
 #                               manual-confirmed hold only for the work tree they were recorded on
 #   override <reason>           record an explicit user override for the current work tree
 #   check [--active-only]       commit gate. exit 0 ok · 1 blocked · 3 nothing to enforce · 4 stale run
-#   done | abandon              close the run (and delete its baseline.txt)
+#   done | abandon              close the run (and delete its baseline.txt); an active run also appends one
+#                               summary line to <state root>/runs.jsonl (read by run-stats.sh), never rewritten
 #   status                      one-line summary ("none" when there is nothing to resume)
 #   hash                        print the current work-tree hash
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAX_ATTEMPTS=3
+CATEGORIES="correctness performance design scope goal security contract ops state-mgmt"   # = agents/reviewer.md
 STALE_SECONDS="${REVIEW_HARNESS_RUN_STALE_SECONDS:-86400}"
 
 command -v jq >/dev/null 2>&1 || { echo "run-state: jq is required" >&2; exit 3; }
@@ -64,9 +68,30 @@ update() {
 
 new_file() { # $1 workflow, $2 status, $3 steps json
   mkdir -p "$STATE_DIR" && bash "$HERE/state-dir.sh" --create "$PWD" >/dev/null
+  # base: the commit the run started from, so the run log can count the files it changed
   jq -n --arg wf "$1" --arg s "$2" --argjson steps "$3" --argjson now "$(now)" --argjson max "$MAX_ATTEMPTS" \
+    --arg base "$(git rev-parse -q --verify HEAD 2>/dev/null)" \
     '{version:1, workflow:$wf, status:$s, started_at:$now, updated_at:$now, steps:$steps,
-      attempts:0, max_attempts:$max, review:null, tests:null, override:null}' > "$FILE.$$.tmp" && mv -f "$FILE.$$.tmp" "$FILE"
+      attempts:0, max_attempts:$max, review:null, verdicts:[], tests:null, override:null}
+      + ($base | if . == "" then {} else {base: .} end)' > "$FILE.$$.tmp" && mv -f "$FILE.$$.tmp" "$FILE"
+}
+
+# log_run <done|abandoned> — append this run's summary to <state root>/runs.jsonl. One short line in a single
+# O_APPEND write, so concurrent runs never interleave; a failed write warns and never changes the exit code.
+log_run() {
+  local root base files=""
+  root=$(git rev-parse --show-toplevel 2>/dev/null); base=$(get '.base // ""')
+  if [ -n "$root" ] && [ -n "$base" ] && git -C "$root" rev-parse -q --verify "$base^{commit}" >/dev/null 2>&1; then
+    files=$({ git -C "$root" diff --name-only "$base" --; git -C "$root" ls-files -o --exclude-standard; } 2>/dev/null | sort -u | grep -c .)
+  fi
+  jq -c --arg end "$1" --arg repo "$(basename "$STATE_DIR")" --arg files "$files" --argjson now "$(now)" '
+    {repo: $repo, workflow, started_at, ended_at: $now, duration_s: ($now - .started_at), attempts,
+     verdicts: [(.verdicts // [])[] | if type == "string" then {v: .} else . end], tests: .tests.status, override: .override.reason,
+     end: (if .attempts >= .max_attempts then "limit" else $end end)}
+    + (if $files == "" then {} else {files_changed: ($files | tonumber)} end)' "$FILE" 2>/dev/null \
+    | { IFS= read -r line && printf '%s\n' "$line" >> "$(dirname "$STATE_DIR")/runs.jsonl"; } 2>/dev/null \
+    || echo "run-state: could not append the run to $(dirname "$STATE_DIR")/runs.jsonl" >&2
+  return 0
 }
 
 is_stale() { [ "$(st)" = active ] && [ $(( $(now) - $(get '.updated_at // 0') )) -gt "$STALE_SECONDS" ]; }
@@ -102,12 +127,22 @@ case "${1:-}" in
     ;;
   verdict)
     v=$(printf '%s' "${2:-}" | tr '[:lower:]' '[:upper:]')
-    case "$v" in PASS|FAIL) ;; *) echo "usage: run-state.sh verdict PASS|FAIL" >&2; exit 2 ;; esac
+    case "$v" in PASS|FAIL) ;; *) echo "usage: run-state.sh verdict PASS|FAIL [category...]" >&2; exit 2 ;; esac
+    cats=""
+    for w in "${@:3}"; do
+      w=$(printf '%s' "$w" | tr -d '[],' | tr '[:upper:]' '[:lower:]')
+      [ -n "$w" ] || continue
+      if [ "$v" = PASS ]; then echo "run-state: categories are for FAIL only — ignored: $w" >&2; continue; fi
+      case " $CATEGORIES " in *" $w "*) case " $cats " in *" $w "*) ;; *) cats="$cats $w" ;; esac ;;
+        *) echo "run-state: unknown category ignored: $w (known: $CATEGORIES)" >&2 ;; esac
+    done
+    cats=$(printf '%s\n' $cats | jq -R . | jq -cs 'map(select(length > 0))')
     # No active run (standalone /code-review): keep the verdict in an idle record so a later
     # /git-commit can check it, without making the commit hook enforce anything.
     [ "$(st)" = active ] || new_file review idle '[]'
     h=$(tree_hash)
-    update --arg v "$v" --arg h "$h" '.review = {verdict: $v, tree: $h, at: $now}
+    update --arg v "$v" --arg h "$h" --argjson cats "$cats" '.review = {verdict: $v, tree: $h, at: $now}
+      | .verdicts = (.verdicts // []) + [{v: $v} + (if $cats == [] then {} else {cats: $cats} end)]
       | if $v == "FAIL" then .attempts += 1 else . end
       | if $v == "PASS" and any(.steps[]; .name == "reviewer") then .steps |= map(if .name == "reviewer" then .done = true else . end) else . end' || exit 1
     echo "review: $v recorded for work tree $h"
@@ -164,6 +199,7 @@ case "${1:-}" in
     rm -f "$STATE_DIR/baseline.txt"   # so /tdd or /refactor-scan never read this run's baseline
     [ -f "$FILE" ] || { echo "run-state: none"; exit 0; }
     [ "$1" = done ] && new=done || new=abandoned
+    [ "$(st)" = active ] && log_run "$new"
     update --arg s "$new" '.status = $s' && echo "run-state: $new"
     ;;
   status)

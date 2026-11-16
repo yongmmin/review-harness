@@ -94,6 +94,66 @@ export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionConte
 EOF
 }
 
+# bench_next <dir> — Next.js + Vitest skeleton shared by the plan-based frontend fixtures: manifest, tsconfig
+# (`@/*` → `src/*`), vitest config and the axios wrapper. The case writes its own src/ files.
+bench_next() {
+  mkdir -p "$1/src/lib"
+  cat > "$1/package.json" <<'EOF'
+{
+  "name": "web",
+  "private": true,
+  "scripts": { "dev": "next dev", "build": "next build", "test": "vitest run" },
+  "dependencies": {
+    "@tanstack/react-query": "5.51.1",
+    "axios": "1.7.2",
+    "next": "14.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "zustand": "4.5.4"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.0.0",
+    "@types/react": "18.3.3",
+    "@vitejs/plugin-react": "4.3.1",
+    "jsdom": "24.1.1",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  }
+}
+EOF
+  cat > "$1/tsconfig.json" <<'EOF'
+{
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "preserve",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
+  }
+}
+EOF
+  cat > "$1/vitest.config.ts" <<'EOF'
+import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  test: { environment: 'jsdom' },
+})
+EOF
+  cat > "$1/src/lib/http.ts" <<'EOF'
+import axios from 'axios'
+
+export const http = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  withCredentials: true,
+})
+EOF
+}
+
 # bench_done <dir> — mark files added by the change as intent-to-add, so `git diff` shows them
 bench_done() {
   git -C "$1" add -N -A
