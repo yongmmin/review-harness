@@ -34,7 +34,6 @@ Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CH
 - The plugin writes nothing into the consumer repo. `plan.md`, `run-state.json`, `rtk-session.flag`, `approved/`, `cache/` live in `~/.front-harness/state/<repo-id>/` (`hooks/state-dir.sh`; id = work-tree basename + hash of its absolute path, so parallel worktrees stay separate). Report the full path whenever `plan.md` is written
 - Every workflow starts with `hooks/run-state.sh start`; the script owns attempts, timestamps and the work-tree hash
 - Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
-- No legacy agents (`implementer`, `test-writer`, `figma-builder`, `style-matcher`, `orchestrator`, `api-integrator` — merged into `developer`)
 - Never inline full `constraints.md`
 - Never pass unrelated files or raw verbose logs
 - `git-commit` requires `hooks/run-state.sh check` to pass: reviewer PASS recorded for the current work tree, or a recorded user override. Only `reviewer` records the verdict (`run-state.sh verdict`); if it is missing after one re-spawn, the run has no verdict and the commit stays blocked — the orchestrator never records it. Reviewer FAIL shares `MAX_ATTEMPTS = 3` with test failures

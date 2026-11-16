@@ -63,7 +63,7 @@ bash hooks/org-overlay.sh skills front-harness         # 작성한 overlay 가 �
 bash hooks/extract-constraints.sh reviewer             # #org 절과 에이전트 overlay 가 끝에 붙음
 ```
 
-작업 중 얻은 지식은 `/save-knowledge` 로 같은 폴더에 추가할 수 있습니다. 폴더가 비어 있으면 overlay 는 아무것도 출력하지 않고, 레포 매칭과 조직 규칙 없이 범용 규칙만 적용됩니다. knowledge 자동 생성 skill 은 예정 (0.5.0) 입니다.
+작업 중 얻은 지식은 `/save-knowledge` 로 같은 폴더에 추가할 수 있습니다. 폴더가 비어 있으면 overlay 는 아무것도 출력하지 않고, 레포 매칭과 조직 규칙 없이 범용 규칙만 적용됩니다. knowledge 자동 생성 skill 은 예정 (0.6.0) 입니다.
 
 ## 빠른 시작
 
@@ -140,4 +140,4 @@ Review         reviewer
 - [skills/front-harness/SKILL.md](skills/front-harness/SKILL.md) — 실행 시 기준이 되는 workflow 정의
 - [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — 에이전트 규칙과 런타임 규칙
 
-라이센스: MIT. 사내 개인용 도구라 외부 PR 은 받지 않습니다.
+라이센스: [MIT](LICENSE). 외부 PR 은 받지 않습니다.

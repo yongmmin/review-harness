@@ -2,7 +2,7 @@
 
 이 플러그인은 기존 `front-agent` (일반 React/Next 플러그인) 의 Harness Engineering 원칙을 가져와 재구축한 버전입니다.
 
-### v0.4.1 (2026-11-16)
+### v0.5.0 (2026-11-16)
 
 **코드 개발 품질에 집중 — UI/디자인 전용 기능 제거**
 - UI·디자인 구현 전용 skill 5개와 agent 2개 제거. 남는 workflow 는 Feature / Small change / Review / Refactor, skill 10개, agent 4개
@@ -13,7 +13,7 @@
 
 **조직 overlay 와 knowledge 를 플러그인 폴더 밖으로**
 - overlay 는 `~/.front-harness/org/`, knowledge 는 `~/.front-harness/knowledge/` 에서 읽음 (`FRONT_HARNESS_HOME` 으로 변경 가능). 플러그인 폴더에는 조직 전용 파일이 없음
-- README 를 범용 하네스 기준으로 다시 쓰고 "knowledge 준비" 절 추가. knowledge 자동 생성 skill 은 0.5.0 예정
+- README 를 범용 하네스 기준으로 다시 쓰고 "knowledge 준비" 절 추가. knowledge 자동 생성 skill 은 0.6.0 예정
 
 ### v0.4.0 (2026-11-16)
 
