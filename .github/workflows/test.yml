@@ -1,0 +1,13 @@
+name: test
+on:
+  push:
+  pull_request:
+jobs:
+  hooks:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest] # the hooks use date/awk/shasum, which differ between GNU and BSD
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash tests/run.sh

@@ -139,5 +139,6 @@ If a run is interrupted, the next `/front-harness` asks whether to resume it or 
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/front-harness/SKILL.md](skills/front-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — agent rules and runtime rules
+- [tests/run.sh](tests/run.sh) — hook smoke tests: `bash tests/run.sh` (needs `git` and `jq`; runs in CI on Linux and macOS)
 
 License: [MIT](LICENSE). External PRs are not accepted.
