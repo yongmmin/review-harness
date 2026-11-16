@@ -1,6 +1,6 @@
 ---
 name: refactor-scan
-description: Scan the active repo for repeated JSX/state/API/style patterns and produce a refactor plan.md (extraction targets, shared-library contribution candidates, domain doc impact). Proposal only — no code changes until approval. For "refactor", "remove duplication", "improve structure" (any language), or when developer/reviewer reports 3+ duplicates.
+description: Scan the active repo for repeated UI/state/API/style patterns and produce a refactor plan.md (extraction targets, shared-library contribution candidates, domain doc impact). Proposal only — no code changes until approval. For "refactor", "remove duplication", "improve structure" (any language), or when developer/reviewer reports 3+ duplicates.
 argument-hint: "[path-or-pattern to focus on]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---
@@ -46,15 +46,11 @@ Anything printed above is organisation-specific and is part of this skill; where
 Step 1: detect-repo → injected
 
 Step 2: refactor-architect (`review-harness:refactor-architect`)
-  → Pass the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" refactor-architect` in the spawn prompt (it carries the constraints and the agent's org overlay)
+  → Pass the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" refactor-architect web-frontend` in the spawn prompt (it carries the constraints, the profile's sections and the agent's org overlay)
   → Full active-repo scan for:
-    - Duplicate JSX structures (3+ occurrences)
-    - Repeated state patterns (loading/error/data) → useAsyncData candidate
     - Duplicate API call patterns → service abstraction
-    - Repeated class strings / inline styles
     - Duplicate utility functions
-    - Same Zustand slice shape duplicated → store consolidation
-    - Same Socket.IO event boilerplate → custom hook wrapper
+    - Stack-specific targets: the `#detection` section of the profile passed to refactor-architect
 
 Step 3: Produce refactor plan.md at `<state dir>/plan.md` (never in the repo); pass that absolute path to refactor-architect
   → List all detected patterns

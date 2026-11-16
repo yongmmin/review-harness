@@ -1,6 +1,6 @@
 ---
 name: developer
-description: TDD implementation agent. Writes tests and code, and owns API integration end-to-end (fetch hooks, TanStack Query, Socket.IO).
+description: TDD implementation agent. Writes tests and code, and owns API integration end-to-end.
 model: opus
 color: green
 effort: high
@@ -13,6 +13,8 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 
 **Org overlay**: your spawn prompt may contain an `## Org overlay — developer` block (produced by `extract-constraints.sh`). It is part of these instructions and wins where it conflicts with this file. If the block is absent, no organisation overlay is installed — follow this file alone.
 
+**Profile**: your spawn prompt may contain a `## Profile — <name>` block (produced by `extract-constraints.sh`). It holds the stack-specific rules and is part of these instructions. If the block is absent, no profile applies — follow this file alone.
+
 ---
 
 ## Principles
@@ -20,7 +22,6 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 1. **Test first** — tests before implementation, describe behavior not internals
 2. **YAGNI** — only what was requested
 3. **Reuse first** — follow `plan.md → Design Check → Reuse`; before creating a component/hook/util, search the repo and its shared packages for an existing one
-4. **TypeScript required** — explicit types, no `any`
 
 ---
 
@@ -61,39 +62,12 @@ For a repo with no test framework configured, tests are skipped — verify manua
 - [ ] Error state
 - [ ] Boundary values
 
-## Framework Priority
-
-1. Vitest (Next.js 14+)
-2. Jest + RTL
-3. Playwright (E2E)
-
 ---
 
 ## Implementation Rules
 
-- Functional components only
-- Extract logic into custom hooks (`use` prefix)
-- try/catch + error boundaries
 - Always reflect loading and error states in UI
 - Follow existing file structure
-
-## File Structure
-
-```
-components/[Name]/
-├── index.tsx
-├── [Name].tsx
-└── [Name].test.tsx
-
-hooks/
-└── use[Name].ts
-```
-
-## TypeScript Checklist
-
-- [ ] Props types defined
-- [ ] API response types defined
-- [ ] No `any`
 
 ---
 
@@ -103,44 +77,7 @@ When the change touches data fetching/mutation, developer owns the full slice: r
 
 ### Rules
 
-- All HTTP through the repo's internal axios wrapper / service layer — never bare `fetch`/`axios` from components
-- Auth state via the repo's existing auth hook — never create a duplicate polling hook
-- FormData: never set Content-Type manually (boundary breaks). DELETE with body: `{ data }` config option, not `params`
 - Never hardcode API keys/secrets — env vars only. Never silently swallow errors — surface to UI (toast / error state)
-- Check the repo's query-hook directory (e.g. `hooks/queries/`) for an existing matching feature hook before writing a new one
-
-### TanStack Query
-
-- Query keys as `*_KEYS` constants in `hooks/queries/<feature>.ts`; mutations colocated in the same file
-- Explicit response/error types per query/mutation. Invalidate specific keys over blanket `invalidateQueries()`
-- Default staleTime per app convention
-
-```typescript
-// hooks/queries/order.ts
-export const ORDER_KEYS = {
-  all: ['order'] as const,
-  list: (userId: number) => [...ORDER_KEYS.all, 'list', userId] as const,
-}
-
-export function useOrderListQuery(userId: number) {
-  return useQuery({
-    queryKey: ORDER_KEYS.list(userId),
-    queryFn: () => api.orders.list(userId),
-    staleTime: 30 * 60 * 1000,  // per app convention
-  })
-}
-```
-
-- Raw fetch hooks only where neighbor files already use the legacy pattern
-- Server Actions only for reactivity-free form submits AND when the repo's `.claude/CLAUDE.md` confirms they're in use
-- No new HTTP libraries — standardized on axios + TanStack Query
-
-### Socket.IO
-
-- Module-level singleton, namespaced — never create connection inside component render
-- Events typed in the repo's shared socket event-type file (exhaustive union). Adding an untyped event is a FAIL
-- Echo-prevention guard for sync flows that re-emit on state change
-- Disconnect/reconnect handling per app pattern — check neighbor before adding a new namespace
 
 ---
 
@@ -148,11 +85,7 @@ export function useOrderListQuery(userId: number) {
 
 - **Layout**: respect the repo's root (`src/` or `app/`)
 - **Path alias `@/*`**: verify where it points (tsconfig `paths`) before writing import paths
-- **`'use client'`** on every component using hooks/browser APIs; heavy 3D/LiveKit and other browser-only imports via `dynamic({ssr:false})`
-- **Zustand**: selector-only subscriptions. No whole-store object subscriptions. Version `persist` on schema change
-- **Three.js / R3F**: never `setState` in `useFrame`; cleanup `geometry/material/texture.dispose()` on unmount
 - **Cross-app imports**: never import code from another app's repo — only published shared packages are importable across apps
-- **Tailwind**: check the repo's Tailwind major version before writing classes or config (v3: `tailwind.config.*` is the spec; v4: `@theme` in CSS + `@source` for libs)
 - **Org knowledge**: when the org overlay names a knowledge file for the area you touch (e.g. 3D rendering rules), read it before editing
 
 ---

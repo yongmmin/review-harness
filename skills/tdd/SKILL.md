@@ -47,7 +47,7 @@ Feature: `$ARGUMENTS`
     reviewer             -> final review
 ```
 
-For every agent spawned above, pass the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent>` in the spawn prompt (it carries the constraints and the agent's org overlay).
+For every agent spawned above, pass the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent> web-frontend` in the spawn prompt (it carries the constraints, the profile's sections and the agent's org overlay).
 
 ---
 

@@ -1,6 +1,6 @@
 # review-harness
 
-A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and its gates work for any codebase. The bundled developer and reviewer rules currently cover TypeScript and React, and you can add rules for your own stack with an overlay. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
+A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and its gates work for any codebase. Stack-specific rules live in profiles (`profiles/<name>.md`); the bundled `web-frontend` profile covers TypeScript, React and Next.js, and you can add rules for your own stack with an overlay. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
 
 ## Install / Update
 
@@ -60,7 +60,7 @@ Then check from the plugin folder:
 ```bash
 bash hooks/detect-repo.sh /absolute/path/to/my-app     # an Active Repo block means the repo is registered
 bash hooks/org-overlay.sh skills review-harness         # prints the overlay you wrote
-bash hooks/extract-constraints.sh reviewer             # ends with the #org section and the agent overlay
+bash hooks/extract-constraints.sh reviewer web-frontend   # #org section, then the web-frontend profile block, then the agent overlay
 ```
 
 Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules. A skill that generates knowledge automatically is planned (0.6.0).
@@ -105,7 +105,7 @@ Review         reviewer
 |---|---|---|---|
 | developer | TDD implementation + API integration (types → hook/service → UI states) | `opus` | high |
 | test-runner | Runs tests and summarises the result | `opus` | medium |
-| reviewer | Reviews the change (correctness / react-perf / design / scope). The single quality gate before commit | `fable` | high |
+| reviewer | Reviews the change (correctness / performance / design / scope). The single quality gate before commit | `fable` | high |
 | refactor-architect | Detects duplicated patterns and proposes extractions (writes `plan.md` only) | `fable` | high |
 
 The model is the `model:` value in each `agents/*.md` frontmatter.
@@ -139,6 +139,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — agent rules and runtime rules
+- [profiles/web-frontend.md](profiles/web-frontend.md) — stack-specific agent rules (TypeScript / React / Next.js), loaded per agent by tag
 - [tests/run.sh](tests/run.sh) — hook smoke tests: `bash tests/run.sh` (needs `git` and `jq`; runs in CI on Linux and macOS)
 
 License: [MIT](LICENSE). External PRs are not accepted.

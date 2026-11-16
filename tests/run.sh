@@ -15,6 +15,9 @@ eq() { # eq <name> <expected> <actual>
 has() { # has <name> <needle> <haystack>
   case "$3" in *"$2"*) PASS=$((PASS + 1)) ;; *) FAIL=$((FAIL + 1)); printf 'FAIL %s\n  missing: %s\n  in: %s\n' "$1" "$2" "$3" ;; esac
 }
+lacks() { # lacks <name> <needle> <haystack>
+  case "$3" in *"$2"*) FAIL=$((FAIL + 1)); printf 'FAIL %s\n  unexpected: %s\n' "$1" "$2" ;; *) PASS=$((PASS + 1)) ;; esac
+}
 new_repo() { # new_repo <dir> — a git repo with one commit and one pending edit
   mkdir -p "$1" && git -C "$1" init -q && echo a > "$1/f.txt" && git -C "$1" add f.txt \
     && git -C "$1" -c user.name=t -c user.email=t@t.t commit -qm init && echo b >> "$1/f.txt"
@@ -42,7 +45,7 @@ eq "gate: other git commands pass" allow "$(gate "$R" "git status")"
 eq "gate: git commit-tree is not a commit" allow "$(gate "$R" "git commit-tree abc")"
 eq "gate: git -c k=v commit is caught" deny "$(gate "$R" "git -c user.name=x commit -m x")"
 eq "gate: chained commit is caught" deny "$(gate "$R" "git add . && git commit -m x")"
-rs verdict PASS >/dev/null
+rs verdict PASS >/dev/null; eq "verdict PASS exits 0" 0 "$?"
 eq "gate: PASS, tree unchanged → allow" allow "$(gate "$R")"
 git -C "$R" add -A
 eq "gate: staging does not invalidate the review" allow "$(gate "$R")"
@@ -96,6 +99,27 @@ has "constraints: reviewer gets #review" "## #review" "$BASE"
 case "$BASE" in *"## #filesystem"*) eq "constraints: reviewer does not get #filesystem" absent present ;; *) PASS=$((PASS + 1)) ;; esac
 has "constraints: developer gets #filesystem" "## #filesystem" "$(bash "$H/extract-constraints.sh" developer 2>/dev/null)"
 eq "constraints: unknown agent → empty" "" "$(bash "$H/extract-constraints.sh" nobody 2>/dev/null)"
+
+# --- profiles --------------------------------------------------------------------------
+lacks "profile: none passed → no profile block" "## Profile —" "$BASE"
+lacks "profile: moved rules are absent without it" "React performance" "$BASE"
+OUT=$(bash "$H/extract-constraints.sh" reviewer web-frontend 2>/dev/null)
+has "profile: reviewer gets the block" "## Profile — web-frontend" "$OUT"
+has "profile: reviewer gets #review" "React performance — FAIL if any" "$OUT"
+lacks "profile: reviewer does not get #implementation" "### TanStack Query" "$OUT"
+OUT=$(bash "$H/extract-constraints.sh" developer web-frontend 2>/dev/null)
+has "profile: developer gets #implementation" "### TanStack Query" "$OUT"
+lacks "profile: developer does not get #review" "React performance" "$OUT"
+has "profile: refactor-architect gets #detection" "Same JSX structure" "$(bash "$H/extract-constraints.sh" refactor-architect web-frontend 2>/dev/null)"
+eq "profile: test-runner has no profile section" "$(bash "$H/extract-constraints.sh" test-runner 2>/dev/null)" \
+  "$(bash "$H/extract-constraints.sh" test-runner web-frontend 2>/dev/null)"
+OUT=$(bash "$H/extract-constraints.sh" reviewer nope 2>/dev/null); eq "profile: unknown → exit 2" 2 "$?"
+eq "profile: unknown → empty stdout" "" "$OUT"
+bash "$H/extract-constraints.sh" reviewer ../constraints >/dev/null 2>&1; eq "profile: rejects path traversal" 2 "$?"
+N=$(grep -h 'hooks/extract-constraints.sh"' "$ROOT"/skills/*/SKILL.md | wc -l | tr -d ' ')
+[ "$N" -ge 4 ]; eq "profile: skill call sites found (>= 4, got $N)" 0 "$?"
+eq "profile: every skill call site passes web-frontend" "" \
+  "$(grep -h 'hooks/extract-constraints.sh"' "$ROOT"/skills/*/SKILL.md | grep -v web-frontend)"
 mkdir -p "$REVIEW_HARNESS_HOME/org/agents"
 printf '## #org\n\n- org rule one\n' > "$REVIEW_HARNESS_HOME/org/constraints.md"
 printf 'run ${CLAUDE_PLUGIN_ROOT}/hooks/x.sh\n' > "$REVIEW_HARNESS_HOME/org/agents/reviewer.md"

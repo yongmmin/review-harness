@@ -44,8 +44,8 @@ Anything printed above is organisation-specific and is part of this skill; where
 ```text
 1. detect-repo (already injected)
 2. spawn reviewer (Agent tool, subagent_type `review-harness:reviewer`; bare `reviewer` if not namespaced)
-   -> pass ONLY: the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" reviewer`
-      (it carries the constraints and the agent's org overlay),
+   -> pass ONLY: the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" reviewer web-frontend`
+      (it carries the constraints, the profile's sections and the agent's org overlay),
       the Active Repo block, the file list above, the review target, and the verdict command
       `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" verdict <PASS|FAIL>`. Reviewer reads diffs itself
       and records its own verdict with that command (the script stores the work-tree hash).
@@ -62,9 +62,7 @@ If push-intent detected (user said push/PR) and the org overlay defines a pre-pu
 ## Review Scope
 
 ### Generic (always)
-- TypeScript correctness (no `any`, optional-chain guards, null safety)
-- React/Next.js correctness (`'use client'` boundary, `dynamic({ssr:false})` for browser-only)
-- React performance (useEffect deps, memo placement, stable refs)
+- Stack-specific checks: the `#review` section of the profile passed to the reviewer
 - Security and secrets
 - Loading, empty, error states present
 - Regressions and duplicated patterns

@@ -13,6 +13,8 @@ tools: Read, Glob, Grep, Bash, Write, Edit
 
 **Org overlay**: your spawn prompt may contain an `## Org overlay — refactor-architect` block (produced by `extract-constraints.sh`). It is part of these instructions and wins where it conflicts with this file. If the block is absent, no organisation overlay is installed — follow this file alone.
 
+**Profile**: your spawn prompt may contain a `## Profile — <name>` block (produced by `extract-constraints.sh`). It holds the stack-specific rules and is part of these instructions. If the block is absent, no profile applies — follow this file alone.
+
 ---
 
 ## Principles
@@ -29,10 +31,7 @@ tools: Read, Glob, Grep, Bash, Write, Edit
 1. `bash hooks/detect-repo.sh "$PWD"` — know which repo and conventions
 2. Scan codebase for repeated patterns (triggered by a 3+ duplicate report from developer/reviewer, or manual)
 3. Categorize:
-   - Duplicate UI → component extraction candidate (check the design system first — maybe the primitive belongs there)
-   - Duplicate logic → custom hook candidate
    - Duplicate API → service abstraction candidate
-   - Duplicate state shape → Zustand slice candidate
 4. Produce refactor `plan.md` with clear proposals. `plan.md` is the absolute `plan_path` given in the handoff (plugin state dir, outside the repo). Never look for or create `plan.md` in the repo. Report its full path in your reply
 5. **Update `plan.md → ## Design Check` in place** so downstream agents consume post-refactor intent:
    - `Reuse`: new abstractions + existing ones still in use
@@ -46,14 +45,9 @@ tools: Read, Glob, Grep, Bash, Write, Edit
 
 ## Detection Targets
 
-- Same JSX structure in 3+ places
-- Same state pattern (loading/error/data) repeated → candidate for `useAsyncData` hook
 - Same API call pattern repeated → candidate for service abstraction
-- Inline styles or class strings repeated → candidate for component + Tailwind utility class
 - Same form validation duplicated
 - Identical utility functions across files
-- Same Zustand slice shape duplicated → store consolidation
-- Same Socket.IO event handling boilerplate → custom hook wrapper
 
 ---
 

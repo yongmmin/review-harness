@@ -30,7 +30,7 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 
 ### Review (1)
 
-- **`/code-review`** — 4 general categories (correctness/react-perf/design/scope). Outputs PASS/FAIL. The organisation overlay can add FAIL gates
+- **`/code-review`** — 4 general categories (correctness/performance/design/scope). Outputs PASS/FAIL. The organisation overlay can add FAIL gates
 
 ### Refactor (1)
 
@@ -98,11 +98,11 @@ https://github.com/<owner>/<repo>/compare/main...feat/user-login-form?expand=1&t
 
 ## 4 Agents
 
-Uses a model alias per role — `fable`/`opus` (YAML frontmatter `model:` + `effort:` + `color:`, including tool scoping). Each agent receives only the `constraints.md` sections it needs (the full file is not passed). If an organisation overlay (`~/.review-harness/org/agents/<agent>.md`, `#org` in `~/.review-harness/org/constraints.md`) exists, it is appended to the `hooks/extract-constraints.sh` output and passed along.
+Uses a model alias per role — `fable`/`opus` (YAML frontmatter `model:` + `effort:` + `color:`, including tool scoping). Each agent receives only the `constraints.md` and `profiles/web-frontend.md` sections it needs (the full files are not passed; every skill passes the `web-frontend` profile). If an organisation overlay (`~/.review-harness/org/agents/<agent>.md`, `#org` in `~/.review-harness/org/constraints.md`) exists, it is appended to the `hooks/extract-constraints.sh` output and passed along.
 
 | Agent | Role |
 |---|---|
 | **developer** | TDD RED→GREEN implementation + API integration (handles types → hook/service → UI states inline). Follows the `Reuse` item of `plan.md` |
-| **reviewer** | Review in 4 categories (correctness/react-perf/design/scope) + static gates. The single quality gate before commit. FAILs if `Reuse` in `plan.md` is empty |
+| **reviewer** | Review in 4 categories (correctness/performance/design/scope) + static gates. The single quality gate before commit. FAILs if `Reuse` in `plan.md` is empty |
 | **test-runner** | Runs tests + summarises results. No fake PASS in repos without tests configured (`no_tests_configured`) |
 | **refactor-architect** | Detects pattern duplication + proposes extractions (writes `plan.md` only) |
