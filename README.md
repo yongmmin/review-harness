@@ -1,6 +1,6 @@
 # review-harness
 
-A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and the review gate are stack-neutral. Stack-specific rules live in profiles (`profiles/<name>.md`), and each run picks the profiles from the files the change touches; only `web-frontend` (TypeScript, React, Next.js) ships today, so other stacks run on the generic rules, and you can add rules for your own stack with an overlay. The test step finds JavaScript, Python, Go and Rust test commands, or the `test_cmd` you register for a repo. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
+A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and the review gate are stack-neutral. Stack-specific rules live in profiles (`profiles/<name>.md`), and each run picks the profiles from the files the change touches; three ship today — `web-frontend` (TypeScript, React, Next.js), `web-api` (API servers such as NestJS, Express or FastAPI, with their ORM and migrations) and `web-common` (a change that touches frontend and API code together). Other stacks run on the generic rules, and you can add rules for your own stack with an overlay. The test step finds JavaScript, Python, Go and Rust test commands, or the `test_cmd` you register for a repo. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
 
 ## Install / Update
 
@@ -45,6 +45,7 @@ With only the plugin installed, it runs on generic rules. To make it aware of yo
 | `~/.review-harness/org/skills/<skill>.md` | Organisation rules appended to a skill |
 | `~/.review-harness/org/agents/<agent>.md` | Organisation rules appended to an agent |
 | `~/.review-harness/org/constraints.md` | A `## #org` section appended to agent constraints |
+| `~/.review-harness/org/profiles/<profile>.md` | Organisation rules for one profile, in the same `## #tag` format; loaded only when that profile is selected, inside its block |
 
 For now, the way to prepare them is to write the files by hand. `repos.md` holds one block per repo in this format:
 
@@ -59,7 +60,7 @@ For now, the way to prepare them is to write the files by hand. `repos.md` holds
 
 `test_cmd` and `check_cmd` are optional. `test_cmd` is the command the test step runs, ahead of auto-detection. `check_cmd` runs from the registered `local_path` after every edit in that repo, instead of tsc/eslint; a non-zero exit is reported back to Claude. A `check_cmd` that runs longer than the 60-second hook timeout is killed and reports nothing, so keep it fast.
 
-Profile selection looks at file names first (`.tsx`/`.jsx`/`.vue`/`.svelte`/style files → `web-frontend`). Any other file (a `.ts` hook, an `api/` route, a `.py` module, a changed `package.json`) counts by the dependencies of its nearest `package.json` / `pyproject.toml` / `requirements*.txt`, so in a monorepo each package is judged by its own manifest. With no changed files it uses the manifest at the repo root.
+Profile selection looks at file names first (`.tsx`/`.jsx`/`.vue`/`.svelte`/style files → `web-frontend`; controllers, `routes/`, `api/`, `src/server/`, SQL and migrations → `web-api`; both in one change → also `web-common`). Any other file (a `.ts` hook, a `.py` module, a changed `package.json`) counts by the dependencies of its nearest `package.json` / `pyproject.toml` / `requirements*.txt`, so in a monorepo each package is judged by its own manifest. An `api/` or `routes/` folder inside a frontend-only package is client code and gets only `web-frontend`; Next.js server routes (`app/api/`, `pages/api/`), SQL, migrations, controllers and `src/server/` there still get `web-api`. With no changed files it uses the manifest at the repo root.
 
 Then check from the plugin folder:
 
@@ -148,6 +149,8 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — agent rules and runtime rules
 - [profiles/web-frontend.md](profiles/web-frontend.md) — stack-specific agent rules (TypeScript / React / Next.js), loaded per agent by tag
+- [profiles/web-api.md](profiles/web-api.md) — API server rules (error mapping, validation, data integrity, access, contracts, realtime, migrations, boot), each from a real bug fix
+- [profiles/web-common.md](profiles/web-common.md) — rules for a change that spans frontend and API (consumers, CORS, env config, status codes)
 - [tests/run.sh](tests/run.sh) — hook smoke tests: `bash tests/run.sh` (needs `git` and `jq`; runs in CI on Linux and macOS)
 
 License: [MIT](LICENSE). External PRs are not accepted.
