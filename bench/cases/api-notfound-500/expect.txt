@@ -1,0 +1,3 @@
+correctness: not-found branch throws a 500-class exception instead of 404 (web-api gate)
+404|notfoundexception|internalservererror|500
+src/invoices/invoices.service.ts

@@ -1,0 +1,3 @@
+performance: useEffect adds a timer/listener without returning a cleanup (web-frontend gate)
+cleanup|clearinterval|removeeventlistener|leak
+src/hooks/useNow.ts

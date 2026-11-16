@@ -1,0 +1,3 @@
+state-mgmt: whole-store Zustand subscription in a hot list item (web-frontend gate)
+selector|whole|re-render|rerender
+src/components/ProductRow.tsx
