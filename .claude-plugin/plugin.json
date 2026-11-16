@@ -1,7 +1,7 @@
 {
   "name": "front-harness",
   "displayName": "Frontend Harness",
-  "description": "Frontend Harness: React/Next.js 코드 개발 품질을 위한 하네스 플러그인. 계획 → 구현 → 테스트 → 리뷰 gate 를 전문 에이전트에게 위임한다.",
+  "description": "Frontend Harness: a code-quality harness plugin for React/Next.js. Delegates plan → implement → test → review to specialist agents and blocks commits without a reviewer PASS.",
   "version": "0.5.0",
   "author": {
     "name": "yongmmin"

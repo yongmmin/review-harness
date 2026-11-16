@@ -1,6 +1,6 @@
 ---
 name: save-knowledge
-description: Persist a durable learning, decision, or repo fact after a task — routes organisation-specific knowledge to ~/.front-harness/knowledge/<org>/*.md and cross-project wisdom to ~/.front-harness/wisdom. Use for "이거 기록해둬", "기억해둬", or when a reusable pattern/gotcha emerged; skip one-off mistakes.
+description: Persist a durable learning, decision, or repo fact after a task — routes organisation-specific knowledge to ~/.front-harness/knowledge/<org>/*.md and cross-project wisdom to ~/.front-harness/wisdom. Use for "record this", "remember this" (any language), or when a reusable pattern/gotcha emerged; skip one-off mistakes.
 argument-hint: "<what to save>"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---

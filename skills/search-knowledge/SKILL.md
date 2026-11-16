@@ -1,6 +1,6 @@
 ---
 name: search-knowledge
-description: Return ≤3 compact bullets per source from ~/.front-harness/knowledge (knowledge/<org>/*.md for the active repo, knowledge/index.md, ~/.front-harness/wisdom) for a query — never full files. Auto-called by front-harness before planning; also "이거 관련해서 기록된 거 있어?".
+description: Return ≤3 compact bullets per source from ~/.front-harness/knowledge (knowledge/<org>/*.md for the active repo, knowledge/index.md, ~/.front-harness/wisdom) for a query — never full files. Auto-called by front-harness before planning; also "is anything recorded about this?" (any language).
 argument-hint: "<query>"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---

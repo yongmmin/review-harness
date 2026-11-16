@@ -15,7 +15,7 @@ fi
 WISDOM_SUMMARY="$HOME/.front-harness/wisdom/summary.md"
 
 # Placeholder patterns indicating "no real content yet"
-PLACEHOLDER_RE='(_No .* yet\.?_|_아직 기록된 내용 없음\.?_|_none_|_none —_)'
+PLACEHOLDER_RE='(_No .* yet\.?_|_none_|_none —_)'
 
 has_real_content() {
   local file="$1"

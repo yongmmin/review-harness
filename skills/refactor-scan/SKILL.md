@@ -1,6 +1,6 @@
 ---
 name: refactor-scan
-description: Scan the active repo for repeated JSX/state/API/style patterns and produce a refactor plan.md (extraction targets, shared-library contribution candidates, domain doc impact). Proposal only — no code changes until approval. For "리팩토링", "중복 정리", "구조 개선", or when developer/reviewer reports 3+ duplicates.
+description: Scan the active repo for repeated JSX/state/API/style patterns and produce a refactor plan.md (extraction targets, shared-library contribution candidates, domain doc impact). Proposal only — no code changes until approval. For "refactor", "remove duplication", "improve structure" (any language), or when developer/reviewer reports 3+ duplicates.
 argument-hint: "[path-or-pattern to focus on]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---
@@ -18,7 +18,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || true
 - state dir: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh" --create 2>/dev/null || echo unavailable`
 - 5h usage: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/usage-state.sh" 2>/dev/null || echo unknown`
 
-Usage downgrade (same rule as `front-harness` → Agent Spawning): if the `5h usage` value above is 80% or higher, ask once with `AskUserQuestion` before spawning — state the usage and reset time, options `Fable 유지` | `이번 실행은 Opus`. On Opus, pass `model: "opus"` to the Agent tool; otherwise pass no `model`. Below 80% or `unknown`: do not ask. If `front-harness` already asked in this run, reuse that answer.
+Usage downgrade (same rule as `front-harness` → Agent Spawning): if the `5h usage` value above is 80% or higher, ask once with `AskUserQuestion` before spawning — state the usage and reset time, options `Keep Fable` | `Opus for this run` (ask in the user's language). On Opus, pass `model: "opus"` to the Agent tool; otherwise pass no `model`. Below 80% or `unknown`: do not ask. If `front-harness` already asked in this run, reuse that answer.
 
 Focus (may be empty → whole active repo): `$ARGUMENTS`
 **Purpose**: Scan codebase for repeated patterns and produce refactoring proposal. Respect domain doc boundaries and shared-library upgrade paths.

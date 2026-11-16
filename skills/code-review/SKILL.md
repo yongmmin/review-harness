@@ -1,13 +1,13 @@
 ---
 name: code-review
-description: Compact PASS/FAIL code review of uncommitted or branch changes via the reviewer agent ("리뷰해줘", "검토해줘", "확인해줘", before push/PR). Applies the org overlay's FAIL gates and pre-push review format when one is installed and the active repo is registered.
+description: Compact PASS/FAIL code review of uncommitted or branch changes via the reviewer agent ("review this", "check this" in any language, before push/PR). Applies the org overlay's FAIL gates and pre-push review format when one is installed and the active repo is registered.
 argument-hint: "[path-or-scope] [--base <branch>]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git log *) Bash(git branch *)
 ---
 
 # Skill: code-review
 
-**Trigger**: `/code-review [scope]`, "리뷰해줘", or auto-chained after implementation
+**Trigger**: `/code-review [scope]`, "review this" (any language), or auto-chained after implementation
 
 ## Injected Context (at load — do not re-run)
 
@@ -21,7 +21,7 @@ echo "--- ahead of main (name-status) ---"; git diff main...HEAD --name-status 2
 
 - 5h usage: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/usage-state.sh" 2>/dev/null || echo unknown`
 
-Usage downgrade (same rule as `front-harness` → Agent Spawning): if the `5h usage` value above is 80% or higher, ask once with `AskUserQuestion` before spawning — state the usage and reset time, options `Fable 유지` | `이번 실행은 Opus`. On Opus, pass `model: "opus"` to the Agent tool; otherwise pass no `model`. Below 80% or `unknown`: do not ask. If `front-harness` already asked in this run, reuse that answer.
+Usage downgrade (same rule as `front-harness` → Agent Spawning): if the `5h usage` value above is 80% or higher, ask once with `AskUserQuestion` before spawning — state the usage and reset time, options `Keep Fable` | `Opus for this run` (ask in the user's language). On Opus, pass `model: "opus"` to the Agent tool; otherwise pass no `model`. Below 80% or `unknown`: do not ask. If `front-harness` already asked in this run, reuse that answer.
 
 Scope hint from user (may be empty): `$ARGUMENTS`
 

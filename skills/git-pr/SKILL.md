@@ -1,6 +1,6 @@
 ---
 name: git-pr
-description: Generate a PR title, body, copy-pasteable `gh pr create` command and prefilled GitHub compare URL from the current branch ("PR 만들어줘", "PR 본문"). Never pushes or runs gh — the user submits.
+description: Generate a PR title, body, copy-pasteable `gh pr create` command and prefilled GitHub compare URL from the current branch ("create a PR", "write the PR body", in any language). Never pushes or runs gh — the user submits.
 argument-hint: "[base-branch]"
 disable-model-invocation: true
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh *) Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/org-overlay.sh *) Bash(git log *) Bash(git diff *) Bash(git branch *) Bash(git remote *) Bash(git rev-parse *) Bash(git status *)
@@ -8,7 +8,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh *) Bash(bash $
 
 # Skill: git-pr
 
-**Trigger**: user-invoked only — `/git-pr [base]` or natural language like "PR 본문 만들어줘", "PR 날릴 준비해줘"
+**Trigger**: user-invoked only — `/git-pr [base]` or natural language like "write the PR body", "get the PR ready"
 **Purpose**: Produce a reviewable PR title and body for the user to copy/paste. **Plugin does NOT push, does NOT call `gh pr create`** — user runs it themselves.
 
 ---
@@ -46,7 +46,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 ## Workflow
 
 1. Confirm current branch and base from the injected block. Ask only if the base is ambiguous (2+ integration branches and none given):
-   - "어느 base로 PR을 만들까요? (기본: `main`)"
+   - "Which base should the PR target? (default: `main`)" (ask in the user's language)
    - If the user picks a base different from the one used in the injection, re-run only `git log`/`git diff --name-only` for that base via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" git ...`
 2. Remote URL → prefilled compare URL (from injection). Read-only, never modifies remote
 3. Commit list → body sourcing (from injection)

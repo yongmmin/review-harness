@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Implement a feature test-first (RED → GREEN → REFACTOR) with the developer agent; for repos without a test framework falls back to implementation + manual verification. Use for "테스트부터", "TDD로", or any feature/logic change where a test runner exists.
+description: Implement a feature test-first (RED → GREEN → REFACTOR) with the developer agent; for repos without a test framework falls back to implementation + manual verification. Use for "tests first", "do it with TDD" (any language), or any feature/logic change where a test runner exists.
 argument-hint: "<feature description>"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---

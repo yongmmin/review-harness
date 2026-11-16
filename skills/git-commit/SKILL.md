@@ -1,6 +1,6 @@
 ---
 name: git-commit
-description: Create a scoped Conventional Commit after reviewer PASS (auto-chained by front-harness, or "커밋해줘" after a review). Stages intended files only, runs pre-commit checks (plus the org overlay's, if installed), never pushes.
+description: Create a scoped Conventional Commit after reviewer PASS (auto-chained by front-harness, or "commit this" after a review). Stages intended files only, runs pre-commit checks (plus the org overlay's, if installed), never pushes.
 argument-hint: "[scope-or-note]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git log *) Bash(git branch *) Bash(git add *) Bash(git commit *) Bash(git rev-parse *)
 ---
@@ -36,7 +36,7 @@ Anything printed above is organisation-specific and is part of this skill; where
    - exit 1 → abort and report the printed reason. "code changed after the review" means the reviewer must run again on the current changes
    - exit 3 (no state) → no review is on record: ask the user to run `/code-review` first, or to explicitly override
    - exit 4 (stale run) → show the message and ask the user whether to resume or abandon that run
-   - Explicit user override ("리뷰 없이 커밋해") → record it with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" override "<user's reason>"`, then proceed. The `commit-gate.sh` hook enforces the same check on `git commit`
+   - Explicit user override ("commit without review") → record it with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" override "<user's reason>"`, then proceed. The `commit-gate.sh` hook enforces the same check on `git commit`
 2. **Detect active repo** via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD"` (skip if `front-harness` already injected the Active Repo block this session)
 3. **Stage intended files only** — never `git add .` / `git add -A`
 4. **Pre-commit checks**:
@@ -104,8 +104,8 @@ Message: <first line of commit message>
 - path/to/file2.test.tsx
 
 ### Next steps (user-driven)
-- 푸시는 직접: git push -u origin <branch>
-- PR 만들 준비되면: /git-pr
+- Push yourself: git push -u origin <branch>
+- Ready for a PR: /git-pr
 ```
 
 ---

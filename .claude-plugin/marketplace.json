@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "front-harness",
-      "description": "Frontend Harness — React/Next.js 코드 개발 품질 하네스",
+      "description": "Frontend Harness — code-quality harness for React/Next.js",
       "source": ".",
       "version": "0.5.0"
     }

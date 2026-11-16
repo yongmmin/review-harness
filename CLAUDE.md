@@ -17,12 +17,14 @@ Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CH
 
 | Intent | Detection | Action |
 |--------|-----------|--------|
-| `feature` | KR terms: `기능`, `추가`, `연결`, `API`, `로직`, `만들어줘`, `폼`, `버튼`, `페이지`, `화면`, `컴포넌트` | Feature flow |
-| `refactor` | KR terms: `리팩토링`, `정리`, `개선`, `중복` | Refactor flow |
-| `review` | KR terms: `리뷰`, `검토`, `확인해줘` | Review fast-path |
+| `feature` | Keywords: `feature`, `add`, `connect`, `API`, `logic`, `build`, `form`, `button`, `page`, `screen`, `component` | Feature flow |
+| `refactor` | Keywords: `refactor`, `clean up`, `improve`, `duplicate` | Refactor flow |
+| `review` | Keywords: `review`, `check`, `verify` | Review fast-path |
+
+Keywords are examples: match the same meaning in whatever language the user writes. Ask user-facing questions in the user's language.
 
 - UI work is `feature` work. A design URL (e.g. figma.com) is only a reference input recorded in `plan.md → Inputs.Design`
-- `feature` + API keywords (`fetch`, `axios`, `API`, `GraphQL`, `query`, `mutation`, `Apollo`, `WebSocket`, `endpoint`, `서버`, `백엔드`, `연결`, `데이터`, `불러와`, `저장`, `실시간`) → run API Spec Check before planning. Pass spec only to `developer`.
+- `feature` + API keywords (`fetch`, `axios`, `API`, `GraphQL`, `query`, `mutation`, `Apollo`, `WebSocket`, `endpoint`, `server`, `backend`, `connect`, `data`, `load`, `save`, `realtime`) → run API Spec Check before planning. Pass spec only to `developer`.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: git-branch
-description: Suggest a task branch name with explicit base-branch selection ("브렌치/브랜치 만들어줘"). Lists existing branches, asks which base, prints the create command. Never executes git — the user runs it.
+description: Suggest a task branch name with explicit base-branch selection ("create a branch", in any language). Lists existing branches, asks which base, prints the create command. Never executes git — the user runs it.
 argument-hint: "[new-branch-name]"
 disable-model-invocation: true
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh *) Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/org-overlay.sh *) Bash(git branch *) Bash(git status *) Bash(git log *) Bash(git remote *) Bash(git rev-parse *)
@@ -8,7 +8,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh *) Bash(bash $
 
 # Skill: git-branch
 
-**Trigger**: user-invoked only — `/git-branch [name]` or natural language like "브렌치 만들어줘" (`front-harness` routes the phrase here; this skill is hidden from model auto-invocation)
+**Trigger**: user-invoked only — `/git-branch [name]` or natural language like "create a branch" (`front-harness` routes the phrase here; this skill is hidden from model auto-invocation)
 **Purpose**: Help the user create a task branch by **first discovering existing branches**, then asking which base to fork from, then suggesting a name. **Plugin does NOT execute git commands** — it prints the command the user runs themselves.
 
 ## Org Overlay
@@ -57,7 +57,7 @@ Note: only inspects what's already known locally. If remote refs look stale, men
 If exactly ONE integration branch exists locally → default to it, confirm with one-line question
 If MULTIPLE candidates → ask via `AskUserQuestion`:
 
-> "어느 브렌치에서 따올까요?"
+> "Which branch should it fork from?" (ask in the user's language)
 
 Options (max 4, ordered by precedence):
 1. The branch the user is currently on, if it's an integration branch
@@ -73,7 +73,7 @@ If user picks a branch that is **remote-only** (e.g. `origin/stage` not present 
 ### Step 3 — Confirm new branch name
 
 - If user provided a name inline (`/git-branch <name>`) → skip if already valid prefix; else normalize and confirm
-- Otherwise ask: "브렌치 이름을 알려주세요." Single text input
+- Otherwise ask: "What should the branch be called?" (ask in the user's language). Single text input
 - If active task has `plan.md` (it lives in the plugin state dir: `$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh")/plan.md`, not in the repo), suggest its `## Branch` line as default
 
 Validate against naming convention (below). If invalid, normalize and ask user to confirm.

@@ -1,10 +1,10 @@
 # Frontend Harness
 
-React/Next.js 코드 개발 품질을 위한 범용 Claude Code 하네스 플러그인입니다. `/front-harness "자연어 요청"` 한 줄을 받아 계획 → 구현 → 테스트 → 리뷰를 전문 에이전트(developer / test-runner / reviewer / refactor-architect)에게 맡기고, reviewer 가 PASS 한 변경만 commit 되게 막습니다. 조직별 knowledge(레포 구조, 사내 컨벤션)는 플러그인에 포함되지 않으며, 각자 자기 컴퓨터에 따로 준비합니다.
+A general-purpose Claude Code harness plugin for code quality in React/Next.js projects. You give it one line — `/front-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
 
-## 설치 / 업데이트
+## Install / Update
 
-**1. 클론 + 부트스트랩**
+**1. Clone and bootstrap**
 
 ```bash
 git clone https://github.com/yongmmin/front-harness.git ~/claude-plugins/front-harness
@@ -12,18 +12,18 @@ cd ~/claude-plugins/front-harness
 chmod +x install.sh && ./install.sh
 ```
 
-`install.sh` 는 `~/.claude/settings.json` 에 `.env*` 보호 룰을 추가하고(쓰기 전 `.bak` 백업) 다음 단계 명령을 안내합니다.
+`install.sh` adds `.env*` protection rules to `~/.claude/settings.json` (it writes a `.bak` backup first) and prints the commands for the next step.
 
-**2. 플러그인 등록 (필수)** — Claude Code 세션 안에서:
+**2. Register the plugin (required)** — inside a Claude Code session:
 
 ```
 /plugin marketplace add ~/claude-plugins/front-harness
 /plugin install front-harness@front-harness
 ```
 
-이 단계를 거쳐야 hooks 와 agents 가 활성화됩니다. 설치 후 새 세션에서 `/plugin` 으로 확인하세요.
+Hooks and agents are only active after this step. Open a new session and check with `/plugin`.
 
-**업데이트** — marketplace 가 로컬 디렉터리로 등록되므로 자동 업데이트되지 않습니다:
+**Update** — the marketplace is registered from a local directory, so it does not update automatically:
 
 ```bash
 cd ~/claude-plugins/front-harness && git pull
@@ -31,113 +31,113 @@ claude plugin marketplace update front-harness
 claude plugin update front-harness@front-harness
 ```
 
-열려 있는 세션에는 `/reload-plugins` 로 적용합니다. `jq` 가 있어야 review gate 와 사용률 표시가 동작하고, `rtk` 는 선택입니다. 상세는 [docs/hooks.md](docs/hooks.md).
+Apply it to an open session with `/reload-plugins`. `jq` is required for the review gate and the usage display; `rtk` is optional. Details: [docs/hooks.md](docs/hooks.md).
 
-## knowledge 준비
+## Preparing knowledge
 
-플러그인만 설치하면 범용 규칙으로 동작합니다. 내 조직의 레포와 컨벤션을 반영하려면 아래 두 폴더를 직접 만듭니다. 둘 다 플러그인 폴더 밖에 있어 git 에 올라가지 않습니다.
+With only the plugin installed, it runs on generic rules. To make it aware of your organisation's repos and conventions, create the two folders below yourself. Both live outside the plugin folder, so they never end up in git.
 
-| 위치 | 내용 |
+| Location | Content |
 |---|---|
-| `~/.front-harness/knowledge/index.md` | 세션 시작 때 요약되는 개요 |
-| `~/.front-harness/knowledge/<org>/repos.md` | 레포 레지스트리. 현재 디렉터리가 어느 레포인지 매칭하는 데 씀 |
-| `~/.front-harness/knowledge/<org>/*.md` | 도메인 지식 (아키텍처, 컨벤션 등) |
-| `~/.front-harness/org/skills/<skill>.md` | skill 에 덧붙는 조직 규칙 |
-| `~/.front-harness/org/agents/<agent>.md` | 에이전트에 덧붙는 조직 규칙 |
-| `~/.front-harness/org/constraints.md` | `## #org` 절. 에이전트 constraints 에 덧붙음 |
+| `~/.front-harness/knowledge/index.md` | Overview summarised at session start |
+| `~/.front-harness/knowledge/<org>/repos.md` | Repo registry, used to match the current directory to a repo |
+| `~/.front-harness/knowledge/<org>/*.md` | Domain knowledge (architecture, conventions, …) |
+| `~/.front-harness/org/skills/<skill>.md` | Organisation rules appended to a skill |
+| `~/.front-harness/org/agents/<agent>.md` | Organisation rules appended to an agent |
+| `~/.front-harness/org/constraints.md` | A `## #org` section appended to agent constraints |
 
-지금 가능한 준비 방법은 파일을 직접 쓰는 것입니다. `repos.md` 는 레포마다 아래 형식의 블록을 둡니다:
+For now, the way to prepare them is to write the files by hand. `repos.md` holds one block per repo in this format:
 
 ```markdown
 ### my-app
 - **local_path**: `/absolute/path/to/my-app`
-- **role**: 한 줄 설명
+- **role**: one-line description
 - **layout**: `src/`
 ```
 
-작성 후 플러그인 폴더에서 확인합니다:
+Then check from the plugin folder:
 
 ```bash
-bash hooks/detect-repo.sh /absolute/path/to/my-app     # Active Repo 블록이 나오면 등록 성공
-bash hooks/org-overlay.sh skills front-harness         # 작성한 overlay 가 출력됨
-bash hooks/extract-constraints.sh reviewer             # #org 절과 에이전트 overlay 가 끝에 붙음
+bash hooks/detect-repo.sh /absolute/path/to/my-app     # an Active Repo block means the repo is registered
+bash hooks/org-overlay.sh skills front-harness         # prints the overlay you wrote
+bash hooks/extract-constraints.sh reviewer             # ends with the #org section and the agent overlay
 ```
 
-작업 중 얻은 지식은 `/save-knowledge` 로 같은 폴더에 추가할 수 있습니다. 폴더가 비어 있으면 overlay 는 아무것도 출력하지 않고, 레포 매칭과 조직 규칙 없이 범용 규칙만 적용됩니다. knowledge 자동 생성 skill 은 예정 (0.6.0) 입니다.
+Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules. A skill that generates knowledge automatically is planned (0.6.0).
 
-## 빠른 시작
+## Quick start
 
-프로젝트 디렉터리에서 Claude Code 를 열고:
+Open Claude Code in your project directory:
 
-| 명령 | 하는 일 |
+| Command | What it does |
 |---|---|
-| `/front-harness 결제 화면에 결제 API 연결해줘` | 기능 추가(UI 포함). 계획(`plan.md`) 승인 → 구현 → 테스트 → 리뷰 → commit |
-| `/front-harness 이 코드 리팩토링해줘` | 중복 패턴을 찾아 리팩터 계획을 먼저 제안 |
-| `/code-review` | 현재 변경을 PASS / FAIL 로 리뷰 |
-| `/git-branch` | 브랜치 이름과 `git checkout -b` 명령을 만들어 줌 (실행은 본인이) |
-| `/git-pr` | PR 제목·본문·`gh pr create` 명령을 만들어 줌 (실행은 본인이) |
-| `/rtk-toggle` | 플러그인 내부 명령의 출력 압축 모드 변경 |
+| `/front-harness connect the payment API to the checkout screen` | Add a feature (UI included): approve the plan (`plan.md`) → implement → test → review → commit |
+| `/front-harness refactor this code` | Find duplicated patterns and propose a refactor plan first |
+| `/code-review` | Review the current changes as PASS / FAIL |
+| `/git-branch` | Suggest a branch name and the `git checkout -b` command (you run it) |
+| `/git-pr` | Write the PR title, body and `gh pr create` command (you run it) |
+| `/rtk-toggle` | Change the output-compression mode for the plugin's internal commands |
 
-처음 실행하면 출력 압축(rtk) 모드를 한 번 묻습니다.
+Requests can be written in any language. On first use it asks once which output-compression (rtk) mode to use.
 
 ## Workflow
 
 ```
 Feature        search-knowledge? → developer → test-runner → reviewer → git-commit → DONE
 
-Small change   메인 세션이 직접 수정 → test-runner → reviewer → git-commit → DONE
+Small change   main session edits directly → test-runner → reviewer → git-commit → DONE
 
-Refactor       search-knowledge? → refactor-architect → 사용자 재승인
+Refactor       search-knowledge? → refactor-architect → user re-approval
                → developer → test-runner → reviewer → git-commit → DONE
 
 Review         reviewer
 ```
 
-- `?` 는 조건에 따라 건너뛰는 단계입니다. UI 작업도 Feature 로 처리합니다.
-- **Small change** 는 기존 파일 2개 이하만 고치고 새 파일·컴포넌트·hook·store·endpoint·socket event 를 만들지 않는 변경입니다. `plan.md` 작성과 승인 대기를 건너뜁니다.
-- 그 외에는 `plan.md` 를 쓰고 승인을 받은 뒤 실행합니다. 계획의 `Reuse` 항목(무엇을 재사용하는지, 새로 만든다면 구체적 이유 하나)은 비워 둘 수 없고, 비어 있으면 reviewer 가 FAIL 합니다.
-- 테스트 실패와 reviewer FAIL 은 합쳐서 3회까지 재시도하고, 상한에 닿으면 중단하고 남은 문제를 보고합니다.
-- `DONE` 이후(브랜치, push, PR)는 사용자가 직접 합니다.
+- `?` marks a step that is skipped when not needed. UI work is handled as Feature.
+- **Small change** is a change that touches at most 2 existing files and creates no new file, component, hook, store, endpoint or socket event. It skips writing `plan.md` and waiting for approval.
+- Everything else writes `plan.md` and runs after you approve it. The plan's `Reuse` line (what is reused, or one concrete reason for building something new) cannot be empty; the reviewer FAILs an empty one.
+- Test failures and reviewer FAILs share a limit of 3 retries. At the limit it stops and reports what is still wrong.
+- Everything after `DONE` (branch, push, PR) is yours to do.
 
-## Agent와 모델
+## Agents and models
 
-| Agent | 역할 | model | effort |
+| Agent | Role | model | effort |
 |---|---|---|---|
-| developer | TDD 구현 + API 통합 (types → hook/service → UI states) | `opus` | high |
-| test-runner | 테스트 실행 + 결과 요약 | `opus` | medium |
-| reviewer | 변경 리뷰 (correctness / react-perf / design / scope). commit 전 단일 품질 gate | `fable` | high |
-| refactor-architect | 중복 패턴 감지 + 추출 제안 (`plan.md` 만 작성) | `fable` | high |
+| developer | TDD implementation + API integration (types → hook/service → UI states) | `opus` | high |
+| test-runner | Runs tests and summarises the result | `opus` | medium |
+| reviewer | Reviews the change (correctness / react-perf / design / scope). The single quality gate before commit | `fable` | high |
+| refactor-architect | Detects duplicated patterns and proposes extractions (writes `plan.md` only) | `fable` | high |
 
-모델은 각 `agents/*.md` 의 frontmatter `model:` 값입니다.
+The model is the `model:` value in each `agents/*.md` frontmatter.
 
-## 꼭 알아야 할 규칙
+## Rules you need to know
 
-1. **git 작업은 사용자가 실행합니다.** 플러그인은 commit 만 자동으로 하고, 브랜치 생성·push·PR 은 명령과 본문만 만들어 줍니다.
-2. **reviewer PASS 없이는 commit 이 막힙니다.** 판정은 리뷰 시점의 작업 트리 hash 와 함께 파일에 기록됩니다. 리뷰 후 코드를 고치면 다시 리뷰해야 합니다 (`git add` 는 영향 없음). 그래도 commit 하려면 명시적으로 지시하세요. override 로 기록됩니다.
-3. **조직 overlay 가 규칙을 더할 수 있습니다.** 예: 기능 변경 시 QA 문서 갱신을 요구하는 gate.
-4. **5시간 사용률이 80% 이상이면 모델을 묻습니다.** reviewer / refactor-architect 를 띄우기 전에 `Fable 유지` / `이번 실행은 Opus` 를 한 번 묻습니다. 사용률은 status line 이 `~/.claude/usage-state.json` 에 기록한 값을 읽으며, 파일이 없거나 10분 넘게 갱신되지 않았으면 묻지 않습니다.
-5. **`package.json`, `next.config.*`, `tsconfig*.json` 수정은 승인이 필요합니다.** `.env*` 는 수정할 수 없습니다.
+1. **You run the git operations.** The plugin commits automatically, but for branches, pushes and PRs it only writes the commands and text.
+2. **No commit without a reviewer PASS.** The verdict is stored in a file together with a hash of the work tree at review time. If you change code after the review, it must be reviewed again (`git add` does not count as a change). To commit anyway, say so explicitly; it is recorded as an override.
+3. **An organisation overlay can add rules.** Example: a gate that requires QA documents to be updated when behaviour changes.
+4. **At 80% of the 5-hour usage limit it asks which model to use.** Before starting reviewer / refactor-architect it asks once: `Keep Fable` / `Opus for this run`. Usage is read from `~/.claude/usage-state.json`, written by your status line; if the file is missing or older than 10 minutes it does not ask.
+5. **Editing `package.json`, `next.config.*` or `tsconfig*.json` needs your approval.** `.env*` files cannot be edited.
 
-## 상태 파일 위치
+## Where state is stored
 
-플러그인은 작업 중인 레포 안에 파일을 만들지 않습니다. 실행 상태는 `~/.front-harness/state/<repo-id>/` 에 둡니다. `<repo-id>` 는 작업 트리 이름 + 절대 경로 hash 라서 git worktree 마다 따로 생깁니다.
+The plugin never creates files inside the repo you are working in. Run state lives in `~/.front-harness/state/<repo-id>/`. `<repo-id>` is the work-tree name plus a hash of its absolute path, so each git worktree gets its own.
 
-| 파일 | 내용 |
+| File | Content |
 |---|---|
-| `run-state.json` | 진행 중인 workflow, 단계별 완료, 재시도 횟수, reviewer 판정 |
-| `plan.md` | 승인 대기 중인 계획. 작성할 때마다 전체 경로를 알려 줍니다 |
-| `rtk-session.flag` | 출력 압축 모드 |
-| `approved/` | 설정 파일 수정 승인 기록 (30분 TTL) |
-| `cache/` | tsc / eslint 임시 파일 (1시간 지나면 정리) |
+| `run-state.json` | Current workflow, completed steps, retry count, reviewer verdict |
+| `plan.md` | The plan awaiting approval. Its full path is reported every time it is written |
+| `rtk-session.flag` | Output-compression mode |
+| `approved/` | Approvals for config-file edits (30-minute TTL) |
+| `cache/` | tsc / eslint temporary files (cleaned after 1 hour) |
 
-실행이 중간에 끊기면 다음 `/front-harness` 시작 때 이어서 할지 새로 시작할지 묻습니다.
+If a run is interrupted, the next `/front-harness` asks whether to resume it or start new.
 
-## 상세 문서
+## More documentation
 
-- [docs/skills.md](docs/skills.md) — skill 10개 설명, `/front-harness` 진행 흐름, `/git-pr` 출력, 에이전트
-- [docs/hooks.md](docs/hooks.md) — hook 스크립트 12개, Git 정책, 설정 파일 보호와 제거 방법, constraints, RTK, overlay·knowledge 구조
-- [CHANGELOG.md](CHANGELOG.md) — 버전별 변경 이력
-- [skills/front-harness/SKILL.md](skills/front-harness/SKILL.md) — 실행 시 기준이 되는 workflow 정의
-- [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — 에이전트 규칙과 런타임 규칙
+- [docs/skills.md](docs/skills.md) — the 10 skills, the `/front-harness` flow, `/git-pr` output, agents
+- [docs/hooks.md](docs/hooks.md) — the 12 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [CHANGELOG.md](CHANGELOG.md) — version history
+- [skills/front-harness/SKILL.md](skills/front-harness/SKILL.md) — the workflow definition used at runtime
+- [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — agent rules and runtime rules
 
-라이센스: [MIT](LICENSE). 외부 PR 은 받지 않습니다.
+License: [MIT](LICENSE). External PRs are not accepted.

@@ -1,6 +1,6 @@
 ---
 name: front-harness
-description: Single entry point for frontend code work in a React/Next.js repo — feature/API wiring (UI work included), refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests like "만들어줘", "추가해줘", "리팩토링", "리뷰해줘". Not for git branch/PR creation (use /git-branch, /git-pr).
+description: Single entry point for frontend code work in a React/Next.js repo — feature/API wiring (UI work included), refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests (in any language) like "build this", "add this", "refactor", "review this". Not for git branch/PR creation (use /git-branch, /git-pr).
 argument-hint: "[request] [--rtk=off|standard|aggressive|git-only]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git branch *) Bash(git log *)
 ---
@@ -44,6 +44,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 
 - This file is the canonical runtime workflow
 - `README.md` is documentation only — do not load during execution
+- Questions, option labels and report text in this skill are written in English. Present them in the user's language
 - `front-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents.
 - Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 - No legacy agents (`api-integrator` merged into `developer` — API work is developer's job, no separate handoff)
@@ -62,8 +63,8 @@ Resolve rtk token-filter mode before any agent spawn. Plugin-scoped — no globa
 2. **Env var** — if `FE_HARNESS_RTK` is set, do nothing. Hard override
 3. **Session flag** — if the injected `session flag: present` line says present, reuse the injected mode
 4. **Otherwise** (flag absent, no env, no inline arg) — launch `AskUserQuestion`:
-   - Q: `이 작업에서 rtk로 명령 출력을 압축할까요?`
-   - Options: `Off — raw 명령 그대로 (기본 동작)` | `On — standard (Recommended)` | `On — aggressive (+ ultra-compact)` | `On — git-only`
+   - Q: `Compress command output with rtk for this work?`
+   - Options: `Off — raw commands (default)` | `On — standard (Recommended)` | `On — aggressive (+ ultra-compact)` | `On — git-only`
    - After answer, call `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>`
 
 Valid modes: `off | standard | aggressive | git-only`. Reject others with one-line error.
@@ -72,10 +73,10 @@ User can re-run `/rtk` to change mode mid-session.
 
 ### 0.5. Unfinished Run Gate
 
-If the injected `run state` line is not `none`, a previous run in this work tree did not finish. Show that line and ask with `AskUserQuestion`: `이어서 진행` | `새로 시작`.
+If the injected `run state` line is not `none`, a previous run in this work tree did not finish. Show that line and ask with `AskUserQuestion`: `Resume` | `Start new`.
 
-- `이어서 진행` → continue from the first `pending` step. Do not call `start` again
-- `새로 시작` → run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" abandon`, then proceed as a new request
+- `Resume` → continue from the first `pending` step. Do not call `start` again
+- `Start new` → run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" abandon`, then proceed as a new request
 - A `STALE` run (not updated for over 24h) is asked the same way — the commit hook does not enforce it until the user decides
 
 ### 1. Lazy Setup
@@ -87,8 +88,8 @@ If `~/.front-harness/knowledge/index.md` is missing, initialize project knowledg
 The `=== Active Repo ===` block is already injected above — do not re-run `detect-repo.sh`. Three branches:
 
 - **Matched** → compact repo block becomes part of agent context. Apply repo-specific rules: path alias, layout (`src/` vs `app/`), env source, Tailwind version
-- **Unmatched** AND user request implies frontend work → ask: "현재 디렉토리가 등록되지 않았습니다. 레포를 등록하시겠어요 (Active Repo 블록의 `hint` 참고), 아니면 이 작업만 임시로 진행할까요?"
-- **Unmatched** AND user request is generic (e.g. "/front-harness 설명해줘") → continue without repo context
+- **Unmatched** AND user request implies frontend work → ask: "This directory is not registered. Register the repo (see the `hint` line in the Active Repo block), or continue for this task only?"
+- **Unmatched** AND user request is generic (e.g. "/front-harness explain yourself") → continue without repo context
 - **No Active Repo block at all** (no repo registry installed, no `~/.front-harness/knowledge/<org>/repos.md`) → continue with the generic rules; do not ask
 
 ### 2. Ambiguity Check
@@ -100,7 +101,7 @@ Ask a clarification question before planning if ANY of:
 - Scope is overly broad
 - Request mixes multiple major tasks
 - "Optimize"/"improve" doesn't specify dimension
-- **Deictic reference**: user uses `그거`, `이거`, `위에 그거`, `방금 그`, `그 컴포넌트` without a clear referent in this turn → ask "지칭하신 X가 정확히 무엇을 가리키나요?" Cite candidates from recent context if any
+- **Deictic reference**: user says "that", "this one", "the one above", "that component" (in any language) without a clear referent in this turn → ask "What exactly does X refer to?" Cite candidates from recent context if any
 
 Rules: max 2 questions, only what blocks planning.
 
@@ -110,24 +111,26 @@ Before classifying, check the Small change conditions (Workflow Selection → Sm
 
 | Intent | Detection | Workflow |
 |--------|-----------|----------|
-| `feature` | KR terms: `기능`, `추가`, `연결`, `API`, `로직`, `만들어줘`, `폼`, `버튼`, `페이지`, `화면`, `컴포넌트` | Feature flow |
-| `refactor` | KR terms: `리팩토링`, `정리`, `개선`, `중복` | Refactor flow |
-| `review` | KR terms: `리뷰`, `검토`, `확인해줘` | Review fast-path |
+| `feature` | Keywords: `feature`, `add`, `connect`, `API`, `logic`, `build`, `form`, `button`, `page`, `screen`, `component` | Feature flow |
+| `refactor` | Keywords: `refactor`, `clean up`, `improve`, `duplicate` | Refactor flow |
+| `review` | Keywords: `review`, `check`, `verify` | Review fast-path |
+
+Keywords are examples: match the same meaning in whatever language the user writes.
 
 UI work is `feature` work. A design URL in the request (e.g. a figma.com link) is only a reference input: record it in `plan.md → Inputs.Design`. It does not select a workflow, and this plugin gives no design-tool instructions.
 
 ### 4. API Spec Check
 
-**Trigger**: intent is `feature` AND request contains API keyword: `fetch`, `axios`, `API`, `GraphQL`, `query`, `mutation`, `Apollo`, `WebSocket`, `endpoint`, `서버`, `백엔드`, `연결`, `데이터`, `불러와`, `저장`, `실시간`
+**Trigger**: intent is `feature` AND request contains API keyword: `fetch`, `axios`, `API`, `GraphQL`, `query`, `mutation`, `Apollo`, `WebSocket`, `endpoint`, `server`, `backend`, `connect`, `data`, `load`, `save`, `realtime` (or the same meaning in the user's language)
 
 If triggered, ask once in user's language:
-> "API 스펙 있나요? (Swagger/OpenAPI URL, GraphQL schema, `.md`/`.yaml` 파일, 또는 엔드포인트 직접 붙여넣기)"
+> "Do you have an API spec? (Swagger/OpenAPI URL, GraphQL schema, a `.md`/`.yaml` file, or paste the endpoint)"
 
 | Response | Action |
 |----------|--------|
 | URL or file | Record in `plan.md → Inputs.API`; fetch on demand in `developer` only |
 | Endpoint/query pasted | Record as-is in `plan.md → Inputs.API` |
-| None | Ask: "예상 request/response 형태?" — record described shape |
+| None | Ask: "What request/response shape do you expect?" — record described shape |
 
 **Token budget:**
 - Pass API spec only to `developer` — never to others (reviewer sees resulting code, not the spec)
@@ -196,9 +199,9 @@ Spawn specialists with the `Agent` tool. When installed as a plugin, the `subage
 
 **Usage downgrade**: the injected `5h usage` line reads `N% (resets HH:MM)` or `unknown`.
 
-- If N is 80 or higher, ask once with `AskUserQuestion` before the first `reviewer` or `refactor-architect` spawn. Put the current usage N% and the reset time in the question. Options: `Fable 유지` | `이번 실행은 Opus`
+- If N is 80 or higher, ask once with `AskUserQuestion` before the first `reviewer` or `refactor-architect` spawn. Put the current usage N% and the reset time in the question. Options: `Keep Fable` | `Opus for this run`
 - Keep the answer until this skill run ends, including skills it chains into. Do not ask again per spawn
-- `이번 실행은 Opus` → spawn both agents with the Agent tool's `model: "opus"` parameter (it overrides the agent's frontmatter). `Fable 유지` → pass no `model`
+- `Opus for this run` → spawn both agents with the Agent tool's `model: "opus"` parameter (it overrides the agent's frontmatter). `Keep Fable` → pass no `model`
 - If N is below 80 or the value is `unknown`, do not ask; pass no `model` so the frontmatter value applies
 
 ## Context Budget
@@ -307,13 +310,13 @@ The plugin does **NOT** auto-create branches or submit PRs. Both are the user's 
 | **Push** | **Never auto-pushes.** User pushes themselves |
 | **PR create** | User invokes `/git-pr` or asks naturally. Plugin generates title + body + copy-pasteable `gh pr create` command + prefilled GitHub compare URL. **Never executes `gh`.** |
 
-### Trigger phrases (Korean)
+### Trigger phrases (any language)
 
 | User says | Plugin action |
 |-----------|---------------|
-| "브렌치 만들어줘" / "브랜치 생성해줘" / `/git-branch` | Run `git-branch` skill (ask name, print command) |
-| "PR 만들어줘" / "PR 본문 만들어줘" / "PR 날릴 준비해줘" / `/git-pr` | Run `git-pr` skill (generate body + URL) |
-| "푸시해줘" | Refuse politely — push is the user's action. Plugin can show the suggested command but does not run it |
+| "create a branch" / `/git-branch` | Run `git-branch` skill (ask name, print command) |
+| "create a PR" / "write the PR body" / "get the PR ready" / `/git-pr` | Run `git-pr` skill (generate body + URL) |
+| "push it" | Refuse politely — push is the user's action. Plugin can show the suggested command but does not run it |
 
 After the workflow chain reaches `[DONE]`, the plugin reports:
 
@@ -321,9 +324,9 @@ After the workflow chain reaches `[DONE]`, the plugin reports:
 ✅ Implementation + review complete.
 
 Next steps (user-driven):
-- 브렌치가 없다면: `/git-branch` 호출해서 생성
-- PR을 만들 준비가 되면: `/git-pr` 호출
-- 푸시는 직접 실행: `git push -u origin <branch-name>`
+- No branch yet: run `/git-branch` to create one
+- Ready for a PR: run `/git-pr`
+- Push yourself: `git push -u origin <branch-name>`
 ```
 
 ---
