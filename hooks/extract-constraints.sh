@@ -19,7 +19,7 @@ fi
 
 # Section tag → target agents (mirrors table in constraints.md)
 case "$AGENT" in
-  developer|ui-builder)
+  developer)
     SECTIONS="code-rules filesystem completion org"
     ;;
   test-runner)
@@ -28,7 +28,7 @@ case "$AGENT" in
   reviewer)
     SECTIONS="review failure-patterns org"
     ;;
-  refactor-architect|component-auditor)
+  refactor-architect)
     SECTIONS="code-rules org"
     ;;
   *)

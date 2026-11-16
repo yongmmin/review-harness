@@ -1,8 +1,8 @@
 {
   "name": "front-harness",
   "displayName": "Frontend Harness",
-  "description": "Frontend Harness: 오케스트레이션 기반 React/Next.js 개발 자동화 플러그인. Harness Engineering 원칙에 따라 전문 에이전트에게 위임한다.",
-  "version": "0.4.0",
+  "description": "Frontend Harness: React/Next.js 코드 개발 품질을 위한 하네스 플러그인. 계획 → 구현 → 테스트 → 리뷰 gate 를 전문 에이전트에게 위임한다.",
+  "version": "0.4.1",
   "author": {
     "name": "yongmmin"
   },
@@ -12,7 +12,6 @@
     "nextjs",
     "three",
     "r3f",
-    "figma",
     "tdd",
     "code-review"
   ],

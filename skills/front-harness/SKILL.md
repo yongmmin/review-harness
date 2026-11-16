@@ -1,7 +1,7 @@
 ---
 name: front-harness
-description: Single entry point for any frontend work in a React/Next.js repo — new UI, Figma implementation, feature/API wiring, refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (component-auditor → developer/ui-builder → test-runner → reviewer → git-commit). Use for requests like "만들어줘", "추가해줘", "리팩토링", "리뷰해줘", or any figma.com URL. Not for git branch/PR creation (use /git-branch, /git-pr).
-argument-hint: "[request or figma-url] [--rtk=off|standard|aggressive|git-only]"
+description: Single entry point for frontend code work in a React/Next.js repo — feature/API wiring (UI work included), refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests like "만들어줘", "추가해줘", "리팩토링", "리뷰해줘". Not for git branch/PR creation (use /git-branch, /git-pr).
+argument-hint: "[request] [--rtk=off|standard|aggressive|git-only]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git branch *) Bash(git log *)
 ---
 
@@ -45,7 +45,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 - This file is the canonical runtime workflow
 - `README.md` is documentation only — do not load during execution
 - `front-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents.
-- Active agents only: `component-auditor`, `developer`, `ui-builder`, `test-runner`, `reviewer`, `refactor-architect`
+- Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 - No legacy agents (`api-integrator` merged into `developer` — API work is developer's job, no separate handoff)
 
 ---
@@ -110,20 +110,13 @@ Before classifying, check the Small change conditions (Workflow Selection → Sm
 
 | Intent | Detection | Workflow |
 |--------|-----------|----------|
-| `figma` | contains `figma.com` URL | Figma flow |
-| `ui` | KR terms: `만들어줘`, `폼`, `버튼`, `페이지`, `화면`, `컴포넌트` | UI without design unless Figma provided |
-| `feature` | KR terms: `기능`, `추가`, `연결`, `API`, `로직` | Feature flow |
+| `feature` | KR terms: `기능`, `추가`, `연결`, `API`, `로직`, `만들어줘`, `폼`, `버튼`, `페이지`, `화면`, `컴포넌트` | Feature flow |
 | `refactor` | KR terms: `리팩토링`, `정리`, `개선`, `중복` | Refactor flow |
 | `review` | KR terms: `리뷰`, `검토`, `확인해줘` | Review fast-path |
 
-### 4. Figma Check
+UI work is `feature` work. A design URL in the request (e.g. a figma.com link) is only a reference input: record it in `plan.md → Inputs.Design`. It does not select a workflow, and this plugin gives no design-tool instructions.
 
-If intent is `ui` and no Figma URL is present, ask in user's language.
-
-- URL provided → `figma`
-- No URL → `ui`
-
-### 5. API Spec Check
+### 4. API Spec Check
 
 **Trigger**: intent is `feature` AND request contains API keyword: `fetch`, `axios`, `API`, `GraphQL`, `query`, `mutation`, `Apollo`, `WebSocket`, `endpoint`, `서버`, `백엔드`, `연결`, `데이터`, `불러와`, `저장`, `실시간`
 
@@ -140,13 +133,13 @@ If triggered, ask once in user's language:
 - Pass API spec only to `developer` — never to others (reviewer sees resulting code, not the spec)
 - If URL provided, `developer` fetches only relevant endpoint(s) on demand
 
-### 6. Review Fast-Path
+### 5. Review Fast-Path
 
 If intent is `review`, **skip Plan Gate entirely**. Spawn `reviewer` directly on current changes. No `plan.md`, no approval wait. Reviewer verdict (PASS/FAIL) is final output; no commit/push follows.
 
 Applies only when intent is exactly `review`.
 
-### 7. Plan Gate
+### 6. Plan Gate
 
 Create `plan.md`, then wait for explicit user approval before execution.
 
@@ -157,10 +150,10 @@ Create `plan.md`, then wait for explicit user approval before execution.
 [what and why]
 
 ## Intent
-[figma / ui / feature / refactor / review]
+[feature / refactor / review]
 
 ## Inputs
-- Figma: [URL or none]
+- Design: [reference URL or none]
 - API: [spec, endpoint, or none]
 
 ## Affected Files
@@ -183,14 +176,12 @@ Create `plan.md`, then wait for explicit user approval before execution.
 ```
 
 **Design Check rules**:
-- Required for `ui`, `figma`, `feature`, `refactor`. Omit for `review`
+- Required for `feature`, `refactor`. Omit for `review`
 - Max 1 line per bullet. No prose
 - If `Reuse` says "new primitive", justification must be one concrete reason — not vague "for flexibility"
-- Authoring order:
-  1. At plan creation, fill `Reuse / Responsibility / Risk` from quick scan + project knowledge
-  2. After `component-auditor` runs, **update `Reuse` line in place** with concrete candidates. Small in-place edit, not new section
-  3. `developer` / `ui-builder` read updated `plan.md` as canonical Design Check
-- Do not duplicate audit list. Reuse line is single source of truth
+- `Reuse` is filled at plan time by the main session — no agent does it for you. Before writing the plan, search the repo and the shared packages it depends on for an existing component/hook/util that covers the request, and use project knowledge
+- `Reuse` must never be empty: name what is reused, or write "none — new primitive justified because X". `reviewer` FAILs a plan whose `Reuse` line is empty
+- `developer` reads `plan.md` as the canonical Design Check. The Reuse line is the single source of truth
 - Caught design mistakes BEFORE implementation. Read by user during approval and re-read by `reviewer` during design check
 
 `plan.md` is a working artifact: write it to `<state dir>/plan.md`, never to the consumer repo. Every time you write or update it, tell the user its full absolute path in one line.
@@ -246,11 +237,11 @@ Rules: omit empty fields, max 6 bullets, one line each, no prose, identifiers/pa
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" start <workflow> <step> <step> ...
 ```
 
-with `<workflow>` = `small-change | feature | figma | ui | refactor | review` and the workflow's steps in order (e.g. `start feature developer test-runner reviewer git-commit`). If it refuses because a run is already active, go back to Request Gate 0.5. Then keep the file current — the script computes every counter, timestamp and hash; never write those values yourself:
+with `<workflow>` = `small-change | feature | refactor | review` and the workflow's steps in order (e.g. `start feature developer test-runner reviewer git-commit`). If it refuses because a run is already active, go back to Request Gate 0.5. Then keep the file current — the script computes every counter, timestamp and hash; never write those values yourself:
 
 - step finished → `run-state.sh step <name>`
 - tests failed → `run-state.sh attempt`
-- reviewer verdict → recorded by `reviewer` itself with `run-state.sh verdict PASS|FAIL`. Put this absolute command in the reviewer's prompt: `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" verdict <PASS|FAIL>`. If the reviewer's reply has no `review: … recorded` line, spawn `reviewer` once more to record it. If the line is still missing, treat the run as having no verdict: never record a verdict yourself, stop, and report to the user that the review was not recorded. `git-commit` stays blocked in that state
+- reviewer verdict → recorded by `reviewer` itself with `run-state.sh verdict PASS|FAIL`. Give the reviewer the `plan_path` (when a plan exists) and put this absolute command in its prompt: `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" verdict <PASS|FAIL>`. If the reviewer's reply has no `review: … recorded` line, spawn `reviewer` once more to record it. If the line is still missing, treat the run as having no verdict: never record a verdict yourself, stop, and report to the user that the review was not recorded. `git-commit` stays blocked in that state
 - last commit made, or a `review` workflow finished → `run-state.sh done`
 
 **Review gate**: `reviewer` is the single quality gate, and it is enforced from the state file, not from the conversation. `git-commit` proceeds only when `run-state.sh check` passes: a recorded PASS whose work-tree hash equals the current work tree, or a recorded user override. FAIL, a missing verdict, or code changed after the review all block the commit; the fix list feeds the retry loop. The `commit-gate.sh` PreToolUse hook denies `git commit` on the same check as a backstop.
@@ -258,11 +249,6 @@ with `<workflow>` = `small-change | feature | figma | ui | refactor | review` an
 ### Shared Skip Rules
 
 - Skip `search-knowledge` if knowledge is empty/irrelevant. Use the injected `knowledge:` line (exit != 0 of `knowledge-has-content.sh`) means placeholder-only — skip agent spawn entirely
-- `component-auditor` is **MANDATORY**, except on the Small change path, for any intent creating/modifying UI: `ui`, `figma`, and any `feature` whose `Affected Files` include `.tsx`/`.jsx` components, hooks, or styles
-- Skip `component-auditor` only when one of these holds:
-  - intent is `review` (fast-path)
-  - the Small change path applies (nothing new is created, so there is nothing to reuse-check)
-  - intent is `feature` AND the change touches zero component/hook/style files (pure service/util/API)
 - Pass `plan.md → Inputs.API` to `developer` only when the change touches data fetching/mutation
 - Skip `save-knowledge` if no durable learning
 
@@ -271,7 +257,7 @@ with `<workflow>` = `small-change | feature | figma | ui | refactor | review` an
 Use this path when ALL hold:
 - the change touches at most 2 existing files and creates no new file
 - it adds no new component, hook, store, endpoint, or socket event
-- it is not a `figma` or `refactor` intent
+- it is not a `refactor` intent
 
 ```
 main session implements -> test-runner -> reviewer
@@ -280,45 +266,29 @@ main session implements -> test-runner -> reviewer
 
 The main session makes the edit itself; spawning `developer` costs more than the change. `reviewer` stays the quality gate, and the org overlay's gates (if installed) apply as usual. If the change grows past the conditions above while you work, stop and switch to the Feature path.
 
-This path skips `plan.md` and the approval wait (Request Gate 7): say in one line what you are about to change, then make the edit.
+This path skips `plan.md` and the approval wait (Request Gate 6): say in one line what you are about to change, then make the edit.
 
 ### Feature
 
 ```
-[search-knowledge? || component-auditor?] -> developer
+search-knowledge? -> developer
 -> test-runner -> reviewer
 -> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
 ```
 
 `developer` owns API integration inline (types → hook/service → UI states) — all code exists before `test-runner` runs, so tests always cover the full change.
 
-### Figma
-
-```
-[search-knowledge? || component-auditor] -> ui-builder
--> [pixel-check || a11y-check] -> reviewer
--> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
-```
-
-### UI Without Design
-
-```
-[search-knowledge? || component-auditor] -> ui-builder
--> a11y-check -> reviewer
--> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
-```
-
 ### Refactor
 
 ```
 search-knowledge? -> refactor-architect -> user re-approval
--> component-auditor? -> developer -> test-runner -> reviewer
+-> developer -> test-runner -> reviewer
 -> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
 ```
 
 ### Review
 
-Fast-path: bypasses Plan Gate (see Request Gate step 6).
+Fast-path: bypasses Plan Gate (see Request Gate step 5).
 
 ```
 reviewer -> run-state.sh done
@@ -360,7 +330,7 @@ Next steps (user-driven):
 
 ## Harness Loop
 
-Use retry loop for `feature`, `ui`, `figma`, `refactor` implementation steps.
+Use retry loop for `feature` and `refactor` implementation steps.
 
 ```text
 MAX_ATTEMPTS = 3   # one shared counter in run-state.json; the script increments it

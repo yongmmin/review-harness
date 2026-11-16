@@ -1,13 +1,13 @@
 ---
 name: refactor-scan
-description: Scan the active repo for repeated JSX/state/API/style patterns and produce a refactor plan.md (extraction targets, shared-library contribution candidates, domain doc impact). Proposal only — no code changes until approval. For "리팩토링", "중복 정리", "구조 개선", or when component-auditor reports 3+ duplicates.
+description: Scan the active repo for repeated JSX/state/API/style patterns and produce a refactor plan.md (extraction targets, shared-library contribution candidates, domain doc impact). Proposal only — no code changes until approval. For "리팩토링", "중복 정리", "구조 개선", or when developer/reviewer reports 3+ duplicates.
 argument-hint: "[path-or-pattern to focus on]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ---
 
 # Skill: refactor-scan
 
-**Trigger**: `/refactor-scan [focus]` or auto-triggered when component-auditor detects 3+ similar patterns
+**Trigger**: `/refactor-scan [focus]` or suggested when `developer` or `reviewer` reports 3+ similar patterns
 
 ## Injected Context (at load)
 
@@ -36,7 +36,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 ## Activation
 
 - Manual: `/refactor-scan`
-- Auto: component-auditor detects 3+ duplicate patterns
+- Suggested: `developer` or `reviewer` reports 3+ duplicate patterns in a handoff/review
 
 ---
 

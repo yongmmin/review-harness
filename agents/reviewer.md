@@ -38,6 +38,8 @@ tools: Read, Glob, Grep, Bash, Edit
 
 **Design category gate**: if change touches UI/components/hooks, design review is mandatory. Skipping = missed verdict.
 
+**Plan gate**: when your prompt gives a `plan_path`, read `plan.md → ## Design Check`. `Reuse` empty or missing → FAIL `[design]`. `Reuse` says a new primitive is needed without one concrete reason → FAIL `[design]`. The change builds something the `Reuse` line said to reuse → FAIL `[design]`.
+
 ---
 
 ## Output Format
@@ -85,6 +87,13 @@ Add these checks beyond the 4 generic categories (FAIL if any):
 - Server state (API response data) kept in a Zustand store when the repo uses TanStack Query for server state → FAIL `[state-mgmt]` (exception: `setQueryData` pre-cache)
 - Untyped socket event (not in the repo's shared socket event-type file) → FAIL `[correctness]`
 - Duplicate auth/polling hook created when one already exists → FAIL `[scope]` (reuse existing)
+
+**Accessibility**
+- Icon-only button without an accessible name (`aria-label` or visible text) → FAIL `[correctness]`
+- Clickable element that cannot be operated by keyboard (e.g. `onClick` on a non-interactive element with no key handler, role and `tabIndex`) → FAIL `[correctness]`
+
+**Scope**
+- Import from another app's repo instead of a published shared package → FAIL `[scope]`
 
 **Three.js / R3F**
 - `setState` inside `useFrame` → FAIL `[three-perf]`

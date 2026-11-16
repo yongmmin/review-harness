@@ -16,8 +16,7 @@ PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 
-SKILLS="front-harness implement-figma match-style tdd code-review a11y-check \
-pixel-check refactor-scan component-audit save-knowledge search-knowledge \
+SKILLS="front-harness tdd code-review refactor-scan save-knowledge search-knowledge \
 git-branch git-commit git-pr rtk-toggle"
 # Organisation skills that also had legacy symlinks (listed outside the plugin folder).
 ORG_LEGACY="${FRONT_HARNESS_HOME:-$HOME/.front-harness}/org/legacy-skill-names"

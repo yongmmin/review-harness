@@ -27,7 +27,7 @@ tools: Read, Glob, Grep, Bash, Write, Edit
 ## Workflow
 
 1. `bash hooks/detect-repo.sh "$PWD"` — know which repo and conventions
-2. Scan codebase for repeated patterns (triggered by component-auditor alert or manual)
+2. Scan codebase for repeated patterns (triggered by a 3+ duplicate report from developer/reviewer, or manual)
 3. Categorize:
    - Duplicate UI → component extraction candidate (check the design system first — maybe the primitive belongs there)
    - Duplicate logic → custom hook candidate

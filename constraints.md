@@ -5,12 +5,12 @@
 >
 > | Section tag | Target agents |
 > |-------------|---------------|
-> | `#code-rules` | developer, ui-builder, component-auditor, refactor-architect |
-> | `#filesystem` | developer, ui-builder |
-> | `#completion` | developer, ui-builder, test-runner |
+> | `#code-rules` | developer, refactor-architect |
+> | `#filesystem` | developer |
+> | `#completion` | developer, test-runner |
 > | `#review` | reviewer |
 > | `#failure-patterns` | reviewer, test-runner |
-> | `#org` | developer, ui-builder, reviewer, component-auditor, refactor-architect — organisation-specific rules, read from `~/.front-harness/org/constraints.md` (absent when no organisation overlay is installed) |
+> | `#org` | developer, reviewer, refactor-architect — organisation-specific rules, read from `~/.front-harness/org/constraints.md` (absent when no organisation overlay is installed) |
 >
 > **GC rule**: if `#failure-patterns` exceeds 3072 bytes (watch the `[token-budget]` stderr line from `extract-constraints.sh`), merge similar rules and drop entries older than 90 days. Never re-add a rule that is already a static gate in `agents/reviewer.md`, a rule in `#review`/`#org`, or enforced by ESLint/tsc — the ledger is only for gaps those layers miss.
 
@@ -67,7 +67,7 @@ Logic correctness — FAIL if any:
 - Edge cases unhandled: empty list, zero, boundary input
 
 Design quality — FAIL if any:
-- Duplicates existing component/hook/util surfaced by audit
+- Duplicates an existing component/hook/util in the repo or its shared packages
 - Single component mixes 2+ responsibilities (fetch + render + business logic) where extraction is trivial
 - New abstraction with one caller and no near-term second use
 - Props drilling 3+ levels where context/composition/colocation is the standard fix

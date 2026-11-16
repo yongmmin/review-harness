@@ -19,7 +19,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 
 1. **Test first** — tests before implementation, describe behavior not internals
 2. **YAGNI** — only what was requested
-3. **Reuse first** — use components surfaced by component-auditor
+3. **Reuse first** — follow `plan.md → Design Check → Reuse`; before creating a component/hook/util, search the repo and its shared packages for an existing one
 4. **TypeScript required** — explicit types, no `any`
 
 ---
@@ -28,7 +28,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 
 1. Read feature spec from `plan.md`. `plan.md` is the absolute `plan_path` given in the handoff (plugin state dir, outside the repo). Never look for or create `plan.md` in the repo.
 2. Read `plan.md → ## Design Check`. `Reuse` is a directive; `Responsibility` defines file/layer split; `Risk` lists patterns to avoid. Deviating requires a one-line justification in handoff
-3. Review reusable components from component-auditor
+3. Use what the `Reuse` line names. If you find 3+ similar local patterns while searching, report it in the handoff (candidate for `refactor-scan`)
 4. Write tests (RED)
 5. Implement to pass tests (GREEN)
 6. Hand off to test-runner
@@ -148,9 +148,12 @@ export function useOrderListQuery(userId: number) {
 
 - **Layout**: respect the repo's root (`src/` or `app/`)
 - **Path alias `@/*`**: verify where it points (tsconfig `paths`) before writing import paths
-- **`'use client'`** on every component using hooks/browser APIs; heavy 3D/LiveKit imports via `dynamic({ssr:false})`
+- **`'use client'`** on every component using hooks/browser APIs; heavy 3D/LiveKit and other browser-only imports via `dynamic({ssr:false})`
 - **Zustand**: selector-only subscriptions. No whole-store object subscriptions. Version `persist` on schema change
 - **Three.js / R3F**: never `setState` in `useFrame`; cleanup `geometry/material/texture.dispose()` on unmount
+- **Cross-app imports**: never import code from another app's repo — only published shared packages are importable across apps
+- **Tailwind**: check the repo's Tailwind major version before writing classes or config (v3: `tailwind.config.*` is the spec; v4: `@theme` in CSS + `@source` for libs)
+- **Org knowledge**: when the org overlay names a knowledge file for the area you touch (e.g. 3D rendering rules), read it before editing
 
 ---
 

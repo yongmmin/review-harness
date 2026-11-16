@@ -17,13 +17,11 @@ Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CH
 
 | Intent | Detection | Action |
 |--------|-----------|--------|
-| `figma` | contains `figma.com` URL | Figma flow |
-| `ui` | KR terms: `만들어줘`, `폼`, `버튼`, `페이지`, `화면`, `컴포넌트` | UI flow |
-| `feature` | KR terms: `기능`, `추가`, `연결`, `API`, `로직` | Feature flow |
+| `feature` | KR terms: `기능`, `추가`, `연결`, `API`, `로직`, `만들어줘`, `폼`, `버튼`, `페이지`, `화면`, `컴포넌트` | Feature flow |
 | `refactor` | KR terms: `리팩토링`, `정리`, `개선`, `중복` | Refactor flow |
 | `review` | KR terms: `리뷰`, `검토`, `확인해줘` | Review fast-path |
 
-- `ui` without Figma URL → ask for one in user's language
+- UI work is `feature` work. A design URL (e.g. figma.com) is only a reference input recorded in `plan.md → Inputs.Design`
 - `feature` + API keywords (`fetch`, `axios`, `API`, `GraphQL`, `query`, `mutation`, `Apollo`, `WebSocket`, `endpoint`, `서버`, `백엔드`, `연결`, `데이터`, `불러와`, `저장`, `실시간`) → run API Spec Check before planning. Pass spec only to `developer`.
 
 ---
@@ -35,7 +33,7 @@ Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CH
 - In orchestration mode, Write/Edit limited to `plan.md` (Small change path excepted)
 - The plugin writes nothing into the consumer repo. `plan.md`, `run-state.json`, `rtk-session.flag`, `approved/`, `cache/` live in `~/.front-harness/state/<repo-id>/` (`hooks/state-dir.sh`; id = work-tree basename + hash of its absolute path, so parallel worktrees stay separate). Report the full path whenever `plan.md` is written
 - Every workflow starts with `hooks/run-state.sh start`; the script owns attempts, timestamps and the work-tree hash
-- Active agents only: `component-auditor`, `developer`, `ui-builder`, `test-runner`, `reviewer`, `refactor-architect`
+- Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 - No legacy agents (`implementer`, `test-writer`, `figma-builder`, `style-matcher`, `orchestrator`, `api-integrator` — merged into `developer`)
 - Never inline full `constraints.md`
 - Never pass unrelated files or raw verbose logs
@@ -110,7 +108,7 @@ Rules: max 5 bullets, one line each, no prose, identifiers over explanation.
 ### Skip Rules
 
 - Skip `search-knowledge` if knowledge is empty/irrelevant (the skill's injected `knowledge:` line already ran `knowledge-has-content.sh`)
-- `component-auditor` is MANDATORY for any change creating/modifying components, hooks, or styles. Skip only for `review` intent, the Small change path, or `feature` work touching zero UI files
+- `plan.md → Design Check → Reuse` is filled by the main session at plan time and must never be empty; `reviewer` FAILs an empty `Reuse` line
 - Pass API spec to `developer` only when UI fetching/mutation changes
 - Skip `save-knowledge` if no durable pattern, decision, or issue emerged
 
@@ -118,4 +116,4 @@ Rules: max 5 bullets, one line each, no prose, identifiers over explanation.
 
 ## Model Routing
 
-Agents set a family alias via YAML frontmatter `model:` in each `agents/*.md` — resolves to the newest model of that family automatically (Claude Code docs recommend aliases over full IDs). Tiered: `fable` for reviewer/refactor-architect, `opus` for developer/ui-builder/test-runner, `sonnet` for component-auditor. When 5-hour rate-limit usage is 80% or higher (`hooks/usage-state.sh`, fed by the user's status line wrapper writing `~/.claude/usage-state.json`), `front-harness`, `code-review`, and `refactor-scan` ask the user once per run whether to spawn the two `fable` agents with `model: opus`; below 80% or `unknown`, they do not ask and the frontmatter value applies. `effort:` is per agent (`high` for developer/ui-builder/reviewer/refactor-architect, `medium` for test-runner/component-auditor). To pin a version for benchmarking, set a full ID (e.g. `claude-opus-4-8`) in the 6 agent files only — skills carry no model field and the commit trailer is model-agnostic (`Co-Authored-By: Claude <noreply@anthropic.com>`).
+Agents set a family alias via YAML frontmatter `model:` in each `agents/*.md` — resolves to the newest model of that family automatically (Claude Code docs recommend aliases over full IDs). Tiered: `fable` for reviewer/refactor-architect, `opus` for developer/test-runner. When 5-hour rate-limit usage is 80% or higher (`hooks/usage-state.sh`, fed by the user's status line wrapper writing `~/.claude/usage-state.json`), `front-harness`, `code-review`, and `refactor-scan` ask the user once per run whether to spawn the two `fable` agents with `model: opus`; below 80% or `unknown`, they do not ask and the frontmatter value applies. `effort:` is per agent (`high` for developer/reviewer/refactor-architect, `medium` for test-runner). To pin a version for benchmarking, set a full ID (e.g. `claude-opus-4-8`) in the 4 agent files only — skills carry no model field and the commit trailer is model-agnostic (`Co-Authored-By: Claude <noreply@anthropic.com>`).
