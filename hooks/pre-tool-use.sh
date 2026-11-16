@@ -15,9 +15,9 @@
 # Manual usage:
 #   bash pre-tool-use.sh --approve <path>     # record approval (Claude runs this after user says yes)
 #   bash pre-tool-use.sh --revoke  <path>     # drop approval
-#   FE_HARNESS_ALLOW_CONFIG_EDITS=1           # env escape hatch: skip the gate entirely
+#   REVIEW_HARNESS_ALLOW_CONFIG_EDITS=1           # env escape hatch: skip the gate entirely
 
-APPROVAL_TTL_SECONDS="${FE_HARNESS_APPROVAL_TTL:-1800}"
+APPROVAL_TTL_SECONDS="${REVIEW_HARNESS_APPROVAL_TTL:-1800}"
 
 find_project_root() {
   local dir; dir=$(dirname "$1")
@@ -80,7 +80,7 @@ fi
 
 [ -z "$FILE_PATH" ] && exit 0
 is_review_required "$FILE_PATH" || exit 0
-[ "${FE_HARNESS_ALLOW_CONFIG_EDITS:-0}" = "1" ] && exit 0
+[ "${REVIEW_HARNESS_ALLOW_CONFIG_EDITS:-0}" = "1" ] && exit 0
 
 APPROVAL=$(approval_file "$FILE_PATH")
 if [ -f "$APPROVAL" ]; then
@@ -94,5 +94,5 @@ fi
 
 FILENAME=$(basename "$FILE_PATH")
 HOOK_PATH="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/hooks/pre-tool-use.sh"
-emit_json deny "REVIEW REQUIRED: '$FILENAME' is a protected config file (front-harness #filesystem). Ask the user for explicit approval, describing the exact change. If they approve, run: bash \"$HOOK_PATH\" --approve \"$FILE_PATH\"  and retry the edit. Do not work around this gate by writing via Bash."
+emit_json deny "REVIEW REQUIRED: '$FILENAME' is a protected config file (review-harness #filesystem). Ask the user for explicit approval, describing the exact change. If they approve, run: bash \"$HOOK_PATH\" --approve \"$FILE_PATH\"  and retry the edit. Do not work around this gate by writing via Bash."
 exit 0

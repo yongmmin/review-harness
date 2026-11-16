@@ -1,13 +1,13 @@
 ---
 name: git-commit
-description: Create a scoped Conventional Commit after reviewer PASS (auto-chained by front-harness, or "commit this" after a review). Stages intended files only, runs pre-commit checks (plus the org overlay's, if installed), never pushes.
+description: Create a scoped Conventional Commit after reviewer PASS (auto-chained by review-harness, or "commit this" after a review). Stages intended files only, runs pre-commit checks (plus the org overlay's, if installed), never pushes.
 argument-hint: "[scope-or-note]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git log *) Bash(git branch *) Bash(git add *) Bash(git commit *) Bash(git rev-parse *)
 ---
 
 # Skill: git-commit
 
-**Trigger**: called by `front-harness` after reviewer PASS (auto-chained), or `/git-commit` by the user once a review has passed
+**Trigger**: called by `review-harness` after reviewer PASS (auto-chained), or `/git-commit` by the user once a review has passed
 
 ## Injected Context (at load — do not re-run)
 
@@ -37,13 +37,13 @@ Anything printed above is organisation-specific and is part of this skill; where
    - exit 3 (no state) → no review is on record: ask the user to run `/code-review` first, or to explicitly override
    - exit 4 (stale run) → show the message and ask the user whether to resume or abandon that run
    - Explicit user override ("commit without review") → record it with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" override "<user's reason>"`, then proceed. The `commit-gate.sh` hook enforces the same check on `git commit`
-2. **Detect active repo** via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD"` (skip if `front-harness` already injected the Active Repo block this session)
+2. **Detect active repo** via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD"` (skip if `review-harness` already injected the Active Repo block this session)
 3. **Stage intended files only** — never `git add .` / `git add -A`
 4. **Pre-commit checks**:
    - Verify no `.env*` file is staged
    - Verify no secrets in diff (basic regex: `API_KEY=`, `SECRET=`, `password=`, `BEGIN PRIVATE KEY`)
    - Verify no `.npmrc` is staged
-   - Verify `plan.md` and `.front-harness-cache/` are NOT staged (legacy leftovers from < 0.4.0 — the plugin now keeps them in `~/.front-harness/state/`)
+   - Verify `plan.md` and `.front-harness-cache/` are NOT staged (legacy leftovers from < 0.4.0 — the plugin now keeps them in `~/.review-harness/state/`)
 5. **Generate Conventional Commit message** (see format below)
 6. **Run `git commit`** with the message (this is the auto-chained step that DOES execute)
 7. After the last commit of the run, close it: `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" done`

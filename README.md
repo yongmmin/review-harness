@@ -1,14 +1,14 @@
-# front-harness
+# review-harness
 
-A review-gated coding harness for Claude Code. You give it one line — `/front-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and its gates work for any codebase. The bundled developer and reviewer rules currently cover TypeScript and React, and you can add rules for your own stack with an overlay. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
+A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and its gates work for any codebase. The bundled developer and reviewer rules currently cover TypeScript and React, and you can add rules for your own stack with an overlay. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
 
 ## Install / Update
 
 **1. Clone and bootstrap**
 
 ```bash
-git clone https://github.com/yongmmin/front-harness.git ~/claude-plugins/front-harness
-cd ~/claude-plugins/front-harness
+git clone https://github.com/yongmmin/review-harness.git ~/claude-plugins/review-harness
+cd ~/claude-plugins/review-harness
 chmod +x install.sh && ./install.sh
 ```
 
@@ -17,8 +17,8 @@ chmod +x install.sh && ./install.sh
 **2. Register the plugin (required)** — inside a Claude Code session:
 
 ```
-/plugin marketplace add ~/claude-plugins/front-harness
-/plugin install front-harness@front-harness
+/plugin marketplace add ~/claude-plugins/review-harness
+/plugin install review-harness@review-harness
 ```
 
 Hooks and agents are only active after this step. Open a new session and check with `/plugin`.
@@ -26,9 +26,9 @@ Hooks and agents are only active after this step. Open a new session and check w
 **Update** — the marketplace is registered from a local directory, so it does not update automatically:
 
 ```bash
-cd ~/claude-plugins/front-harness && git pull
-claude plugin marketplace update front-harness
-claude plugin update front-harness@front-harness
+cd ~/claude-plugins/review-harness && git pull
+claude plugin marketplace update review-harness
+claude plugin update review-harness@review-harness
 ```
 
 Apply it to an open session with `/reload-plugins`. `jq` is required for the review gate and the usage display; `rtk` is optional. Details: [docs/hooks.md](docs/hooks.md).
@@ -39,12 +39,12 @@ With only the plugin installed, it runs on generic rules. To make it aware of yo
 
 | Location | Content |
 |---|---|
-| `~/.front-harness/knowledge/index.md` | Overview summarised at session start |
-| `~/.front-harness/knowledge/<org>/repos.md` | Repo registry, used to match the current directory to a repo |
-| `~/.front-harness/knowledge/<org>/*.md` | Domain knowledge (architecture, conventions, …) |
-| `~/.front-harness/org/skills/<skill>.md` | Organisation rules appended to a skill |
-| `~/.front-harness/org/agents/<agent>.md` | Organisation rules appended to an agent |
-| `~/.front-harness/org/constraints.md` | A `## #org` section appended to agent constraints |
+| `~/.review-harness/knowledge/index.md` | Overview summarised at session start |
+| `~/.review-harness/knowledge/<org>/repos.md` | Repo registry, used to match the current directory to a repo |
+| `~/.review-harness/knowledge/<org>/*.md` | Domain knowledge (architecture, conventions, …) |
+| `~/.review-harness/org/skills/<skill>.md` | Organisation rules appended to a skill |
+| `~/.review-harness/org/agents/<agent>.md` | Organisation rules appended to an agent |
+| `~/.review-harness/org/constraints.md` | A `## #org` section appended to agent constraints |
 
 For now, the way to prepare them is to write the files by hand. `repos.md` holds one block per repo in this format:
 
@@ -59,7 +59,7 @@ Then check from the plugin folder:
 
 ```bash
 bash hooks/detect-repo.sh /absolute/path/to/my-app     # an Active Repo block means the repo is registered
-bash hooks/org-overlay.sh skills front-harness         # prints the overlay you wrote
+bash hooks/org-overlay.sh skills review-harness         # prints the overlay you wrote
 bash hooks/extract-constraints.sh reviewer             # ends with the #org section and the agent overlay
 ```
 
@@ -71,8 +71,8 @@ Open Claude Code in your project directory:
 
 | Command | What it does |
 |---|---|
-| `/front-harness connect the payment API to the checkout screen` | Add a feature (UI included): approve the plan (`plan.md`) → implement → test → review → commit |
-| `/front-harness refactor this code` | Find duplicated patterns and propose a refactor plan first |
+| `/review-harness connect the payment API to the checkout screen` | Add a feature (UI included): approve the plan (`plan.md`) → implement → test → review → commit |
+| `/review-harness refactor this code` | Find duplicated patterns and propose a refactor plan first |
 | `/code-review` | Review the current changes as PASS / FAIL |
 | `/git-branch` | Suggest a branch name and the `git checkout -b` command (you run it) |
 | `/git-pr` | Write the PR title, body and `gh pr create` command (you run it) |
@@ -120,7 +120,7 @@ The model is the `model:` value in each `agents/*.md` frontmatter.
 
 ## Where state is stored
 
-The plugin never creates files inside the repo you are working in. Run state lives in `~/.front-harness/state/<repo-id>/`. `<repo-id>` is the work-tree name plus a hash of its absolute path, so each git worktree gets its own.
+The plugin never creates files inside the repo you are working in. Run state lives in `~/.review-harness/state/<repo-id>/`. `<repo-id>` is the work-tree name plus a hash of its absolute path, so each git worktree gets its own.
 
 | File | Content |
 |---|---|
@@ -130,14 +130,14 @@ The plugin never creates files inside the repo you are working in. Run state liv
 | `approved/` | Approvals for config-file edits (30-minute TTL) |
 | `cache/` | tsc / eslint temporary files (cleaned after 1 hour) |
 
-If a run is interrupted, the next `/front-harness` asks whether to resume it or start new.
+If a run is interrupted, the next `/review-harness` asks whether to resume it or start new.
 
 ## More documentation
 
-- [docs/skills.md](docs/skills.md) — the 10 skills, the `/front-harness` flow, `/git-pr` output, agents
+- [docs/skills.md](docs/skills.md) — the 10 skills, the `/review-harness` flow, `/git-pr` output, agents
 - [docs/hooks.md](docs/hooks.md) — the 12 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
-- [skills/front-harness/SKILL.md](skills/front-harness/SKILL.md) — the workflow definition used at runtime
+- [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — agent rules and runtime rules
 - [tests/run.sh](tests/run.sh) — hook smoke tests: `bash tests/run.sh` (needs `git` and `jq`; runs in CI on Linux and macOS)
 

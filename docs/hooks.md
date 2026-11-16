@@ -1,6 +1,6 @@
 # Hooks and policy details
 
-Detailed description moved out of the [README](../README.md). The reference documents at runtime are [`CLAUDE.md`](../CLAUDE.md), [`constraints.md`](../constraints.md), and [`skills/front-harness/SKILL.md`](../skills/front-harness/SKILL.md).
+Detailed description moved out of the [README](../README.md). The reference documents at runtime are [`CLAUDE.md`](../CLAUDE.md), [`constraints.md`](../constraints.md), and [`skills/review-harness/SKILL.md`](../skills/review-harness/SKILL.md).
 
 ## Core principles
 
@@ -45,16 +45,16 @@ The `hooks/` directory. Hooked automatically into session/tool events, or called
 
 | Hook | Trigger | Role |
 |---|---|---|
-| **`session-start.sh`** | SessionStart | Prints the compact summary of `~/.front-harness/knowledge/index.md` + calls `detect-repo.sh` to inject the active repo metadata into context + cleans up files older than 1 hour in `~/.front-harness/state/<repo-id>/cache/` |
+| **`session-start.sh`** | SessionStart | Prints the compact summary of `~/.review-harness/knowledge/index.md` + calls `detect-repo.sh` to inject the active repo metadata into context + cleans up files older than 1 hour in `~/.review-harness/state/<repo-id>/cache/` |
 | **`pre-tool-use.sh`** | PreToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | Denies edits to `package.json`/`next.config.*`/`tsconfig.json`. After user approval, `pre-tool-use.sh --approve <path>` records an approval with a 30-minute TTL → the retry passes |
 | **`post-tool-use.sh`** | PostToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | On saving a TS/TSX file, runs incremental tsc + eslint in parallel, and on failure emits compact errors only (3-second debounce, automatic cache cleanup). Logs the token budget to stderr |
-| **`detect-repo.sh`** | session-start + skill load | Parses with awk which repo in `~/.front-harness/knowledge/<org>/repos.md` the `cwd` matches. On a match, prints compact metadata (`name`/`role`/`stack`/`layout`/`env`/`path_alias`/`doc_routing`, etc.). If there is no registry it prints nothing, and if there is no match it prints `not registered` |
-| **`extract-constraints.sh`** | Just before agent spawn | Extracts from `constraints.md` only the section tags that agent needs (`#code-rules`/`#filesystem`/`#completion`/`#review`/`#failure-patterns`) + appends the `#org` section of `~/.front-harness/org/constraints.md` and the agent overlay. Logs the token budget to stderr |
-| **`org-overlay.sh`** | Skill load + `extract-constraints.sh` | Prints the organisation overlay (`~/.front-harness/org/skills\|agents/<name>.md`). If absent, prints nothing |
+| **`detect-repo.sh`** | session-start + skill load | Parses with awk which repo in `~/.review-harness/knowledge/<org>/repos.md` the `cwd` matches. On a match, prints compact metadata (`name`/`role`/`stack`/`layout`/`env`/`path_alias`/`doc_routing`, etc.). If there is no registry it prints nothing, and if there is no match it prints `not registered` |
+| **`extract-constraints.sh`** | Just before agent spawn | Extracts from `constraints.md` only the section tags that agent needs (`#code-rules`/`#filesystem`/`#completion`/`#review`/`#failure-patterns`) + appends the `#org` section of `~/.review-harness/org/constraints.md` and the agent overlay. Logs the token budget to stderr |
+| **`org-overlay.sh`** | Skill load + `extract-constraints.sh` | Prints the organisation overlay (`~/.review-harness/org/skills\|agents/<name>.md`). If absent, prints nothing |
 | **`knowledge-has-content.sh`** | Just before a `/search-knowledge` call | Quickly verifies whether the knowledge/wisdom files have real content beyond placeholders. If empty, the `/search-knowledge` call itself is skipped |
 | **`rtk-wrap.sh`** | Plugin-internal Bash calls | Wraps calls to `git`/`gh`/`tsc`/`eslint`/`jest`/`vitest`/`grep`/`find`/`ls`, etc. in `rtk` to compress output (per mode). Falls back to the raw command when `rtk` is not installed. No effect on other projects |
-| **`usage-state.sh`** | On load of `/front-harness`, `/code-review`, `/refactor-scan` | Reads the 5-hour usage from `~/.claude/usage-state.json` (written by the user's status line wrapper) and prints `N% (resets HH:MM)`. `unknown` when the file is missing / older than 10 minutes / the window has reset |
-| **`state-dir.sh`** | Called by other hooks / skills | Prints the path of the per-work-tree state directory `~/.front-harness/state/<repo-id>/` (`<repo-id>` = work tree name + hash of its absolute path). The plugin creates no files inside the consumer repo |
+| **`usage-state.sh`** | On load of `/review-harness`, `/code-review`, `/refactor-scan` | Reads the 5-hour usage from `~/.claude/usage-state.json` (written by the user's status line wrapper) and prints `N% (resets HH:MM)`. `unknown` when the file is missing / older than 10 minutes / the window has reset |
+| **`state-dir.sh`** | Called by other hooks / skills | Prints the path of the per-work-tree state directory `~/.review-harness/state/<repo-id>/` (`<repo-id>` = work tree name + hash of its absolute path). The plugin creates no files inside the consumer repo |
 | **`run-state.sh`** | First step of every workflow + reviewer + git-commit | Manages `run-state.json`: `start` / `step` / `attempt` / `verdict` / `override` / `check` / `done` / `abandon` / `status`. Retry counts, timestamps and the work tree hash are all computed by the script |
 | **`commit-gate.sh`** | PreToolUse (Bash) | Denies `git commit` when, in an active run, the reviewer PASS does not match the current work tree. No state file → pass, a run left untouched for more than 24 hours → advice only |
 
@@ -69,7 +69,7 @@ The `hooks/` directory. Hooked automatically into session/tool events, or called
 | File | Handling |
 |---|---|
 | `.env*` | No edits — hard-blocked by settings.json Deny rules (all of Write/Edit/MultiEdit/NotebookEdit) |
-| `package.json` | User approval required before editing — the PreToolUse hook denies (`pre-tool-use.sh --approve <path>` or `FE_HARNESS_ALLOW_CONFIG_EDITS=1`) |
+| `package.json` | User approval required before editing — the PreToolUse hook denies (`pre-tool-use.sh --approve <path>` or `REVIEW_HARNESS_ALLOW_CONFIG_EDITS=1`) |
 | `next.config.js/ts/mjs` / `tsconfig.json` | Same approval gate |
 
 ### Removing rules
@@ -87,13 +87,13 @@ The `hooks/` directory. Hooked automatically into session/tool events, or called
 **3. Remove the plugin completely**:
 
 ```
-/plugin uninstall front-harness@front-harness
-/plugin marketplace remove front-harness
+/plugin uninstall review-harness@review-harness
+/plugin marketplace remove review-harness
 ```
 
 If remnants of an old-version (≤0.1.0) symlink install remain, running `./install.sh` once cleans them up automatically (or manually):
 ```bash
-for skill in front-harness tdd code-review refactor-scan save-knowledge search-knowledge \
+for skill in review-harness tdd code-review refactor-scan save-knowledge search-knowledge \
   git-branch git-commit git-pr rtk-toggle; do
   rm -f ~/.claude/skills/$skill
   rm -f ~/.claude/commands/$skill.md
@@ -113,13 +113,13 @@ done
 | `#completion` | developer / test-runner |
 | `#review` | reviewer |
 | `#failure-patterns` | reviewer / test-runner |
-| `#org` | developer / reviewer / refactor-architect (lives in `~/.front-harness/org/constraints.md`. Omitted if absent) |
+| `#org` | developer / reviewer / refactor-architect (lives in `~/.review-harness/org/constraints.md`. Omitted if absent) |
 
 ### Token budget measurement
 
 - `hooks/extract-constraints.sh` and `hooks/post-tool-use.sh` log bytes/estimated tokens to **stderr** on every call
 - Warning threshold: 8192 bytes (~2K tokens)
-- Override with the environment variable `FE_HARNESS_BUDGET_WARN_BYTES`
+- Override with the environment variable `REVIEW_HARNESS_BUDGET_WARN_BYTES`
 - stderr does not reach the agent context — for observation only
 - If a `[warn]` line appears, shrink that `constraints.md` section or split it into a smaller tag
 
@@ -150,24 +150,24 @@ Some rules of the duplicate-variable/redeclaration kind are enforced by each rep
 
 ### Choosing a mode
 
-- **First session**: the picker is shown automatically when `/front-harness` is called
+- **First session**: the picker is shown automatically when `/review-harness` is called
 - **Manual change**: `/rtk-toggle` or with an argument such as `/rtk-toggle standard`
 - **Status check**: `/rtk-toggle status` (the current mode is injected automatically at skill load)
-- **Environment variable override**: `FE_HARNESS_RTK=standard` (takes precedence over the session flag)
+- **Environment variable override**: `REVIEW_HARNESS_RTK=standard` (takes precedence over the session flag)
 
 ### Guarantees
 
 - Never runs the global `rtk init -g`
 - Never touches the hooks in `~/.claude/settings.json`
-- The session flag is stored only in `~/.front-harness/state/<repo-id>/rtk-session.flag` (per work tree, outside the repo)
+- The session flag is stored only in `~/.review-harness/state/<repo-id>/rtk-session.flag` (per work tree, outside the repo)
 - Silent fallback to raw when `rtk` is not installed
 
 ## Organisation overlay and knowledge structure
 
-Content specific to an organisation or company is not kept in this repository. It is kept only in `~/.front-harness/`, outside the plugin folder (the location can be changed with `FRONT_HARNESS_HOME`).
+Content specific to an organisation or company is not kept in this repository. It is kept only in `~/.review-harness/`, outside the plugin folder (the location can be changed with `REVIEW_HARNESS_HOME`).
 
 ```
-~/.front-harness/
+~/.review-harness/
 ├── org/
 │   ├── skills/<skill>.md       # per-skill organisation overlay
 │   ├── agents/<agent>.md       # per-agent organisation overlay
@@ -190,11 +190,11 @@ Content specific to an organisation or company is not kept in this repository. I
 ### Global wisdom (cross-project learnings)
 
 ```
-~/.front-harness/wisdom/
+~/.review-harness/wisdom/
 ├── summary.md                  # 20-line limit
 ├── learnings.md
 ├── decisions.md
 └── issues.md
 ```
 
-Only truly cross-project learnings (not limited to a specific organisation) are stored here. Organisation-specific ones go to `~/.front-harness/knowledge/<org>/*` above.
+Only truly cross-project learnings (not limited to a specific organisation) are stored here. Organisation-specific ones go to `~/.review-harness/knowledge/<org>/*` above.

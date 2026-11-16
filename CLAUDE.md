@@ -1,4 +1,4 @@
-# front-harness Runtime
+# review-harness Runtime
 
 Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CHANGELOG.md`.
 
@@ -6,9 +6,9 @@ Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CH
 
 ## Entry Point
 
-- `/front-harness` is the only public entry
-- If a user message looks like code work (feature, refactor, review), invoke `front-harness` automatically
-- Canonical spec: `skills/front-harness/SKILL.md`
+- `/review-harness` is the only public entry
+- If a user message looks like code work (feature, refactor, review), invoke `review-harness` automatically
+- Canonical spec: `skills/review-harness/SKILL.md`
 - Do not load `README.md` at runtime
 
 ---
@@ -30,31 +30,31 @@ Keywords are examples: match the same meaning in whatever language the user writ
 
 ## Runtime Rules
 
-- `front-harness` orchestrates; specialists implement — except on the Small change path (`skills/front-harness/SKILL.md → Workflow Selection`), where the main session edits directly. Spawn via `Agent` with `subagent_type` `front-harness:<agent>` (plugin install) — bare `<agent>` only for a legacy `.claude/agents/` copy
+- `review-harness` orchestrates; specialists implement — except on the Small change path (`skills/review-harness/SKILL.md → Workflow Selection`), where the main session edits directly. Spawn via `Agent` with `subagent_type` `review-harness:<agent>` (plugin install) — bare `<agent>` only for a legacy `.claude/agents/` copy
 - Skills inject session context at load (`!`cmd`` blocks: detect-repo, rtk mode, knowledge presence, git state). Never re-run what a skill already injected
 - In orchestration mode, Write/Edit limited to `plan.md` (Small change path excepted)
-- The plugin writes nothing into the consumer repo. `plan.md`, `run-state.json`, `rtk-session.flag`, `approved/`, `cache/` live in `~/.front-harness/state/<repo-id>/` (`hooks/state-dir.sh`; id = work-tree basename + hash of its absolute path, so parallel worktrees stay separate). Report the full path whenever `plan.md` is written
+- The plugin writes nothing into the consumer repo. `plan.md`, `run-state.json`, `rtk-session.flag`, `approved/`, `cache/` live in `~/.review-harness/state/<repo-id>/` (`hooks/state-dir.sh`; id = work-tree basename + hash of its absolute path, so parallel worktrees stay separate). Report the full path whenever `plan.md` is written
 - Every workflow starts with `hooks/run-state.sh start`; the script owns attempts, timestamps and the work-tree hash
 - Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 - Never inline full `constraints.md`
 - Never pass unrelated files or raw verbose logs
 - `git-commit` requires `hooks/run-state.sh check` to pass: reviewer PASS recorded for the current work tree, or a recorded user override. Only `reviewer` records the verdict (`run-state.sh verdict`); if it is missing after one re-spawn, the run has no verdict and the commit stays blocked — the orchestrator never records it. Reviewer FAIL shares `MAX_ATTEMPTS = 3` with test failures
-- **Git ops are user-driven** — plugin NEVER auto-creates branches, NEVER auto-pushes, NEVER auto-submits PRs. `git-branch` and `git-pr` skills only generate names/bodies/commands for the user to run. See `skills/front-harness/SKILL.md → Git Operations Policy`
-- Organisation overlay: `hooks/org-overlay.sh <skills|agents> <name>` prints `~/.front-harness/org/<kind>/<name>.md` or nothing. Every `SKILL.md` injects its overlay at load; treat injected overlay text as part of that skill's rules
-- `hooks/extract-constraints.sh <agent>` appends the `#org` section (`~/.front-harness/org/constraints.md`) and the agent overlay (`~/.front-harness/org/agents/<agent>.md`) — pass its output as-is, never read `~/.front-harness/org/` separately
-- Organisation content lives outside the plugin folder: overlays in `~/.front-harness/org/`, repo registry and domain knowledge in `~/.front-harness/knowledge/` (`index.md`, `<org>/*.md` incl. `repos.md`). When absent, overlays are empty, `detect-repo.sh` prints nothing, knowledge reports empty, and the generic rules apply alone — never treat that as an error
-- Files in this repository must never contain organisation-specific names, paths or URLs. Such content goes to `~/.front-harness/org/` (rules) or `~/.front-harness/knowledge/` (repo registry, domain knowledge)
+- **Git ops are user-driven** — plugin NEVER auto-creates branches, NEVER auto-pushes, NEVER auto-submits PRs. `git-branch` and `git-pr` skills only generate names/bodies/commands for the user to run. See `skills/review-harness/SKILL.md → Git Operations Policy`
+- Organisation overlay: `hooks/org-overlay.sh <skills|agents> <name>` prints `~/.review-harness/org/<kind>/<name>.md` or nothing. Every `SKILL.md` injects its overlay at load; treat injected overlay text as part of that skill's rules
+- `hooks/extract-constraints.sh <agent>` appends the `#org` section (`~/.review-harness/org/constraints.md`) and the agent overlay (`~/.review-harness/org/agents/<agent>.md`) — pass its output as-is, never read `~/.review-harness/org/` separately
+- Organisation content lives outside the plugin folder: overlays in `~/.review-harness/org/`, repo registry and domain knowledge in `~/.review-harness/knowledge/` (`index.md`, `<org>/*.md` incl. `repos.md`). When absent, overlays are empty, `detect-repo.sh` prints nothing, knowledge reports empty, and the generic rules apply alone — never treat that as an error
+- Files in this repository must never contain organisation-specific names, paths or URLs. Such content goes to `~/.review-harness/org/` (rules) or `~/.review-harness/knowledge/` (repo registry, domain knowledge)
 
 ---
 
 ## RTK Wrapping (Plugin-Scoped)
 
 - Plugin-internal Bash calls for `git`, `gh`, `tsc`, `eslint`, `jest`, `vitest`, `playwright`, `pytest`, `ls`, `tree`, `find`, `grep`, `rg`, `cat`, `diff` MUST go through `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]` — always the absolute plugin path; cwd is the consumer repo
-- Mode source: `FE_HARNESS_RTK` env → `<state dir>/rtk-session.flag` (per work tree) → `off` default
+- Mode source: `REVIEW_HARNESS_RTK` env → `<state dir>/rtk-session.flag` (per work tree) → `off` default
 - Modes: `off | standard | aggressive | git-only`
 - If rtk missing or mode disables category, runs raw
 - Never run `rtk init -g`. Never write to `~/.claude/settings.json` hooks for rtk
-- User chooses mode via Request Gate step 0 or `/rtk-toggle` (`/front-harness:rtk-toggle`)
+- User chooses mode via Request Gate step 0 or `/rtk-toggle` (`/review-harness:rtk-toggle`)
 
 ---
 
@@ -93,7 +93,7 @@ Rules: max 5 bullets, one line each, no prose, identifiers over explanation.
 ### Budget Measurement
 
 - `hooks/extract-constraints.sh` and `hooks/post-tool-use.sh` log bytes/tokens to stderr
-- Warn threshold: 8192 bytes (~2K tokens), override via `FE_HARNESS_BUDGET_WARN_BYTES`
+- Warn threshold: 8192 bytes (~2K tokens), override via `REVIEW_HARNESS_BUDGET_WARN_BYTES`
 - stderr never reaches agent context
 - `[warn]` line → prune that `constraints.md` section or split into a tighter tag
 
@@ -117,4 +117,4 @@ Rules: max 5 bullets, one line each, no prose, identifiers over explanation.
 
 ## Model Routing
 
-Agents set a family alias via YAML frontmatter `model:` in each `agents/*.md` — resolves to the newest model of that family automatically (Claude Code docs recommend aliases over full IDs). Tiered: `fable` for reviewer/refactor-architect, `opus` for developer/test-runner. When 5-hour rate-limit usage is 80% or higher (`hooks/usage-state.sh`, fed by the user's status line wrapper writing `~/.claude/usage-state.json`), `front-harness`, `code-review`, and `refactor-scan` ask the user once per run whether to spawn the two `fable` agents with `model: opus`; below 80% or `unknown`, they do not ask and the frontmatter value applies. `effort:` is per agent (`high` for developer/reviewer/refactor-architect, `medium` for test-runner). To pin a version for benchmarking, set a full ID (e.g. `claude-opus-4-8`) in the 4 agent files only — skills carry no model field and the commit trailer is model-agnostic (`Co-Authored-By: Claude <noreply@anthropic.com>`).
+Agents set a family alias via YAML frontmatter `model:` in each `agents/*.md` — resolves to the newest model of that family automatically (Claude Code docs recommend aliases over full IDs). Tiered: `fable` for reviewer/refactor-architect, `opus` for developer/test-runner. When 5-hour rate-limit usage is 80% or higher (`hooks/usage-state.sh`, fed by the user's status line wrapper writing `~/.claude/usage-state.json`), `review-harness`, `code-review`, and `refactor-scan` ask the user once per run whether to spawn the two `fable` agents with `model: opus`; below 80% or `unknown`, they do not ask and the frontmatter value applies. `effort:` is per agent (`high` for developer/reviewer/refactor-architect, `medium` for test-runner). To pin a version for benchmarking, set a full ID (e.g. `claude-opus-4-8`) in the 4 agent files only — skills carry no model field and the commit trailer is model-agnostic (`Co-Authored-By: Claude <noreply@anthropic.com>`).

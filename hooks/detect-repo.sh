@@ -1,7 +1,7 @@
 #!/bin/bash
 # detect-repo.sh
 # Match current working directory (passed as $1, or $PWD) against registered
-# repos in ~/.front-harness/knowledge/<org>/repos.md and emit a compact summary.
+# repos in ~/.review-harness/knowledge/<org>/repos.md and emit a compact summary.
 #
 # Output (stdout, compact — meant to be loaded into agent context):
 #   === Active Repo ===
@@ -11,7 +11,7 @@
 #   - layout: src/|app/
 #   - env: <env variable the repo reads>
 #   - path_alias: @/* → ...
-#   - <extra keys listed in ~/.front-harness/org/detect-repo-keys.txt, if any>
+#   - <extra keys listed in ~/.review-harness/org/detect-repo-keys.txt, if any>
 #   - doc_routing: <path>
 #   === End Active Repo ===
 #
@@ -21,7 +21,7 @@ set -e
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # First registry found wins. No registry → exit silently below.
-FH_HOME="${FRONT_HARNESS_HOME:-$HOME/.front-harness}"
+FH_HOME="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}"
 REPOS_FILE=$(ls "$FH_HOME"/knowledge/*/repos.md 2>/dev/null | head -n 1)
 REPOS_FILE="${REPOS_FILE:-$FH_HOME/knowledge/repos.md}"
 CWD="${1:-$PWD}"
@@ -61,7 +61,7 @@ if [ -z "$MATCHED" ]; then
   echo "=== Active Repo ==="
   echo "- status: not registered"
   echo "- cwd: $ABS_CWD"
-  # Org overlays can supply their own hint line (~/.front-harness/org/detect-repo-hint.txt).
+  # Org overlays can supply their own hint line (~/.review-harness/org/detect-repo-hint.txt).
   HINT=$(head -n 1 "$FH_HOME/org/detect-repo-hint.txt" 2>/dev/null)
   echo "- hint: ${HINT:-register the repo in $REPOS_FILE}"
   echo "=== End Active Repo ==="

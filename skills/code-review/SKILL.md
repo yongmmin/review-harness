@@ -21,7 +21,7 @@ echo "--- ahead of main (name-status) ---"; git diff main...HEAD --name-status 2
 
 - 5h usage: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/usage-state.sh" 2>/dev/null || echo unknown`
 
-Usage downgrade (same rule as `front-harness` → Agent Spawning): if the `5h usage` value above is 80% or higher, ask once with `AskUserQuestion` before spawning — state the usage and reset time, options `Keep Fable` | `Opus for this run` (ask in the user's language). On Opus, pass `model: "opus"` to the Agent tool; otherwise pass no `model`. Below 80% or `unknown`: do not ask. If `front-harness` already asked in this run, reuse that answer.
+Usage downgrade (same rule as `review-harness` → Agent Spawning): if the `5h usage` value above is 80% or higher, ask once with `AskUserQuestion` before spawning — state the usage and reset time, options `Keep Fable` | `Opus for this run` (ask in the user's language). On Opus, pass `model: "opus"` to the Agent tool; otherwise pass no `model`. Below 80% or `unknown`: do not ask. If `review-harness` already asked in this run, reuse that answer.
 
 Scope hint from user (may be empty): `$ARGUMENTS`
 
@@ -43,7 +43,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 
 ```text
 1. detect-repo (already injected)
-2. spawn reviewer (Agent tool, subagent_type `front-harness:reviewer`; bare `reviewer` if not namespaced)
+2. spawn reviewer (Agent tool, subagent_type `review-harness:reviewer`; bare `reviewer` if not namespaced)
    -> pass ONLY: the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" reviewer`
       (it carries the constraints and the agent's org overlay),
       the Active Repo block, the file list above, the review target, and the verdict command
@@ -81,4 +81,4 @@ If push-intent detected (user said push/PR) and the org overlay defines a pre-pu
 - Keep output concise and actionable
 - Cite file:line for every finding
 - Org overlay rules apply only when the injected Active Repo block matched
-- Reviewer verdict is final output — no commit/push follows from this skill (git-commit auto-chains only inside `front-harness`)
+- Reviewer verdict is final output — no commit/push follows from this skill (git-commit auto-chains only inside `review-harness`)

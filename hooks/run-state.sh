@@ -1,5 +1,5 @@
 #!/bin/bash
-# run-state.sh — file-backed run state for the front-harness review gate.
+# run-state.sh — file-backed run state for the review-harness review gate.
 # State file: <state dir>/run-state.json (see state-dir.sh). Run it from the consumer repo.
 # The script computes every value itself (attempt counter, timestamps, work-tree hash);
 # callers never pass numbers or hashes.
@@ -16,7 +16,7 @@
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAX_ATTEMPTS=3
-STALE_SECONDS="${FE_HARNESS_RUN_STALE_SECONDS:-86400}"
+STALE_SECONDS="${REVIEW_HARNESS_RUN_STALE_SECONDS:-86400}"
 
 command -v jq >/dev/null 2>&1 || { echo "run-state: jq is required" >&2; exit 3; }
 STATE_DIR=$(bash "$HERE/state-dir.sh" "$PWD") || exit 3

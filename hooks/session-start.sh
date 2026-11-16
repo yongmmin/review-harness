@@ -3,8 +3,8 @@
 # Load only compact summary data at session start. Full project knowledge is on-demand.
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-KNOWLEDGE_INDEX="${FRONT_HARNESS_HOME:-$HOME/.front-harness}/knowledge/index.md"
-WISDOM_DIR="$HOME/.front-harness/wisdom"
+KNOWLEDGE_INDEX="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/knowledge/index.md"
+WISDOM_DIR="$HOME/.review-harness/wisdom"
 WISDOM_SUMMARY="$WISDOM_DIR/summary.md"
 MAX_WISDOM_LINES=10
 
@@ -38,7 +38,7 @@ if [ "$LINE_COUNT" -gt 300 ]; then
 fi
 
 echo "=== Project Knowledge Summary ==="
-echo "- Source: ~/.front-harness/knowledge/index.md ($LINE_COUNT lines)"
+echo "- Source: ~/.review-harness/knowledge/index.md ($LINE_COUNT lines)"
 grep -E '^- \*\*(Org|Stack|Shared 3D|Design System|Backend)\*\*:' "$KNOWLEDGE_INDEX" | head -n 5
 echo "- Details: load on demand through search-knowledge"
 echo "=== End Project Knowledge Summary ==="

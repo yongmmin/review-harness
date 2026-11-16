@@ -10,7 +10,7 @@
 > | `#completion` | developer, test-runner |
 > | `#review` | reviewer |
 > | `#failure-patterns` | reviewer, test-runner |
-> | `#org` | developer, reviewer, refactor-architect — organisation-specific rules, read from `~/.front-harness/org/constraints.md` (absent when no organisation overlay is installed) |
+> | `#org` | developer, reviewer, refactor-architect — organisation-specific rules, read from `~/.review-harness/org/constraints.md` (absent when no organisation overlay is installed) |
 >
 > **GC rule**: if `#failure-patterns` exceeds 3072 bytes (watch the `[token-budget]` stderr line from `extract-constraints.sh`), merge similar rules and drop entries older than 90 days. Never re-add a rule that is already a static gate in `agents/reviewer.md`, a rule in `#review`/`#org`, or enforced by ESLint/tsc — the ledger is only for gaps those layers miss.
 
@@ -34,7 +34,7 @@
 - `package.json` — requires explicit user approval (PreToolUse DENIES until `bash "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.sh" --approve <path>` is run after the user says yes; 30-min TTL)
 - `next.config.{js,ts,mjs}` — same approval gate
 - `tsconfig.json`, `tsconfig.*.json` — same approval gate
-- Plugin working files (`plan.md`, run state, approvals, caches) live in `~/.front-harness/state/<repo-id>/` — never create them inside the repo. A legacy `plan.md` or `.front-harness-cache/` left in a repo: never stage or commit
+- Plugin working files (`plan.md`, run state, approvals, caches) live in `~/.review-harness/state/<repo-id>/` — never create them inside the repo. A legacy `plan.md` or `.front-harness-cache/` left in a repo: never stage or commit
 - `node_modules/` — no access
 - Do not modify code outside request scope
 

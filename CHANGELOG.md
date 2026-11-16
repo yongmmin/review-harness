@@ -2,6 +2,14 @@
 
 This plugin is a rebuild that carries over the Harness Engineering principles of the earlier `front-agent` (a generic React/Next plugin).
 
+### Unreleased
+
+**Renamed to `review-harness`** (the entries below keep the names that were current at the time)
+- Plugin, marketplace and entry skill: `front-harness` → `review-harness` (`/review-harness`, agents `review-harness:<agent>`)
+- Home folder: `~/.front-harness/` → `~/.review-harness/`. Environment variables: `FRONT_HARNESS_HOME` → `REVIEW_HARNESS_HOME`, `FE_HARNESS_*` → `REVIEW_HARNESS_*`
+- No fallback to the old names. To migrate: `mv ~/.front-harness ~/.review-harness`, replace the old path inside your own overlay and knowledge files, uninstall `front-harness@front-harness` and install `review-harness@review-harness`
+- Added `tests/run.sh` (hook smoke tests) and CI on Linux and macOS
+
 ### v0.5.0 (2026-11-16)
 
 **Focus on code development quality — UI/design-only features removed**

@@ -2,7 +2,7 @@
 # extract-constraints.sh
 # Usage: extract-constraints.sh <agent-name>
 # Prints only constraints.md sections relevant to the given agent.
-# front-harness MUST call this before spawning an agent instead of passing the whole file.
+# review-harness MUST call this before spawning an agent instead of passing the whole file.
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONSTRAINTS="$PLUGIN_DIR/constraints.md"
@@ -37,9 +37,9 @@ case "$AGENT" in
 esac
 
 # Extract each section from first `## #tag` heading to next `## ` or `---`
-# `org` is the organisation-specific section: it lives in ~/.front-harness/org/constraints.md
+# `org` is the organisation-specific section: it lives in ~/.review-harness/org/constraints.md
 # and is simply absent when no organisation overlay is installed.
-FH_HOME="${FRONT_HARNESS_HOME:-$HOME/.front-harness}"
+FH_HOME="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}"
 ORG_CONSTRAINTS="$FH_HOME/org/constraints.md"
 extract_section() {
   local tag="$1" file="$CONSTRAINTS"
@@ -59,7 +59,7 @@ for tag in $SECTIONS; do
   OUTPUT="${OUTPUT}${SECTION_OUT}"$'\n\n'
 done
 
-# Org overlay for this agent (~/.front-harness/org/agents/<agent>.md) — the organisation-specific part of
+# Org overlay for this agent (~/.review-harness/org/agents/<agent>.md) — the organisation-specific part of
 # the agent's instructions. Absent when no overlay is installed.
 AGENT_OVERLAY=$(bash "$PLUGIN_DIR/hooks/org-overlay.sh" agents "$AGENT" 2>/dev/null)
 if [ -n "$AGENT_OVERLAY" ]; then
@@ -70,7 +70,7 @@ printf '%s' "$OUTPUT"
 
 # Token budget instrumentation. 8KB ≈ 2K tokens at ~4 chars/token.
 # Emits to stderr only — never pollutes stdout consumed by the agent.
-BUDGET_WARN_BYTES="${FE_HARNESS_BUDGET_WARN_BYTES:-8192}"
+BUDGET_WARN_BYTES="${REVIEW_HARNESS_BUDGET_WARN_BYTES:-8192}"
 BYTES=$(printf '%s' "$OUTPUT" | wc -c | tr -d ' ')
 APPROX_TOKENS=$((BYTES / 4))
 if [ "$BYTES" -gt "$BUDGET_WARN_BYTES" ]; then
