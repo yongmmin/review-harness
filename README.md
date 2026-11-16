@@ -1,6 +1,6 @@
 # review-harness
 
-A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and its gates work for any codebase. Stack-specific rules live in profiles (`profiles/<name>.md`); the bundled `web-frontend` profile covers TypeScript, React and Next.js, and you can add rules for your own stack with an overlay. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
+A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and the review gate are stack-neutral, but today every run loads the bundled `web-frontend` profile and the test step only finds JavaScript test commands; choosing a profile per stack is planned. Stack-specific rules live in profiles (`profiles/<name>.md`); the bundled `web-frontend` profile covers TypeScript, React and Next.js, and you can add rules for your own stack with an overlay. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
 
 ## Install / Update
 
@@ -116,7 +116,7 @@ The model is the `model:` value in each `agents/*.md` frontmatter.
 2. **No commit without a reviewer PASS.** The verdict is stored in a file together with a hash of the work tree at review time. If you change code after the review, it must be reviewed again (`git add` does not count as a change). To commit anyway, say so explicitly; it is recorded as an override.
 3. **An organisation overlay can add rules.** Example: a gate that requires QA documents to be updated when behaviour changes.
 4. **At 80% of the 5-hour usage limit it asks which model to use.** Before starting reviewer / refactor-architect it asks once: `Keep Fable` / `Opus for this run`. Usage is read from `~/.claude/usage-state.json`, written by your status line; if the file is missing or older than 10 minutes it does not ask.
-5. **Editing `package.json`, `next.config.*` or `tsconfig*.json` needs your approval.** `.env*` files cannot be edited.
+5. **Editing `package.json`, `next.config.*` or `tsconfig*.json` needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
 
 ## Where state is stored
 

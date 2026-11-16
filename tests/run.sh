@@ -65,6 +65,8 @@ eq "gate: stale active run → advice only" advice \
 rs abandon >/dev/null
 eq "gate: abandoned → allow" allow "$(gate "$R")"
 eq "status after abandon" none "$(rs status)"
+rs override "after abandon" >/dev/null
+(cd "$R" && bash "$H/run-state.sh" check >/dev/null 2>&1); eq "check: override after abandon passes" 0 "$?"
 
 # A standalone verdict (no active run) is recorded but never enforced by the hook.
 R="$TMP/idle"; new_repo "$R"
@@ -72,8 +74,37 @@ rs verdict FAIL >/dev/null
 eq "gate: idle FAIL is not enforced by the hook" allow "$(gate "$R")"
 (cd "$R" && bash "$H/run-state.sh" check >/dev/null 2>&1); eq "check: idle FAIL blocks /git-commit" 1 "$?"
 
+# Hashing the work tree must not write into the repo's object store, and must give the same id as
+# the earlier method (a temp index with objects written to the repo), so recorded PASSes stay valid.
+objcount() { find "$1" -type f | wc -l | tr -d ' '; }
+R="$TMP/hashrepo"; new_repo "$R"; echo new > "$R/untracked.txt"
+N0=$(objcount "$R/.git/objects"); HNEW=$(rs hash)
+eq "hash: no objects written to the repo" "$N0" "$(objcount "$R/.git/objects")"
+cp -p "$R/.git/index" "$TMP/old-index"
+HOLD=$(GIT_INDEX_FILE="$TMP/old-index" git -C "$R" add -A . && GIT_INDEX_FILE="$TMP/old-index" git -C "$R" write-tree)
+eq "hash: same tree id as the earlier method" "$HOLD" "$HNEW"
+git -C "$R" worktree add -q "$TMP/hashwt" 2>/dev/null; echo wt > "$TMP/hashwt/wt.txt"
+N0=$(objcount "$R/.git/objects"); HWT=$(cd "$TMP/hashwt" && bash "$H/run-state.sh" hash)
+case "$HWT" in error|nogit) eq "hash: works in a linked worktree" tree "$HWT" ;; *) PASS=$((PASS + 1)) ;; esac
+eq "hash: linked worktree writes no objects" "$N0" "$(objcount "$R/.git/objects")"
+# A ':' in the repo path must not break the alternate: an unchanged file older than the index is
+# not re-hashed, so write-tree can only find its blob in the repo's store.
+R="$TMP/co:lon"; mkdir -p "$R" && git -C "$R" init -q && echo a > "$R/f.txt" && touch -t 202001010000 "$R/f.txt" \
+  && git -C "$R" add f.txt
+cp -p "$R/.git/index" "$TMP/colon-index"
+HOLD=$(GIT_INDEX_FILE="$TMP/colon-index" git -C "$R" add -A . && GIT_INDEX_FILE="$TMP/colon-index" git -C "$R" write-tree)
+eq "hash: ':' in repo path keeps the alternate" "$HOLD" "$(rs hash)"
+
 # --- detect-repo -----------------------------------------------------------------------
 eq "detect-repo: no registry → silent" "" "$(bash "$H/detect-repo.sh" "$TMP")"
+
+# --- wisdom ----------------------------------------------------------------------------
+# The wisdom folder follows REVIEW_HARNESS_HOME like everything else (HOME points at an empty dir).
+mkdir -p "$TMP/wh/knowledge" "$TMP/wh/wisdom" "$TMP/emptyhome"; echo "- a wisdom line" > "$TMP/wh/wisdom/summary.md"
+has "session-start: wisdom under REVIEW_HARNESS_HOME" "a wisdom line" \
+  "$(cd "$TMP" && HOME="$TMP/emptyhome" REVIEW_HARNESS_HOME="$TMP/wh" bash "$H/session-start.sh")"
+HOME="$TMP/emptyhome" REVIEW_HARNESS_HOME="$TMP/wh" bash "$H/knowledge-has-content.sh"
+eq "knowledge-has-content: wisdom under REVIEW_HARNESS_HOME counts" 0 "$?"
 mkdir -p "$REVIEW_HARNESS_HOME/knowledge/acme" "$TMP/my-app/src" "$TMP/my-app-api"
 cat > "$REVIEW_HARNESS_HOME/knowledge/acme/repos.md" <<EOF
 ### my-app
@@ -98,6 +129,9 @@ BASE=$(bash "$H/extract-constraints.sh" reviewer 2>/dev/null)
 has "constraints: reviewer gets #review" "## #review" "$BASE"
 case "$BASE" in *"## #filesystem"*) eq "constraints: reviewer does not get #filesystem" absent present ;; *) PASS=$((PASS + 1)) ;; esac
 has "constraints: developer gets #filesystem" "## #filesystem" "$(bash "$H/extract-constraints.sh" developer 2>/dev/null)"
+OUT=$(bash "$H/extract-constraints.sh" developer 2>/dev/null)
+lacks "constraints: no literal plugin-root placeholder" '${CLAUDE_PLUGIN_ROOT}' "$OUT"
+has "constraints: plugin root substituted" "$ROOT/hooks/pre-tool-use.sh" "$OUT"
 eq "constraints: unknown agent → empty" "" "$(bash "$H/extract-constraints.sh" nobody 2>/dev/null)"
 
 # --- profiles --------------------------------------------------------------------------

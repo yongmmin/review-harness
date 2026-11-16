@@ -12,7 +12,8 @@ if [ ! -d "$KNOWLEDGE_DIR" ]; then
 fi
 
 # Also check global wisdom summary (search-knowledge reads this first)
-WISDOM_SUMMARY="$HOME/.review-harness/wisdom/summary.md"
+WISDOM_DIR="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/wisdom"
+WISDOM_SUMMARY="$WISDOM_DIR/summary.md"
 
 # Placeholder patterns indicating "no real content yet"
 PLACEHOLDER_RE='(_No .* yet\.?_|_none_|_none —_)'
@@ -35,9 +36,9 @@ for f in \
   "$WISDOM_SUMMARY" \
   "$KNOWLEDGE_DIR/index.md" \
   "$KNOWLEDGE_DIR"/*/*.md \
-  "$HOME/.review-harness/wisdom/learnings.md" \
-  "$HOME/.review-harness/wisdom/decisions.md" \
-  "$HOME/.review-harness/wisdom/issues.md"
+  "$WISDOM_DIR/learnings.md" \
+  "$WISDOM_DIR/decisions.md" \
+  "$WISDOM_DIR/issues.md"
 do
   if has_real_content "$f"; then
     exit 0

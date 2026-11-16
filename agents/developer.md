@@ -39,13 +39,13 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 ## Test Structure
 
 ```typescript
-// Example: clip permission test
-describe('Clip visibility', () => {
-  describe('when visibility = UNLISTED', () => {
-    it('renders share modal with unlisted badge', () => {
-      // given: clip with visibility = 'UNLISTED'
-      // when:  user opens ShareModal
-      // then:  unlisted badge appears + copy-link button visible
+// Example: document sharing test
+describe('Document sharing', () => {
+  describe('when visibility = PRIVATE', () => {
+    it('renders the share dialog with a private badge', () => {
+      // given: document with visibility = 'PRIVATE'
+      // when:  user opens the share dialog
+      // then:  private badge appears + invite button visible
     })
   })
 })

@@ -81,6 +81,7 @@ Per agent spawn, pass only:
 
 ```markdown
 ## Handoff
+- plan_path: /abs/path/to/state-dir/plan.md
 - changed_files: path1, path2
 - reusable_components: Button, Card
 - decisions: reuse existing ProductCard layout
@@ -88,7 +89,7 @@ Per agent spawn, pass only:
 - test_status: not_run | passed:npm run test | failed:npm run test
 ```
 
-Rules: max 5 bullets, one line each, no prose, identifiers over explanation.
+Rules: omit empty fields, max 6 bullets, one line each, no prose, identifiers over explanation.
 
 ### Budget Measurement
 

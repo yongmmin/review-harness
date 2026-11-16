@@ -16,6 +16,16 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - Every skill passes `web-frontend`, so agents receive the same rules as before
 - Review category `react-perf` renamed to `performance`. The Three.js / R3F gates (`three-perf`) left the public rules; keep them in your organisation overlay if you need them
 
+**Fixed**
+- `agents/test-runner.md`, `agents/refactor-architect.md`: cwd-relative `bash hooks/...` → `bash "${CLAUDE_PLUGIN_ROOT}/hooks/..."` (the cwd is the consumer repo)
+- `run-state.sh override` after `abandon` now starts a fresh idle record, so `check` sees the override (it used to exit 3)
+- `run-state.sh` work-tree hash no longer writes blobs into the consumer's `.git/objects`: new objects go to a temp store with the repo's store as alternate. The hash value is unchanged, so recorded PASSes stay valid
+- The wisdom folder follows `REVIEW_HARNESS_HOME` (`session-start.sh`, `knowledge-has-content.sh`, `save-knowledge`)
+- `extract-constraints.sh` replaces `${CLAUDE_PLUGIN_ROOT}` with the plugin path in its output, as `org-overlay.sh` does
+- `state-dir.sh` falls back to `sha1sum`, then `cksum`, when `shasum` is missing, so same-named repos no longer share state
+- The session-start knowledge summary prints the first 5 `- **Key**:` lines of `knowledge/index.md` instead of a fixed key list
+- Docs that contradicted the code: README (stack support today, `.env*` protection only after `install.sh`), `code-review` (no commit follows a PASS), `CLAUDE.md` handoff (max 6 bullets with `plan_path`), `docs/hooks.md` (Small change exception, hooks auto-discovered), knowledge is optional (no `/setup`), `/rtk` → `/rtk-toggle`, neutral test example in `agents/developer.md`
+
 ### v0.5.0 (2026-11-16)
 
 **Focus on code development quality — UI/design-only features removed**

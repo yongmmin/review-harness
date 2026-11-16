@@ -32,7 +32,7 @@ tools: Read, Glob, Grep, Bash, Edit
    - `jest.config.*` → `npx jest`
    - `playwright.config.*` → `npx playwright test` (E2E only — use sparingly)
 2. **If no test command and no config detected** → emit `no_tests_configured` status and HALT. Do NOT invent a command. Do NOT mark as PASS. The orchestrator will fall back to manual verification
-3. Run via `bash hooks/rtk-wrap.sh <cmd>` — never invoke binary directly. When rtk mode is on, output compresses to failures only. When off, passes through raw
+3. Run via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd>` — never invoke binary directly. When rtk mode is on, output compresses to failures only. When off, passes through raw
 4. Summarize pass/fail counts
 5. On failure:
    - Report failing command, file/test identifier, shortest useful error excerpt to the orchestrator
@@ -85,4 +85,4 @@ Rules:
 - Never modify tests to force success
 - Never fake `passed` status when no tests ran — use `no_tests_configured`
 - Do not stop on 3 consecutive failures without recording the pattern
-- Route test binaries through `bash hooks/rtk-wrap.sh`
+- Route test binaries through `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh"`
