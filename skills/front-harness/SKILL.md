@@ -1,13 +1,13 @@
 ---
 name: front-harness
-description: Single entry point for frontend code work in a React/Next.js repo — feature/API wiring (UI work included), refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests (in any language) like "build this", "add this", "refactor", "review this". Not for git branch/PR creation (use /git-branch, /git-pr).
+description: Single entry point for code work in a repo — feature/API wiring (UI work included), refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests (in any language) like "build this", "add this", "refactor", "review this". Not for git branch/PR creation (use /git-branch, /git-pr).
 argument-hint: "[request] [--rtk=off|standard|aggressive|git-only]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git branch *) Bash(git log *)
 ---
 
 # Skill: front-harness
 
-**Trigger**: `/front-harness [request]` — or auto-invoked when a message looks like frontend work
+**Trigger**: `/front-harness [request]` — or auto-invoked when a message looks like code work (feature, refactor, review)
 **Purpose**: Handle setup, intent detection, planning, execution, verification with minimal context overhead.
 
 ---
@@ -87,7 +87,7 @@ If `~/.front-harness/knowledge/index.md` is missing, initialize project knowledg
 The `=== Active Repo ===` block is already injected above — do not re-run `detect-repo.sh`. Three branches:
 
 - **Matched** → compact repo block becomes part of agent context. Apply repo-specific rules: path alias, layout (`src/` vs `app/`), env source, Tailwind version
-- **Unmatched** AND user request implies frontend work → ask: "This directory is not registered. Register the repo (see the `hint` line in the Active Repo block), or continue for this task only?"
+- **Unmatched** AND user request implies code work → ask: "This directory is not registered. Register the repo (see the `hint` line in the Active Repo block), or continue for this task only?"
 - **Unmatched** AND user request is generic (e.g. "/front-harness explain yourself") → continue without repo context
 - **No Active Repo block at all** (no repo registry installed, no `~/.front-harness/knowledge/<org>/repos.md`) → continue with the generic rules; do not ask
 

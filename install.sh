@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh — Frontend Harness setup helper
+# install.sh — front-harness setup helper
 #
 # The plugin itself is installed via Claude Code's plugin system (see final
 # instructions this script prints). This script only:
@@ -22,7 +22,7 @@ git-branch git-commit git-pr rtk-toggle"
 ORG_LEGACY="${FRONT_HARNESS_HOME:-$HOME/.front-harness}/org/legacy-skill-names"
 [ -f "$ORG_LEGACY" ] && SKILLS="$SKILLS $(cat "$ORG_LEGACY")"
 
-echo "=== Frontend Harness — Setup ==="
+echo "=== front-harness — Setup ==="
 echo ""
 
 # 0. Check plugin registration first — legacy cleanup is only safe AFTER the

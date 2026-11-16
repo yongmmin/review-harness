@@ -1,4 +1,4 @@
-# Frontend Harness Runtime
+# front-harness Runtime
 
 Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CHANGELOG.md`.
 
@@ -7,7 +7,7 @@ Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CH
 ## Entry Point
 
 - `/front-harness` is the only public entry
-- If a user message looks like frontend work, invoke `front-harness` automatically
+- If a user message looks like code work (feature, refactor, review), invoke `front-harness` automatically
 - Canonical spec: `skills/front-harness/SKILL.md`
 - Do not load `README.md` at runtime
 
