@@ -32,8 +32,8 @@ Keywords are examples: match the same meaning in whatever language the user writ
 
 - `review-harness` orchestrates; specialists implement — except on the Small change path (`skills/review-harness/SKILL.md → Workflow Selection`), where the main session edits directly. Spawn via `Agent` with `subagent_type` `review-harness:<agent>` (plugin install) — bare `<agent>` only for a legacy `.claude/agents/` copy
 - Skills inject session context at load (`!`cmd`` blocks: detect-repo, rtk mode, knowledge presence, git state). Never re-run what a skill already injected
-- In orchestration mode, Write/Edit limited to `plan.md` (Small change path excepted)
-- The plugin writes nothing into the consumer repo. `plan.md`, `run-state.json`, `rtk-session.flag`, `approved/`, `cache/` live in `~/.review-harness/state/<repo-id>/` (`hooks/state-dir.sh`; id = work-tree basename + hash of its absolute path, so parallel worktrees stay separate). Report the full path whenever `plan.md` is written
+- In orchestration mode, Write/Edit limited to `plan.md` and the `register-declined` flag (Small change path excepted)
+- The plugin writes nothing into the consumer repo. `plan.md`, `run-state.json`, `rtk-session.flag`, `register-declined`, `approved/`, `cache/` live in `~/.review-harness/state/<repo-id>/` (`hooks/state-dir.sh`; id = work-tree basename + hash of its absolute path, so parallel worktrees stay separate). Report the full path whenever `plan.md` is written
 - Every workflow starts with `hooks/run-state.sh start`; the script owns attempts, timestamps and the work-tree hash
 - Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 - Never inline full `constraints.md`
