@@ -38,9 +38,9 @@ Anything printed above is organisation-specific and is part of this skill; where
 
 ## Trigger Routes
 
-1. **Explicit arg**: `/rtk standard`, `/rtk off`, etc. — write mode and report
+1. **Explicit arg**: `/rtk-toggle standard`, `/rtk-toggle off`, etc. — write mode and report
 2. **No arg**: launch AskUserQuestion picker, let user choose
-3. **Status query**: `/rtk status` — print currently resolved mode without change
+3. **Status query**: `/rtk-toggle status` — print currently resolved mode without change
 
 ---
 
@@ -62,11 +62,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>
 
 Valid modes: `off | standard | aggressive | git-only`. Reject others with one-line error.
 
-### When user runs `/rtk status`
+### When user runs `/rtk-toggle status`
 
 Report the injected `Current mode` value — no command needed. If `REVIEW_HARNESS_RTK` is set, mention env var is overriding flag file.
 
-### When user runs `/rtk` with no arg
+### When user runs `/rtk-toggle` with no arg
 
 Use `AskUserQuestion` with one question, 4 options (off / standard / aggressive / git-only). After answer, persist with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <answer>`.
 

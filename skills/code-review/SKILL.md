@@ -52,7 +52,7 @@ Anything printed above is organisation-specific and is part of this skill; where
       No `review: … recorded` line in the reply -> spawn reviewer once more to record it. Still missing ->
       no verdict: never record it yourself; report that to the user. git-commit stays blocked.
 3. On FAIL -> return compact fix list
-4. On PASS -> allow git-commit (auto-chains). git-commit verifies the recorded verdict with `run-state.sh check`
+4. On PASS -> report PASS. No commit follows from this skill; a later git-commit verifies the recorded verdict with `run-state.sh check`
 ```
 
 If push-intent detected (user said push/PR) and the org overlay defines a pre-push review format, reviewer outputs that format instead of PASS/FAIL.

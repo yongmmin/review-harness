@@ -4,7 +4,7 @@ Detailed description moved out of the [README](../README.md). The reference docu
 
 ## Core principles
 
-1. **Conductor** — the orchestrator does not write code itself and delegates to specialist agents
+1. **Conductor** — the orchestrator does not write code itself and delegates to specialist agents. Exception: on the Small change path the main session edits directly
 2. **Evidence First** — no declaring completion without test run results
 3. **YAGNI** — implement only what was explicitly requested. No speculative features
 4. **Reuse First** — at plan time the main session first looks for reusable components, hooks and utils and writes them in the `Reuse` item of `plan.md`. If it is empty, reviewer FAILs
@@ -60,7 +60,7 @@ The `hooks/` directory. Hooked automatically into session/tool events, or called
 
 ### Installing hooks
 
-`hooks.json` is registered through the `hooks` key of `plugin.json` — but **only when installed as a plugin** (`/plugin install`, see [README install](../README.md#install--update)). Skill symlinks alone do not load the hooks.
+Claude Code finds `hooks/hooks.json` in the plugin folder by itself (`plugin.json` has no `hooks` key) — but **only when installed as a plugin** (`/plugin install`, see [README install](../README.md#install--update)). Skill symlinks alone do not load the hooks.
 
 ## How to remove tool boundaries
 

@@ -68,7 +68,7 @@ Resolve rtk token-filter mode before any agent spawn. Plugin-scoped — no globa
 
 Valid modes: `off | standard | aggressive | git-only`. Reject others with one-line error.
 
-User can re-run `/rtk` to change mode mid-session.
+User can run `/rtk-toggle` to change mode mid-session.
 
 ### 0.5. Unfinished Run Gate
 
@@ -78,9 +78,9 @@ If the injected `run state` line is not `none`, a previous run in this work tree
 - `Start new` → run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" abandon`, then proceed as a new request
 - A `STALE` run (not updated for over 24h) is asked the same way — the commit hook does not enforce it until the user decides
 
-### 1. Lazy Setup
+### 1. Knowledge (optional)
 
-If `~/.review-harness/knowledge/index.md` is missing, initialize project knowledge there automatically. Do not ask user to run `/setup`.
+Project knowledge is optional. If `~/.review-harness/knowledge/index.md` (or `$REVIEW_HARNESS_HOME/knowledge/index.md`) is missing, continue with the generic rules.
 
 ### 1.5. Active Repo Gate
 
