@@ -39,17 +39,19 @@ Detailed description moved out of the [README](../README.md). The reference docu
 | `"create a PR"`, `"write the PR body"`, `"get the PR ready"`, `/git-pr` | Prints the body + URL |
 | `"push it"` | Politely declines + shows only the recommended command |
 
-## 12 Hooks
+## 14 Hooks
 
 The `hooks/` directory. Hooked automatically into session/tool events, or called as plugin-internal scripts.
 
 | Hook | Trigger | Role |
 |---|---|---|
 | **`session-start.sh`** | SessionStart | Prints the compact summary of `~/.review-harness/knowledge/index.md` + calls `detect-repo.sh` to inject the active repo metadata into context + cleans up files older than 1 hour in `~/.review-harness/state/<repo-id>/cache/` |
-| **`pre-tool-use.sh`** | PreToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | Denies edits to `package.json`/`next.config.*`/`tsconfig.json`. After user approval, `pre-tool-use.sh --approve <path>` records an approval with a 30-minute TTL → the retry passes |
-| **`post-tool-use.sh`** | PostToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | On saving a TS/TSX file, runs incremental tsc + eslint in parallel, and on failure emits compact errors only (3-second debounce, automatic cache cleanup). Logs the token budget to stderr |
-| **`detect-repo.sh`** | session-start + skill load | Parses with awk which repo in `~/.review-harness/knowledge/<org>/repos.md` the `cwd` matches. On a match, prints compact metadata (`name`/`role`/`stack`/`layout`/`env`/`path_alias`/`doc_routing`, etc.). If there is no registry it prints nothing, and if there is no match it prints `not registered` |
-| **`extract-constraints.sh`** | Just before agent spawn | `extract-constraints.sh <agent> [profile]`. Extracts from `constraints.md` only the section tags that agent needs (`#code-rules`/`#filesystem`/`#completion`/`#review`/`#failure-patterns`) + appends the `#org` section of `~/.review-harness/org/constraints.md`, the agent's sections of `profiles/<profile>.md` and the agent overlay. Unknown profile → exit 2, nothing printed. Logs the token budget to stderr |
+| **`pre-tool-use.sh`** | PreToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | Denies edits to `package.json`/`next.config.*`/`tsconfig*.json`, lock files and `.env`/`.env.*` (not `.env.example`/`.env.sample`/`.env.template`). After user approval, `pre-tool-use.sh --approve <path>` records an approval with a 30-minute TTL → the retry passes |
+| **`post-tool-use.sh`** | PostToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | On saving a TS/TSX file, runs incremental tsc + eslint in parallel, and on failure emits compact errors only (3-second debounce, automatic cache cleanup). In a registered repo with `check_cmd`, runs that command from the registered `local_path` for any edited file instead, and emits its compact output when it exits non-zero (a `check_cmd` slower than the 60-second hook timeout is killed). Logs the token budget to stderr |
+| **`detect-repo.sh`** | session-start + skill load | Parses with awk which repo in `~/.review-harness/knowledge/<org>/repos.md` the `cwd` matches. On a match, prints compact metadata (`name`/`local_path`/`role`/`stack`/`layout`/`env`/`path_alias`/`doc_routing`/`test_cmd`/`check_cmd`, etc.). If there is no registry it prints nothing, and if there is no match it prints `not registered` |
+| **`extract-constraints.sh`** | Just before agent spawn | `extract-constraints.sh <agent> [profile[,profile...]]`. Extracts from `constraints.md` only the section tags that agent needs (`#code-rules`/`#filesystem`/`#completion`/`#review`/`#failure-patterns`) + appends the `#org` section of `~/.review-harness/org/constraints.md`, the agent's sections of each `profiles/<profile>.md` (one `## Profile — <name>` block per profile, in the order given) and the agent overlay. Any unknown profile → exit 2, nothing printed; an empty list = no profile. Logs the token budget to stderr |
+| **`detect-profile.sh`** | Skills, at the `extract-constraints.sh` call site | `detect-profile.sh [path...]` → comma-separated profile names or an empty line. Paths: the arguments (developer / refactor-architect: the plan's Affected Files), else the current git changes. `.tsx`/`.jsx`/`.vue`/`.svelte`/style files → `web-frontend`; `*.controller.*`, `routes/`, `api/`, `*.sql`, `migrations/` → `web-api`; both → also `web-common`. Any path no frontend rule matched (API-name matches included) also counts by the dependencies of its nearest `package.json` / `pyproject.toml` / `requirements*.txt` (walking up to the git root; React/Next/Vue/Svelte → `web-frontend`, Nest/Express/Fastify/Koa/FastAPI/Django/Flask → `web-api`). No paths at all → the repo-root manifest. Prints only names that have a `profiles/<name>.md` |
+| **`detect-test-cmd.sh`** | test-runner step 1 + `tdd` skill load | `detect-test-cmd.sh [dir]` → one test command or nothing. First match: registry `test_cmd`, `package.json` `scripts.test` (not npm's placeholder; pnpm/bun/yarn/npm by lockfile), `vitest.config.*`, `jest.config.*`, a bun lockfile (`bun test`), pytest markers, `go.mod`, `Cargo.toml` |
 | **`org-overlay.sh`** | Skill load + `extract-constraints.sh` | Prints the organisation overlay (`~/.review-harness/org/skills\|agents/<name>.md`). If absent, prints nothing |
 | **`knowledge-has-content.sh`** | Just before a `/search-knowledge` call | Quickly verifies whether the knowledge/wisdom files have real content beyond placeholders. If empty, the `/search-knowledge` call itself is skipped |
 | **`rtk-wrap.sh`** | Plugin-internal Bash calls | Wraps calls to `git`/`gh`/`tsc`/`eslint`/`jest`/`vitest`/`grep`/`find`/`ls`, etc. in `rtk` to compress output (per mode). Falls back to the raw command when `rtk` is not installed. No effect on other projects |
@@ -70,7 +72,9 @@ Claude Code finds `hooks/hooks.json` in the plugin folder by itself (`plugin.jso
 |---|---|
 | `.env*` | No edits — hard-blocked by settings.json Deny rules (all of Write/Edit/MultiEdit/NotebookEdit) |
 | `package.json` | User approval required before editing — the PreToolUse hook denies (`pre-tool-use.sh --approve <path>` or `REVIEW_HARNESS_ALLOW_CONFIG_EDITS=1`) |
-| `next.config.js/ts/mjs` / `tsconfig.json` | Same approval gate |
+| `next.config.js/ts/mjs` / `tsconfig.json` / `tsconfig.*.json` | Same approval gate |
+| Lock files: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`, `bun.lockb`, `poetry.lock`, `uv.lock`, `Pipfile.lock`, `Cargo.lock`, `go.sum`, `composer.lock`, `Gemfile.lock` | Same approval gate |
+| `.env`, `.env.*` (except `.env.example`, `.env.sample`, `.env.template`) | Same approval gate in the hook, on top of the settings.json deny above |
 
 ### Removing rules
 
@@ -102,7 +106,7 @@ done
 
 ## Constraints system
 
-[`constraints.md`](../constraints.md) holds the generic rules; a profile ([`profiles/web-frontend.md`](../profiles/web-frontend.md)) holds the stack-specific rules in the same `## #tag` format. Each agent partially loads only its own tags. Every skill passes the `web-frontend` profile; without a profile argument no stack rules are loaded.
+[`constraints.md`](../constraints.md) holds the generic rules; a profile ([`profiles/web-frontend.md`](../profiles/web-frontend.md)) holds the stack-specific rules in the same `## #tag` format. Each agent partially loads only its own tags. Skills pass the output of `detect-profile.sh` (the profiles that match the changed files); an empty selection loads no stack rules.
 
 ### Tag mapping
 
@@ -192,7 +196,7 @@ Content specific to an organisation or company is not kept in this repository. I
 
 - `hooks/org-overlay.sh <skills|agents> <name>` prints the overlay file. If the file does not exist it prints nothing
 - Every `SKILL.md` has its own overlay injected at load time
-- `hooks/extract-constraints.sh <agent> [profile]` appends the `#org` section, the profile sections and the agent overlay after the content the orchestrator passes to the agent
+- `hooks/extract-constraints.sh <agent> [profile[,profile...]]` appends the `#org` section, the profile sections and the agent overlay after the content the orchestrator passes to the agent
 - If `org/` and `knowledge/` do not exist, the overlay is empty, `detect-repo.sh` prints nothing, and `knowledge-has-content.sh` reports empty. The plugin runs on the generic rules alone
 - Detailed domain files are loaded on demand by `search-knowledge`. At session start only `index.md` is loaded automatically
 
