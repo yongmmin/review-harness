@@ -79,8 +79,18 @@ When this is the case, flag in `plan.md → ## Goal` that the refactor **scope i
 ```markdown
 # Refactor Plan: [scope]
 
+## Intent
+refactor
+
 ## Problem
 [pattern repeated and where]
+
+## Done When
+- Behavior unchanged — check: [existing test command]
+- [duplicate removed, usages replaced] — check: [test name, command, or manual step]
+
+## Out of Scope
+- [what stays as is]
 
 ## Affected Files
 - path/to/file1.tsx (lines X–Y)

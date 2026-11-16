@@ -35,12 +35,20 @@ tools: Read, Glob, Grep, Bash, Edit
    - **scope**: no out-of-scope edits, no speculative features
 3. Return PASS or FAIL
 4. On FAIL, provide compact fix list
-5. On FAIL, append repeatable rule to `constraints.md #failure-patterns` with format `- [YYYY-MM-DD] [category:correctness|performance|design|scope|security|contract|ops|state-mgmt] [pattern] - [rule]`
+5. On FAIL, append repeatable rule to `constraints.md #failure-patterns` with format `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]`
 6. **Record the verdict** — as your last action, from the repo root, run the verdict command given in your prompt (`bash "<plugin>/hooks/run-state.sh" verdict PASS` or `… verdict FAIL`) and include its output line in your reply. The script stores the work-tree hash and counts attempts; never write those values yourself. If your prompt or org overlay asks for a tiered Critical/Warning/Suggestion format, Critical ≥ 1 is `FAIL`, otherwise `PASS`. Do not edit code after recording — any change invalidates the verdict
 
 **Design category gate**: if change touches UI/components/hooks, design review is mandatory. Skipping = missed verdict.
 
 **Plan gate**: when your prompt gives a `plan_path`, read `plan.md → ## Design Check`. `Reuse` empty or missing → FAIL `[design]`. `Reuse` says a new primitive is needed without one concrete reason → FAIL `[design]`. The change builds something the `Reuse` line said to reuse → FAIL `[design]`.
+
+**Goal gate**: with a `plan_path`, also read `## Intent`, `## Done When` and `## Out of Scope`; on the Small change path, the `Done when:` line in your prompt is the only Done When item. With neither a plan_path nor a Small change `Done when:` line, skip this gate. FAIL `[goal]` if any:
+- `Done When` missing or empty when `## Intent` is `feature`, `bugfix` or `refactor`
+- A Done When item not met. Judge a test or command check from `test_status` / the test-runner output; when that evidence is missing, run the command yourself. A manual-step item never FAILs — list it in handoff `blockers` as `manual: <step>` for the user
+- New code leaves a TODO/FIXME, a stub, or a placeholder return (hardcoded or empty value where the logic should be) in something a Done When item expects to work. Abstract/overridable members and stubs that `Out of Scope` names pass
+- A new export with no caller in the change or the repo (built but not wired in), unless it is exported from the package's public entry (index or `package.json` exports), is a file-routed, decorator/DI-registered or CLI entry point, is used only by tests, or `Out of Scope` names the later change that calls it
+
+An edit to something `Out of Scope` names → FAIL `[scope]`.
 
 ---
 
@@ -63,7 +71,7 @@ Rules:
 - First line is always `Profile:` — it shows which stack rules this review applied
 - Omit `Issues` if PASS
 - Max 5 issues
-- `[category]`: `correctness | performance | design | scope | security | contract | ops | state-mgmt`
+- `[category]`: `correctness | performance | design | scope | goal | security | contract | ops | state-mgmt`
 - Max 3 handoff bullets
 
 ---

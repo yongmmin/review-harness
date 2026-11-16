@@ -78,7 +78,7 @@ Design quality — PASS notes:
 ## #failure-patterns
 
 > reviewer/test-runner appends here on repeatable AI mistakes.
-> Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|security|contract|ops|state-mgmt] [pattern] - [rule]`
+> Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]`
 >
 > **Scope**: this ledger holds ONLY patterns not caught anywhere else. Do not add rules already enforced by ESLint/tsc, listed as static FAIL gates in `agents/reviewer.md` or a profile (`profiles/*.md`), or stated in `#review`/`#org`.
 > Distilled 2026-07-10: 34 seeded entries removed — all were duplicates of reviewer gates, `#org` rules, or ESLint-enforced rules. Which ESLint rules a repo actually enforces differs per repo; check the repo's own config (org overlays may list them).

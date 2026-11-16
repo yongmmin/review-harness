@@ -11,6 +11,12 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - `developer`: for a bugfix, writes (or runs the existing) regression test before the fix and reports its failing line as `red:` in the handoff (new optional handoff field)
 - `reviewer` static gates: bugfix with no regression test in the diff or the plan and no stated reason, or with no `red:` line → FAIL `[correctness]`; a change the `Cause` does not explain → FAIL `[scope]`
 
+**Definition of done**
+- `plan.md` gains `## Done When` (2–5 observable outcomes, each with its check: test name, command, or manual step) and `## Out of Scope` (1–2 lines), required for `feature`, `bugfix` and `refactor` (also in the `refactor-architect` plan format). A Small change states one `Done when:` line before the edit and passes it to the reviewer
+- `reviewer` goal gate: reads `Intent`, `Done When` and `Out of Scope` (or the Small change `Done when:` line; skipped when neither exists). FAIL `[goal]` on a missing `Done When`, an unmet item (judged from test-runner output, or by running the command; manual steps go to `blockers` as `manual: <step>`, never FAIL), a TODO/stub/placeholder return where a `Done When` item expects working code, or a new export with no caller (public entry exports, file-routed / DI-registered / CLI entry points, test-only use, and callers named in `Out of Scope` are exempt). An `Out of Scope` edit is FAIL `[scope]`. New category `goal` in the reviewer's lists and the `#failure-patterns` format
+- `test-runner` gets the `Done When` test/command checks in its prompt, so the reviewer has evidence for them
+- Handoff: "max 6 bullets plus `red:` for bugfix"; a bugfix retry carries the first developer run's `red:` line to the re-spawned developer and the reviewer
+
 **Runtime rules now reach plugin users**
 - A plugin's root `CLAUDE.md` is not loaded in a user's session (`claude plugin validate` warns about it), so rules kept only there never applied outside this repo. They now live in the skill or agent that acts on them: Write/Edit limits, context-budget limits and "pass `extract-constraints.sh` output as-is" in `/review-harness`; rtk wrapping in the `developer` and `reviewer` agents; "never `rtk init -g`" in `/rtk-toggle`. `CLAUDE.md` is now the maintainer file
 - The `review-harness` skill description also lists bug-fix requests ("fix this") for auto-invocation
