@@ -1,6 +1,6 @@
 # Frontend Harness
 
-A general-purpose Claude Code harness plugin for code quality in React/Next.js projects. You give it one line — `/front-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
+A review-gated coding harness for Claude Code. You give it one line — `/front-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and its gates do not depend on a stack; the bundled developer and reviewer rules currently focus on TypeScript frontend code, and you can add your own with an overlay. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
 
 ## Install / Update
 
