@@ -21,6 +21,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || echo "de
 - rtk mode (resolved): !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --mode 2>/dev/null || echo off`
 - rtk session flag: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --has-flag 2>/dev/null || echo absent`
 - state dir: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh" --create 2>/dev/null || echo unavailable`
+- register: !`[ -f "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh" 2>/dev/null)/register-declined" ] && echo declined || echo offer`
 - run state: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" status 2>/dev/null || echo none`
 - knowledge: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/knowledge-has-content.sh" 2>/dev/null && echo "has content" || echo "empty — skip search-knowledge"`
 - 5h usage: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/usage-state.sh" 2>/dev/null || echo unknown`
@@ -28,7 +29,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || echo "de
 
 Plugin root for every hook call below: `${CLAUDE_PLUGIN_ROOT}` (never a cwd-relative `hooks/…` path — cwd is the consumer repo, not the plugin).
 
-**State dir**: the plugin never creates files inside the consumer repo. `plan.md`, `run-state.json`, the rtk flag, approvals and caches all live in the injected `state dir` (`~/.review-harness/state/<repo-id>/`, one per work tree). Every `plan.md` mentioned in this plugin means `<state dir>/plan.md`.
+**State dir**: the plugin never creates files inside the consumer repo. `plan.md`, `run-state.json`, the rtk flag, the `register-declined` flag, approvals and caches all live in the injected `state dir` (`~/.review-harness/state/<repo-id>/`, one per work tree). Every `plan.md` mentioned in this plugin means `<state dir>/plan.md`.
 
 ## Org Overlay
 
@@ -87,9 +88,11 @@ Project knowledge is optional. If `~/.review-harness/knowledge/index.md` (or `$R
 The `=== Active Repo ===` block is already injected above — do not re-run `detect-repo.sh`. Three branches:
 
 - **Matched** → compact repo block becomes part of agent context. Apply repo-specific rules: path alias, layout (`src/` vs `app/`), env source, Tailwind version
-- **Unmatched** AND user request implies code work → ask: "This directory is not registered. Register the repo (see the `hint` line in the Active Repo block), or continue for this task only?"
+- **Unmatched** AND user request implies code work → the register offer below
 - **Unmatched** AND user request is generic (e.g. "/review-harness explain yourself") → continue without repo context
-- **No Active Repo block at all** (no repo registry installed, no `~/.review-harness/knowledge/<org>/repos.md`) → continue with the generic rules; do not ask
+- **No Active Repo block at all** (no repo registry installed, no `~/.review-harness/knowledge/<org>/repos.md`) → continue with the generic rules; only the register offer below may ask
+
+**Register offer** (applies with or without an org overlay): when the request implies code work, the repo is not registered (`status: not registered`, or no Active Repo block at all) and the injected `register:` line says `offer`, ask once with `AskUserQuestion`: `This repo is not registered. Register it now? (scans the repo, up to 3 questions, writes only after you confirm)` Options: `Register now` | `Continue without registering`. `Register now` → run the `register-repo` skill, then continue the request. `Continue without registering` → create the empty file `<state dir>/register-declined` (Write tool) so this work tree is not asked again, then continue. This is the only registration question in a run: it also answers an unmatched-repo question from an org overlay's bullet, so never ask both. `register: declined` → continue without asking either.
 
 ### 2. Ambiguity Check
 
