@@ -58,6 +58,9 @@ Logic correctness — FAIL if any:
 - Async op without error surfaced to UI
 - Edge cases unhandled: empty list, zero, boundary input
 
+Secrets — FAIL if any:
+- Password/token/webhook URL in tracked env/config or as `process.env.X || '<value>'` → `[security]`; `.env.example`-style placeholders, `${VAR}` pass
+
 Design quality — FAIL if any:
 - Duplicates an existing component/hook/util in the repo or its shared packages
 - Single component mixes 2+ responsibilities (fetch + render + business logic) where extraction is trivial
@@ -75,7 +78,7 @@ Design quality — PASS notes:
 ## #failure-patterns
 
 > reviewer/test-runner appends here on repeatable AI mistakes.
-> Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|state-mgmt|org] [pattern] - [rule]`
+> Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|security|contract|ops|state-mgmt] [pattern] - [rule]`
 >
 > **Scope**: this ledger holds ONLY patterns not caught anywhere else. Do not add rules already enforced by ESLint/tsc, listed as static FAIL gates in `agents/reviewer.md` or a profile (`profiles/*.md`), or stated in `#review`/`#org`.
 > Distilled 2026-07-10: 34 seeded entries removed — all were duplicates of reviewer gates, `#org` rules, or ESLint-enforced rules. Which ESLint rules a repo actually enforces differs per repo; check the repo's own config (org overlays may list them).

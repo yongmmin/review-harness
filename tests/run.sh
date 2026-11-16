@@ -186,22 +186,38 @@ OUT=$(bash "$H/extract-constraints.sh" reviewer web-frontend,nope 2>/dev/null); 
 eq "profile: list with an unknown name → empty stdout" "" "$OUT"
 bash "$H/extract-constraints.sh" reviewer web-frontend,../constraints >/dev/null 2>&1; eq "profile: list rejects path traversal" 2 "$?"
 eq "profile: empty argument = no profile" "$BASE" "$(bash "$H/extract-constraints.sh" reviewer "" 2>/dev/null)"
+# Real web-api / web-common profiles: per-agent routing, and web-frontend output unchanged by their presence.
+OUT=$(bash "$H/extract-constraints.sh" reviewer web-api 2>/dev/null)
+has "web-api: reviewer gets the block" "## Profile — web-api" "$OUT"
+has "web-api: reviewer gets #review (4xx rule)" "500-class exception" "$OUT"
+lacks "web-api: reviewer does not get #implementation" "**Write after read**" "$OUT"
+OUT=$(bash "$H/extract-constraints.sh" developer web-api 2>/dev/null)
+has "web-api: developer gets #implementation" "**Write after read**" "$OUT"
+lacks "web-api: developer does not get #review" "500-class exception" "$OUT"
+has "web-common: reviewer gets the block" "## Profile — web-common" "$(bash "$H/extract-constraints.sh" reviewer web-common 2>/dev/null)"
+eq "web-api: test-runner has no profile section" "$(bash "$H/extract-constraints.sh" test-runner 2>/dev/null)" \
+  "$(bash "$H/extract-constraints.sh" test-runner web-api 2>/dev/null)"
+OUT=$(bash "$H/extract-constraints.sh" reviewer web-frontend,web-api 2>/dev/null)
+has "profile: list → one block per profile, in order" \
+  "## Profile — web-api (part of this agent's instructions)"$'\n\n'"## #review"$'\n\n'"Static review gates — FAIL if any:" "$OUT"
+case "$OUT" in *"## Profile — web-frontend"*"## Profile — web-api"*) PASS=$((PASS + 1)) ;; *) eq "profile: list keeps order" ordered unordered ;; esac
+# A plugin copy without the web-api / web-common files: web-frontend output must be byte-identical.
+PC="$TMP/plugin-copy"; mkdir -p "$PC" && cp -R "$ROOT/hooks" "$ROOT/profiles" "$ROOT/constraints.md" "$PC/"
+rm -f "$PC/profiles/web-api.md" "$PC/profiles/web-common.md"
+OUT=$(bash "$H/extract-constraints.sh" reviewer web-frontend 2>/dev/null)
+eq "web-frontend: reviewer output unchanged by the web-api profile" \
+  "$(bash "$PC/hooks/extract-constraints.sh" reviewer web-frontend 2>/dev/null)" "$OUT"
+lacks "web-frontend: no web-api text leaks in" "500-class exception" "$OUT"
 
 # --- detect-profile --------------------------------------------------------------------
 dp() { bash "$H/detect-profile.sh" "$@"; }
 eq "detect-profile: .tsx → web-frontend" web-frontend "$(cd "$TMP" && dp src/App.tsx)"
 eq "detect-profile: .py only → none" "" "$(cd "$TMP" && dp app/main.py)"
-eq "detect-profile: controller only → none (no web-api profile yet)" "" "$(cd "$TMP" && dp src/user.controller.ts)"
-# Multi-profile path: a plugin copy with stub web-api / web-common profiles.
-PC="$TMP/plugin-copy"; mkdir -p "$PC" && cp -R "$ROOT/hooks" "$ROOT/profiles" "$ROOT/constraints.md" "$PC/"
-printf '## #review\n\n- api stub rule\n' > "$PC/profiles/web-api.md"
-printf '## #review\n\n- common stub rule\n' > "$PC/profiles/web-common.md"
-eq "detect-profile: .tsx + routes/ → all three" "web-frontend,web-api,web-common" \
+eq "detect-profile: controller, no manifest → web-api" web-api "$(cd "$TMP" && dp src/user.controller.ts)"
+eq "detect-profile: migrations .sql, no manifest → web-api" web-api "$(cd "$TMP" && dp db/migrations/001.sql)"
+eq "detect-profile: .tsx + routes/ → all three" "web-frontend,web-api,web-common" "$(cd "$TMP" && dp src/App.tsx routes/x.ts)"
+eq "detect-profile: profiles that do not exist are not printed" web-frontend \
   "$(cd "$TMP" && bash "$PC/hooks/detect-profile.sh" src/App.tsx routes/x.ts)"
-OUT=$(bash "$PC/hooks/extract-constraints.sh" reviewer web-frontend,web-api 2>/dev/null)
-has "profile: list → one block per profile, in order" \
-  "## Profile — web-api (part of this agent's instructions)"$'\n\n'"## #review"$'\n\n'"- api stub rule" "$OUT"
-case "$OUT" in *"## Profile — web-frontend"*"## Profile — web-api"*) PASS=$((PASS + 1)) ;; *) eq "profile: list keeps order" ordered unordered ;; esac
 F="$TMP/fe"; mkdir -p "$F/src" && git -C "$F" init -q && echo 'x' > "$F/src/App.tsx"
 eq "detect-profile: no args → untracked .tsx" web-frontend "$(cd "$F" && dp)"
 # Clean tree (history via commit-tree, never `git commit`): fall back to package.json deps.
@@ -212,23 +228,35 @@ eq "detect-profile: clean tree + react dep → web-frontend" web-frontend "$(cd 
 eq "detect-profile: .ts only in a react package → web-frontend" web-frontend "$(cd "$C" && dp src/hooks/useOrder.ts)"
 echo '{"dependencies":{"react":"19"}}' > "$C/package.json"
 eq "detect-profile: changed package.json counts by its own deps" web-frontend "$(cd "$C" && dp)"
-# Monorepo: each unmatched path counts by its nearest manifest (stub profiles in the plugin copy).
+# Monorepo: each unmatched path counts by its nearest manifest.
 M="$TMP/mono"; mkdir -p "$M/apps/web" "$M/apps/api" "$M/packages/util" "$M/services/py" && git -C "$M" init -q
 echo '{"dependencies":{"next":"14","react":"18"}}' > "$M/apps/web/package.json"
 echo '{"dependencies":{"@nestjs/core":"10"}}' > "$M/apps/api/package.json"
 echo '{"dependencies":{"lodash":"4"}}' > "$M/packages/util/package.json"
 printf '[project]\ndependencies = ["fastapi>=0.110"]\n' > "$M/services/py/pyproject.toml"
 eq "detect-profile: monorepo react .ts + nest .ts → all three" "web-frontend,web-api,web-common" \
-  "$(cd "$M" && bash "$PC/hooks/detect-profile.sh" apps/web/src/a.ts apps/api/src/b.ts)"
-eq "detect-profile: .ts in a package with neither → none" "" \
-  "$(cd "$M" && bash "$PC/hooks/detect-profile.sh" packages/util/src/c.ts)"
-eq "detect-profile: .py under a fastapi pyproject → web-api" web-api \
-  "$(cd "$M" && bash "$PC/hooks/detect-profile.sh" services/py/app/main.py)"
-# An API-name match must not cut off the manifest: a React package keeps its frontend rules.
+  "$(cd "$M" && dp apps/web/src/a.ts apps/api/src/b.ts)"
+eq "detect-profile: .ts in a package with neither → none" "" "$(cd "$M" && dp packages/util/src/c.ts)"
+eq "detect-profile: .py under a fastapi pyproject → web-api" web-api "$(cd "$M" && dp services/py/app/main.py)"
+# API-name rules: a frontend-only package's api/ and routes/ folders are client code; Next server routes are not.
 eq "detect-profile: src/api/ .ts in a react package → web-frontend" web-frontend "$(cd "$C" && dp src/api/client.ts)"
-eq "detect-profile: Next app/api route → web-frontend" web-frontend "$(cd "$M" && dp apps/web/app/api/orders/route.ts)"
-eq "detect-profile: src/api/ .ts in a react package, stubs → all three" "web-frontend,web-api,web-common" \
-  "$(cd "$C" && bash "$PC/hooks/detect-profile.sh" src/api/client.ts)"
+eq "detect-profile: src/routes/ .tsx in a react package → web-frontend" web-frontend "$(cd "$C" && dp src/routes/Home.tsx)"
+eq "detect-profile: Next app/api route → all three" "web-frontend,web-api,web-common" \
+  "$(cd "$M" && dp apps/web/app/api/orders/route.ts)"
+eq "detect-profile: Next pages/api route → all three" "web-frontend,web-api,web-common" \
+  "$(cd "$M" && dp apps/web/src/pages/api/x.ts)"
+eq "detect-profile: nest controller → web-api" web-api "$(cd "$M" && dp apps/api/src/users/users.controller.ts)"
+eq "detect-profile: nest src/api/ .ts → web-api" web-api "$(cd "$M" && dp apps/api/src/api/x.ts)"
+eq "detect-profile: api/ under a package with neither → web-api" web-api "$(cd "$M" && dp packages/util/api/x.ts)"
+eq "detect-profile: Next package prisma migration → includes web-api" "web-frontend,web-api,web-common" \
+  "$(cd "$M" && dp apps/web/prisma/migrations/x/migration.sql)"
+eq "detect-profile: Next package src/server/ → includes web-api" "web-frontend,web-api,web-common" \
+  "$(cd "$M" && dp apps/web/src/server/db.ts)"
+eq "detect-profile: .tsx under api/, no manifest → all three" "web-frontend,web-api,web-common" "$(cd "$TMP" && dp api/Form.tsx)"
+mkdir -p "$M/apps/ssr" && echo '{"dependencies":{"react":"18","express":"4"}}' > "$M/apps/ssr/package.json"
+eq "detect-profile: api/ in a react + express package → all three" "web-frontend,web-api,web-common" \
+  "$(cd "$M" && dp apps/ssr/src/api/x.ts)"
+
 echo x > "$F/src/한글.tsx"; rm -f "$F/src/App.tsx"
 eq "detect-profile: non-ASCII .tsx name matches" web-frontend "$(cd "$F" && dp)"
 
@@ -277,6 +305,27 @@ eq "org-overlay: substitutes the plugin root" "run $ROOT/hooks/x.sh" "$(bash "$H
 WITH=$(bash "$H/extract-constraints.sh" reviewer 2>/dev/null)
 has "constraints: #org section appended" "- org rule one" "$WITH"
 has "constraints: agent overlay appended" "Org overlay — reviewer" "$WITH"
+# Org profile overlay (org/profiles/<name>.md): loaded only inside that profile's block.
+ec() { bash "$H/extract-constraints.sh" "$@"; }
+FE_BEFORE=$(ec reviewer web-frontend 2>/dev/null); API_BEFORE=$(ec reviewer web-api 2>/dev/null)
+TR_BEFORE=$(ec test-runner web-api 2>/dev/null); BUDGET_BEFORE=$(ec reviewer web-api 2>&1 >/dev/null | sed 's/ + profile.*//')
+mkdir -p "$REVIEW_HARNESS_HOME/org/profiles"
+printf 'preamble ORG-PRE\n\n## #implementation\n\n- org api do\n\n## #review\n\n- org api gate\n' > "$REVIEW_HARNESS_HOME/org/profiles/web-api.md"
+printf '## #review\n\n- org nope gate\n' > "$REVIEW_HARNESS_HOME/org/profiles/nope.md"
+OUT=$(ec reviewer web-api,web-common 2>/dev/null)
+case "$OUT" in
+  *"Static review gates — FAIL if any:"*"### Org rules — web-api"$'\n\n'"## #review"$'\n\n'"- org api gate"$'\n\n'"## Profile — web-common"*) PASS=$((PASS + 1)) ;;
+  *) eq "org profile: reviewer gets it inside the web-api block, after the public rules" inside elsewhere ;;
+esac
+lacks "org profile: reviewer does not get its #implementation" "org api do" "$OUT"
+lacks "org profile: preamble never extracted" "ORG-PRE" "$OUT"
+has "org profile: developer gets its #implementation" "- org api do" "$(ec developer web-api 2>/dev/null)"
+eq "org profile: test-runner unchanged" "$TR_BEFORE" "$(ec test-runner web-api 2>/dev/null)"
+eq "org profile: other profiles unchanged" "$FE_BEFORE" "$(ec reviewer web-frontend 2>/dev/null)"
+eq "org profile: bytes count in the profile part" "$BUDGET_BEFORE" "$(ec reviewer web-api 2>&1 >/dev/null | sed 's/ + profile.*//')"
+rm -f "$REVIEW_HARNESS_HOME/org/profiles/web-api.md"
+eq "org profile: removed → output as before" "$API_BEFORE" "$(ec reviewer web-api 2>/dev/null)"
+OUT=$(ec reviewer nope 2>/dev/null); eq "org profile: org file alone does not make a profile valid" 2 "$?"
 
 # --- protected config files ------------------------------------------------------------
 P="$TMP/proj"; mkdir -p "$P/src"; echo '{}' > "$P/package.json"

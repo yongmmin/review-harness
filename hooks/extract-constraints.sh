@@ -2,7 +2,8 @@
 # extract-constraints.sh
 # Usage: extract-constraints.sh <agent-name> [profile[,profile...]]
 # Prints only constraints.md sections relevant to the given agent, then — for each profile named —
-# the agent's sections of profiles/<profile>.md (stack-specific rules). There is no default profile;
+# the agent's sections of profiles/<profile>.md (stack-specific rules), followed by the same sections of the
+# org file ~/.review-harness/org/profiles/<profile>.md when present. There is no default profile;
 # an empty list (e.g. empty detect-profile.sh output) means none.
 # review-harness MUST call this before spawning an agent instead of passing the whole file.
 
@@ -85,6 +86,13 @@ for PROFILE in $PROFILE_LIST; do
     SECTION_OUT=$(extract_section "$tag" "$PLUGIN_DIR/profiles/$PROFILE.md")
     [ -n "$SECTION_OUT" ] && ONE_OUT="${ONE_OUT}${SECTION_OUT}"$'\n\n'
   done
+  # Org rules for this profile (~/.review-harness/org/profiles/<profile>.md): loaded only with the profile.
+  ORG_OUT=""
+  for tag in $PROFILE_SECTIONS; do
+    SECTION_OUT=$(extract_section "$tag" "$RH_HOME/org/profiles/$PROFILE.md")
+    [ -n "$SECTION_OUT" ] && ORG_OUT="${ORG_OUT}${SECTION_OUT}"$'\n\n'
+  done
+  [ -n "$ORG_OUT" ] && ONE_OUT="${ONE_OUT}### Org rules — ${PROFILE}"$'\n\n'"${ORG_OUT}"
   [ -n "$ONE_OUT" ] && PROFILE_OUT="${PROFILE_OUT}## Profile — ${PROFILE} (part of this agent's instructions)"$'\n\n'"${ONE_OUT}"
 done
 
