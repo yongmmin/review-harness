@@ -1,6 +1,7 @@
 #!/bin/bash
 # pre-tool-use.sh
-# PreToolUse gate for review-required config files (package.json, next.config.*, tsconfig*.json).
+# PreToolUse gate for review-required config files (package.json, next.config.*, tsconfig*.json, lock files,
+# .env / .env.* except .env.example / .env.sample / .env.template).
 #
 # Hook contract (PreToolUse):
 #   - Plain-text stdout on exit 0 is NOT shown to Claude (debug log only), so a printed
@@ -41,6 +42,9 @@ approval_file() {
 is_review_required() {
   case "$(basename "$1")" in
     package.json|next.config.js|next.config.ts|next.config.mjs|tsconfig.json|tsconfig.*.json) return 0 ;;
+    package-lock.json|pnpm-lock.yaml|yarn.lock|bun.lock|bun.lockb|poetry.lock|uv.lock|Pipfile.lock|Cargo.lock|go.sum|composer.lock|Gemfile.lock) return 0 ;;
+    .env.example|.env.sample|.env.template) return 1 ;;
+    .env|.env.*) return 0 ;;
     *) return 1 ;;
   esac
 }

@@ -1,26 +1,30 @@
 #!/bin/bash
 # extract-constraints.sh
-# Usage: extract-constraints.sh <agent-name> [profile]
-# Prints only constraints.md sections relevant to the given agent, then — when a profile is named —
-# the agent's sections of profiles/<profile>.md (stack-specific rules). There is no default profile.
+# Usage: extract-constraints.sh <agent-name> [profile[,profile...]]
+# Prints only constraints.md sections relevant to the given agent, then — for each profile named —
+# the agent's sections of profiles/<profile>.md (stack-specific rules). There is no default profile;
+# an empty list (e.g. empty detect-profile.sh output) means none.
 # review-harness MUST call this before spawning an agent instead of passing the whole file.
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONSTRAINTS="$PLUGIN_DIR/constraints.md"
 AGENT="${1:-}"
-PROFILE="${2:-}"
+PROFILES="${2:-}"
+set -f   # the profile list is word-split below; never glob-expand it
+PROFILE_LIST=$(printf '%s' "$PROFILES" | tr ',' ' ')
 
 if [ -z "$AGENT" ]; then
-  echo "usage: extract-constraints.sh <agent-name> [profile]" >&2
+  echo "usage: extract-constraints.sh <agent-name> [profile[,profile...]]" >&2
   exit 2
 fi
-case "$PROFILE" in */*|.*) echo "usage: extract-constraints.sh <agent-name> [profile]" >&2; exit 2 ;; esac
-PROFILE_FILE="$PLUGIN_DIR/profiles/$PROFILE.md"
-# Fail closed: a mistyped profile must not silently drop every stack rule.
-if [ -n "$PROFILE" ] && [ ! -f "$PROFILE_FILE" ]; then
-  echo "extract-constraints: unknown profile '$PROFILE'" >&2
-  exit 2
-fi
+for PROFILE in $PROFILE_LIST; do
+  case "$PROFILE" in */*|.*) echo "usage: extract-constraints.sh <agent-name> [profile[,profile...]]" >&2; exit 2 ;; esac
+  # Fail closed: a mistyped profile must not silently drop every stack rule.
+  if [ ! -f "$PLUGIN_DIR/profiles/$PROFILE.md" ]; then
+    echo "extract-constraints: unknown profile '$PROFILE'" >&2
+    exit 2
+  fi
+done
 
 if [ ! -f "$CONSTRAINTS" ]; then
   exit 0
@@ -72,15 +76,17 @@ for tag in $SECTIONS; do
   OUTPUT="${OUTPUT}${SECTION_OUT}"$'\n\n'
 done
 
-# Stack profile (profiles/<profile>.md): same `## #tag` format, kept apart so its bytes are reported separately.
+# Stack profiles (profiles/<profile>.md): same `## #tag` format, one block per profile in the order given,
+# kept apart so their bytes are reported separately.
 PROFILE_OUT=""
-if [ -n "$PROFILE" ]; then
+for PROFILE in $PROFILE_LIST; do
+  ONE_OUT=""
   for tag in $PROFILE_SECTIONS; do
-    SECTION_OUT=$(extract_section "$tag" "$PROFILE_FILE")
-    [ -n "$SECTION_OUT" ] && PROFILE_OUT="${PROFILE_OUT}${SECTION_OUT}"$'\n\n'
+    SECTION_OUT=$(extract_section "$tag" "$PLUGIN_DIR/profiles/$PROFILE.md")
+    [ -n "$SECTION_OUT" ] && ONE_OUT="${ONE_OUT}${SECTION_OUT}"$'\n\n'
   done
-  [ -n "$PROFILE_OUT" ] && PROFILE_OUT="## Profile — ${PROFILE} (part of this agent's instructions)"$'\n\n'"${PROFILE_OUT}"
-fi
+  [ -n "$ONE_OUT" ] && PROFILE_OUT="${PROFILE_OUT}## Profile — ${PROFILE} (part of this agent's instructions)"$'\n\n'"${ONE_OUT}"
+done
 
 # Org overlay for this agent (~/.review-harness/org/agents/<agent>.md) — the organisation-specific part of
 # the agent's instructions. Absent when no overlay is installed.
@@ -103,9 +109,9 @@ BUDGET_WARN_BYTES="${REVIEW_HARNESS_BUDGET_WARN_BYTES:-8192}"
 BYTES=$(printf '%s%s' "$OUTPUT" "$OVERLAY_OUT" | wc -c | tr -d ' ')
 APPROX_TOKENS=$((BYTES / 4))
 PROFILE_NOTE=""
-if [ -n "$PROFILE" ]; then
+if [ -n "$PROFILE_LIST" ]; then
   PROFILE_BYTES=$(printf '%s' "$PROFILE_OUT" | wc -c | tr -d ' ')
-  PROFILE_NOTE=$(printf ' + profile %s: %s bytes (~%s tokens)' "$PROFILE" "$PROFILE_BYTES" "$((PROFILE_BYTES / 4))")
+  PROFILE_NOTE=$(printf ' + profile %s: %s bytes (~%s tokens)' "$PROFILES" "$PROFILE_BYTES" "$((PROFILE_BYTES / 4))")
 fi
 if [ "$BYTES" -gt "$BUDGET_WARN_BYTES" ]; then
   printf '[token-budget][warn] extract-constraints %s: %s bytes (~%s tokens) exceeds %s%s\n' \

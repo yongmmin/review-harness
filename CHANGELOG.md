@@ -16,6 +16,15 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - Every skill passes `web-frontend`, so agents receive the same rules as before
 - Review category `react-perf` renamed to `performance`. The Three.js / R3F gates (`three-perf`) left the public rules; keep them in your organisation overlay if you need them
 
+**Profiles chosen from the change, test commands for more stacks**
+- New `hooks/detect-profile.sh [path...]`: picks profiles from the changed files (`.tsx`/`.jsx`/`.vue`/`.svelte`/styles → `web-frontend`; controllers, `routes/`, `api/`, SQL, migrations → `web-api`; both → also `web-common`). Any other file (e.g. a `.ts` hook, an `api/` route, a changed `package.json`) counts by the dependencies of its nearest `package.json` / `pyproject.toml` / `requirements*.txt`, so monorepo packages are judged separately; a clean tree uses the repo-root manifest. Prints only profiles that exist, so today only `web-frontend` can be selected; a Python or Go change gets the generic rules instead of the React gates
+- Skills pass `detect-profile.sh` output to `extract-constraints.sh` instead of a fixed `web-frontend` (developer / refactor-architect: the plan's Affected Files; reviewer / test-runner / code-review: the current changes). The reviewer's first output line is `Profile: <names|none>`
+- `extract-constraints.sh` takes a comma list of profiles (one block each, in order; any unknown name exits 2); an empty argument means no profile. Single-profile output is unchanged
+- New `hooks/detect-test-cmd.sh [dir]`: registry `test_cmd`, `package.json` `scripts.test` (pnpm/bun/yarn/npm by lockfile, npm's placeholder ignored), vitest/jest config, a bun lockfile (`bun test`), pytest, `go.mod`, `Cargo.toml`. Used by test-runner and the `tdd` probe
+- Registry keys `test_cmd` and `check_cmd`; `detect-repo.sh` now also prints `local_path`. With `check_cmd`, `post-tool-use.sh` runs it from the registered `local_path` after any edit in that repo instead of tsc/eslint; without it nothing changes
+- `pre-tool-use.sh` also gates lock files and `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`)
+- `feature` intent keywords gain `endpoint`, `migration`, `schema`, `handler`
+
 **Fixed**
 - `agents/test-runner.md`, `agents/refactor-architect.md`: cwd-relative `bash hooks/...` → `bash "${CLAUDE_PLUGIN_ROOT}/hooks/..."` (the cwd is the consumer repo)
 - `run-state.sh override` after `abandon` now starts a fresh idle record, so `check` sees the override (it used to exit 3)

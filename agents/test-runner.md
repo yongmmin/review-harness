@@ -26,12 +26,8 @@ tools: Read, Glob, Grep, Bash, Edit
 
 ## Workflow
 
-1. **Detect test framework per repo** by reading `package.json#scripts` and config presence:
-   - `scripts.test` exists → use that command
-   - `vitest.config.*` → `npx vitest run`
-   - `jest.config.*` → `npx jest`
-   - `playwright.config.*` → `npx playwright test` (E2E only — use sparingly)
-2. **If no test command and no config detected** → emit `no_tests_configured` status and HALT. Do NOT invent a command. Do NOT mark as PASS. The orchestrator will fall back to manual verification
+1. **Detect the test command** — from the repo root run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-test-cmd.sh"`. It prints one command (registry `test_cmd`, then `package.json` `scripts.test`, vitest/jest config, pytest, `go.mod`, `Cargo.toml`) or nothing
+2. **If it printed nothing** → emit `no_tests_configured` status and HALT. Do NOT invent a command. Do NOT mark as PASS. The orchestrator will fall back to manual verification
 3. Run via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd>` — never invoke binary directly. When rtk mode is on, output compresses to failures only. When off, passes through raw
 4. Summarize pass/fail counts
 5. On failure:

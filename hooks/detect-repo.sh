@@ -11,6 +11,8 @@
 #   - layout: src/|app/
 #   - env: <env variable the repo reads>
 #   - path_alias: @/* → ...
+#   - local_path: <registered path> (post-tool-use.sh runs check_cmd there)
+#   - test_cmd / check_cmd: <commands> (read by detect-test-cmd.sh / post-tool-use.sh)
 #   - <extra keys listed in ~/.review-harness/org/detect-repo-keys.txt, if any>
 #   - doc_routing: <path>
 #   === End Active Repo ===
@@ -70,7 +72,7 @@ fi
 
 # Emit the matched repo's metadata block (between its ### header and the next ###)
 # Registry keys to print. Org overlays can add their own keys (one per line).
-KEYS="role|stack|layout|env|path_alias|doc_routing|tests|port|special|status"
+KEYS="local_path|role|stack|layout|env|path_alias|doc_routing|tests|test_cmd|check_cmd|port|special|status"
 EXTRA_KEYS=$(grep -E '^[A-Za-z0-9_]+$' "$RH_HOME/org/detect-repo-keys.txt" 2>/dev/null | paste -sd'|' -)
 [ -n "$EXTRA_KEYS" ] && KEYS="$KEYS|$EXTRA_KEYS"
 

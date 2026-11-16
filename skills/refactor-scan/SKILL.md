@@ -46,7 +46,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 Step 1: detect-repo → injected
 
 Step 2: refactor-architect (`review-harness:refactor-architect`)
-  → Pass the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" refactor-architect web-frontend` in the spawn prompt (it carries the constraints, the profile's sections and the agent's org overlay)
+  → Pass the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" refactor-architect "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" <paths>)"` in the spawn prompt, where `<paths>` = the plan's Affected Files when a plan exists, else the focus path above, else nothing (it carries the constraints, the selected profiles' sections and the agent's org overlay)
   → Full active-repo scan for:
     - Duplicate API call patterns → service abstraction
     - Duplicate utility functions

@@ -1,6 +1,6 @@
 # review-harness
 
-A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and the review gate are stack-neutral, but today every run loads the bundled `web-frontend` profile and the test step only finds JavaScript test commands; choosing a profile per stack is planned. Stack-specific rules live in profiles (`profiles/<name>.md`); the bundled `web-frontend` profile covers TypeScript, React and Next.js, and you can add rules for your own stack with an overlay. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
+A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and the review gate are stack-neutral. Stack-specific rules live in profiles (`profiles/<name>.md`), and each run picks the profiles from the files the change touches; only `web-frontend` (TypeScript, React, Next.js) ships today, so other stacks run on the generic rules, and you can add rules for your own stack with an overlay. The test step finds JavaScript, Python, Go and Rust test commands, or the `test_cmd` you register for a repo. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
 
 ## Install / Update
 
@@ -53,7 +53,13 @@ For now, the way to prepare them is to write the files by hand. `repos.md` holds
 - **local_path**: `/absolute/path/to/my-app`
 - **role**: one-line description
 - **layout**: `src/`
+- **test_cmd**: `make test`
+- **check_cmd**: `ruff check .`
 ```
+
+`test_cmd` and `check_cmd` are optional. `test_cmd` is the command the test step runs, ahead of auto-detection. `check_cmd` runs from the registered `local_path` after every edit in that repo, instead of tsc/eslint; a non-zero exit is reported back to Claude. A `check_cmd` that runs longer than the 60-second hook timeout is killed and reports nothing, so keep it fast.
+
+Profile selection looks at file names first (`.tsx`/`.jsx`/`.vue`/`.svelte`/style files → `web-frontend`). Any other file (a `.ts` hook, an `api/` route, a `.py` module, a changed `package.json`) counts by the dependencies of its nearest `package.json` / `pyproject.toml` / `requirements*.txt`, so in a monorepo each package is judged by its own manifest. With no changed files it uses the manifest at the repo root.
 
 Then check from the plugin folder:
 
@@ -61,6 +67,8 @@ Then check from the plugin folder:
 bash hooks/detect-repo.sh /absolute/path/to/my-app     # an Active Repo block means the repo is registered
 bash hooks/org-overlay.sh skills review-harness         # prints the overlay you wrote
 bash hooks/extract-constraints.sh reviewer web-frontend   # #org section, then the web-frontend profile block, then the agent overlay
+bash hooks/detect-profile.sh src/App.tsx                 # profiles for these paths (no args: the current changes)
+bash hooks/detect-test-cmd.sh /absolute/path/to/my-app    # the test command the test step will run
 ```
 
 Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules. A skill that generates knowledge automatically is planned (0.6.0).
@@ -116,7 +124,7 @@ The model is the `model:` value in each `agents/*.md` frontmatter.
 2. **No commit without a reviewer PASS.** The verdict is stored in a file together with a hash of the work tree at review time. If you change code after the review, it must be reviewed again (`git add` does not count as a change). To commit anyway, say so explicitly; it is recorded as an override.
 3. **An organisation overlay can add rules.** Example: a gate that requires QA documents to be updated when behaviour changes.
 4. **At 80% of the 5-hour usage limit it asks which model to use.** Before starting reviewer / refactor-architect it asks once: `Keep Fable` / `Opus for this run`. Usage is read from `~/.claude/usage-state.json`, written by your status line; if the file is missing or older than 10 minutes it does not ask.
-5. **Editing `package.json`, `next.config.*` or `tsconfig*.json` needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
+5. **Editing `package.json`, `next.config.*`, `tsconfig*.json`, lock files (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`, `go.sum`, …) or `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`) needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
 
 ## Where state is stored
 
@@ -135,7 +143,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 10 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 12 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 14 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — agent rules and runtime rules

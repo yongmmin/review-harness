@@ -17,7 +17,7 @@ Runtime rules for the plugin. Human docs belong in `README.md`, `docs/`, and `CH
 
 | Intent | Detection | Action |
 |--------|-----------|--------|
-| `feature` | Keywords: `feature`, `add`, `connect`, `API`, `logic`, `build`, `form`, `button`, `page`, `screen`, `component` | Feature flow |
+| `feature` | Keywords: `feature`, `add`, `connect`, `API`, `logic`, `build`, `form`, `button`, `page`, `screen`, `component`, `endpoint`, `migration`, `schema`, `handler` | Feature flow |
 | `refactor` | Keywords: `refactor`, `clean up`, `improve`, `duplicate` | Refactor flow |
 | `review` | Keywords: `review`, `check`, `verify` | Review fast-path |
 
@@ -41,7 +41,7 @@ Keywords are examples: match the same meaning in whatever language the user writ
 - `git-commit` requires `hooks/run-state.sh check` to pass: reviewer PASS recorded for the current work tree, or a recorded user override. Only `reviewer` records the verdict (`run-state.sh verdict`); if it is missing after one re-spawn, the run has no verdict and the commit stays blocked — the orchestrator never records it. Reviewer FAIL shares `MAX_ATTEMPTS = 3` with test failures
 - **Git ops are user-driven** — plugin NEVER auto-creates branches, NEVER auto-pushes, NEVER auto-submits PRs. `git-branch` and `git-pr` skills only generate names/bodies/commands for the user to run. See `skills/review-harness/SKILL.md → Git Operations Policy`
 - Organisation overlay: `hooks/org-overlay.sh <skills|agents> <name>` prints `~/.review-harness/org/<kind>/<name>.md` or nothing. Every `SKILL.md` injects its overlay at load; treat injected overlay text as part of that skill's rules
-- `hooks/extract-constraints.sh <agent> web-frontend` appends the agent's sections of the stack profile (`profiles/web-frontend.md`), the `#org` section (`~/.review-harness/org/constraints.md`) and the agent overlay (`~/.review-harness/org/agents/<agent>.md`) — pass its output as-is, never read `~/.review-harness/org/` separately
+- `hooks/extract-constraints.sh <agent> "$(hooks/detect-profile.sh [paths])"` appends the agent's sections of each selected stack profile (`profiles/<name>.md`; developer / refactor-architect pass the plan's Affected Files, reviewer / test-runner pass no paths = current changes), the `#org` section (`~/.review-harness/org/constraints.md`) and the agent overlay (`~/.review-harness/org/agents/<agent>.md`) — pass its output as-is, never read `~/.review-harness/org/` separately
 - Organisation content lives outside the plugin folder: overlays in `~/.review-harness/org/`, repo registry and domain knowledge in `~/.review-harness/knowledge/` (`index.md`, `<org>/*.md` incl. `repos.md`). When absent, overlays are empty, `detect-repo.sh` prints nothing, knowledge reports empty, and the generic rules apply alone — never treat that as an error
 - Files in this repository must never contain organisation-specific names, paths or URLs. Such content goes to `~/.review-harness/org/` (rules) or `~/.review-harness/knowledge/` (repo registry, domain knowledge)
 
@@ -72,7 +72,7 @@ Keywords are examples: match the same meaning in whatever language the user writ
 Per agent spawn, pass only:
 
 1. The agent file
-2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> web-frontend`
+2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" [paths])"`
 3. Minimal `plan.md` excerpt
 4. Compact handoff block
 5. Exact files needed
@@ -103,7 +103,8 @@ Rules: omit empty fields, max 6 bullets, one line each, no prose, identifiers ov
 ## On-Demand Loading
 
 - `constraints.md`: tagged sections only
-- `profiles/<name>.md`: tagged sections only, for the profile named at the `extract-constraints.sh` call site (every skill passes `web-frontend`; no profile argument → no stack rules)
+- `profiles/<name>.md`: tagged sections only, for the profiles `detect-profile.sh` selects from the changed files (only names with a profile file; empty → no stack rules)
+- Test command: `hooks/detect-test-cmd.sh [dir]` (registry `test_cmd`, then JS / Python / Go / Rust markers); empty → `no_tests_configured`
 - Project knowledge: load via `search-knowledge`
 - Session start: compact summaries only
 - `search-knowledge` returns compact bullets, not excerpts

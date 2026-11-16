@@ -13,8 +13,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 
 ```!
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || true
-echo "--- test tooling probe ---"
-[ -f package.json ] && node -e 'const p=require("./package.json");const s=p.scripts||{};console.log("scripts:",Object.keys(s).filter(k=>/test|vitest|jest|playwright|e2e/i.test(k)).join(", ")||"none");const d={...p.dependencies,...p.devDependencies};console.log("frameworks:",["vitest","jest","@playwright/test","@testing-library/react","cypress"].filter(k=>d[k]).join(", ")||"none")' 2>/dev/null || echo "no package.json in cwd"
+echo "test command: $(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-test-cmd.sh" 2>/dev/null)"
 ```
 
 ## Org Overlay
@@ -35,7 +34,7 @@ Feature: `$ARGUMENTS`
 
 ```text
 1. detect-repo                  -> injected
-2. framework status             -> from the injected probe: any test script/framework = configured, else no_tests_configured (no agent spawn needed for the probe)
+2. framework status             -> from the injected `test command:` line: a command = configured, empty = no_tests_configured (no agent spawn needed for the probe)
 3a. If configured:
     developer            -> RED + GREEN
     test-runner          -> verify pass/fail
@@ -47,7 +46,7 @@ Feature: `$ARGUMENTS`
     reviewer             -> final review
 ```
 
-For every agent spawned above, pass the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent> web-frontend` in the spawn prompt (it carries the constraints, the profile's sections and the agent's org overlay).
+For every agent spawned above, pass the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent> "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" <paths>)"` in the spawn prompt, where `<paths>` = the plan's Affected Files for developer / refactor-architect and nothing for reviewer / test-runner (it carries the constraints, the selected profiles' sections and the agent's org overlay).
 
 ---
 

@@ -98,7 +98,7 @@ https://github.com/<owner>/<repo>/compare/main...feat/user-login-form?expand=1&t
 
 ## 4 Agents
 
-Uses a model alias per role — `fable`/`opus` (YAML frontmatter `model:` + `effort:` + `color:`, including tool scoping). Each agent receives only the `constraints.md` and `profiles/web-frontend.md` sections it needs (the full files are not passed; every skill passes the `web-frontend` profile). If an organisation overlay (`~/.review-harness/org/agents/<agent>.md`, `#org` in `~/.review-harness/org/constraints.md`) exists, it is appended to the `hooks/extract-constraints.sh` output and passed along.
+Uses a model alias per role — `fable`/`opus` (YAML frontmatter `model:` + `effort:` + `color:`, including tool scoping). Each agent receives only the `constraints.md` and `profiles/<name>.md` sections it needs (the full files are not passed). Skills pass the output of `detect-profile.sh` — the profiles that match the changed files (developer / refactor-architect: the plan's Affected Files; reviewer: the review target) — and an empty selection loads no stack rules. If an organisation overlay (`~/.review-harness/org/agents/<agent>.md`, `#org` in `~/.review-harness/org/constraints.md`) exists, it is appended to the `hooks/extract-constraints.sh` output and passed along.
 
 | Agent | Role |
 |---|---|
