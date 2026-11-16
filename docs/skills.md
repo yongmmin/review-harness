@@ -5,13 +5,13 @@ Detailed description moved out of the [README](../README.md). The reference docu
 ## `/review-harness` flow
 
 1. **RTK Mode Gate** — choose the output compression mode in the first session (off/standard/aggressive/git-only)
-2. **Active Repo Gate** — `hooks/detect-repo.sh` matches cwd → repo. If there is no registry (`~/.review-harness/knowledge/<org>/repos.md`) it proceeds with the generic rules; if there is one but the repo is not registered, it asks whether to register it or proceed temporarily
+2. **Active Repo Gate** — `hooks/detect-repo.sh` matches cwd → repo. If there is no registry (`~/.review-harness/knowledge/<org>/repos.md`) it proceeds with the generic rules; for code work in a repo that is not registered (or with no registry at all) it offers `/register-repo` once per work tree; choosing to continue records `register-declined` in the state dir so it is not asked again
 3. **Ambiguity Check** — up to 2 questions when ambiguous. Detects requests whose target is unclear, such as demonstratives ("that", "this"), and asks for clarification. The organisation overlay can add detection items
 4. **Plan Gate** — writes `plan.md` to `~/.review-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
 5. **Workflow execution** — a different chain per intent (feature/refactor/review) or the Small change path. UI work is handled as feature
 6. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
 
-## 10 Skills
+## 11 Skills
 
 The entry point + auxiliary commands. All can be called as `/<skill-name>`. Every skill has the organisation overlay injected at load via `hooks/org-overlay.sh skills <name>` (if absent, only the generic rules apply).
 
@@ -19,7 +19,9 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 
 - **`/review-harness`** — the single public entry point. RTK Mode Gate → Active Repo Gate → Ambiguity Check → Intent Classification → API Spec Check → Plan Gate → workflow execution
 
-### Context / knowledge (2)
+### Context / knowledge (3)
+
+- **`/register-repo`** — registers the current repo: `hooks/scan-repo.sh` proposes the `repos.md` block from the repo's files (stack, layout, path alias, `test_cmd`, `check_cmd`, workspaces), up to 3 questions fill in role, commands and team rules (`special`), and the block is appended to the registry only after the user confirms. An already registered repo is shown, not changed
 
 - **`/save-knowledge`** — routes organisation-specific learnings to `~/.review-harness/knowledge/<org>/*.md` and only truly cross-project ones to `~/.review-harness/wisdom/*.md`
 - **`/search-knowledge`** — returns only 3 or fewer bullets per source from `~/.review-harness/knowledge/` (`index.md`, `<org>/*.md`) and global wisdom. If knowledge is empty, the call itself is skipped

@@ -2,7 +2,12 @@
 
 This plugin is a rebuild that carries over the Harness Engineering principles of the earlier `front-agent` (a generic React/Next plugin).
 
-### Unreleased
+### v0.6.0 (2026-11-16)
+
+**Register a repo without writing `repos.md` by hand**
+- New `hooks/scan-repo.sh [dir]`: prints a proposed registry block for the repo root — `local_path`, `role: TODO`, `stack` (package.json deps with major version, Python packages, Go version, Rust), `layout`, `path_alias` from `tsconfig.json`, `test_cmd` from `detect-test-cmd.sh`, `check_cmd` (`ruff check .` with a ruff config, `go vet ./...` with `go.mod`; none for TypeScript, which tsc/eslint already cover) and workspace patterns in `special`. Reads only; the same files give the same block
+- New `/register-repo` skill: shows the scan, asks up to 3 questions (role, test/check commands, up to 3 team rules for `special`), shows the final block and appends it only after the user confirms — to the registry `detect-repo.sh` reads, else the only `knowledge/<org>/` folder, else the flat `knowledge/repos.md` — then checks it with `detect-repo.sh`. An already registered repo is shown and left unchanged. No new registry keys
+- `/review-harness` Active Repo Gate: for code work in an unregistered repo, or with no registry at all, offers `/register-repo` once per work tree; "continue" creates `<state dir>/register-declined` and the offer is not repeated. `detect-repo.sh` is unchanged
 
 **Renamed to `review-harness`** (the entries below keep the names that were current at the time)
 - Plugin, marketplace and entry skill: `front-harness` → `review-harness` (`/review-harness`, agents `review-harness:<agent>`)

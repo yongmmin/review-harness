@@ -47,7 +47,7 @@ With only the plugin installed, it runs on generic rules. To make it aware of yo
 | `~/.review-harness/org/constraints.md` | A `## #org` section appended to agent constraints |
 | `~/.review-harness/org/profiles/<profile>.md` | Organisation rules for one profile, in the same `## #tag` format; loaded only when that profile is selected, inside its block |
 
-For now, the way to prepare them is to write the files by hand. `repos.md` holds one block per repo in this format:
+To register a repo, run `/register-repo` inside it: it scans the repo's manifests (stack, layout, path alias, test and check commands), asks up to 3 questions (role, commands, team rules) and appends the block to `repos.md` only after you confirm. `/review-harness` offers it once per work tree when the repo is not registered. The other files are written by hand. `repos.md` holds one block per repo in this format:
 
 ```markdown
 ### my-app
@@ -66,13 +66,14 @@ Then check from the plugin folder:
 
 ```bash
 bash hooks/detect-repo.sh /absolute/path/to/my-app     # an Active Repo block means the repo is registered
+bash hooks/scan-repo.sh /absolute/path/to/my-app       # the block /register-repo would propose (reads only)
 bash hooks/org-overlay.sh skills review-harness         # prints the overlay you wrote
 bash hooks/extract-constraints.sh reviewer web-frontend   # #org section, then the web-frontend profile block, then the agent overlay
 bash hooks/detect-profile.sh src/App.tsx                 # profiles for these paths (no args: the current changes)
 bash hooks/detect-test-cmd.sh /absolute/path/to/my-app    # the test command the test step will run
 ```
 
-Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules. A skill that generates knowledge automatically is planned (0.6.0).
+Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules.
 
 ## Quick start
 
@@ -136,6 +137,7 @@ The plugin never creates files inside the repo you are working in. Run state liv
 | `run-state.json` | Current workflow, completed steps, retry count, reviewer verdict |
 | `plan.md` | The plan awaiting approval. Its full path is reported every time it is written |
 | `rtk-session.flag` | Output-compression mode |
+| `register-declined` | You chose not to register this repo; `/review-harness` stops offering `/register-repo` here |
 | `approved/` | Approvals for config-file edits (30-minute TTL) |
 | `cache/` | tsc / eslint temporary files (cleaned after 1 hour) |
 
@@ -143,8 +145,8 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 
 ## More documentation
 
-- [docs/skills.md](docs/skills.md) — the 10 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 14 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/skills.md](docs/skills.md) — the 11 skills, the `/review-harness` flow, `/git-pr` output, agents
+- [docs/hooks.md](docs/hooks.md) — the 15 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md), [CLAUDE.md](CLAUDE.md) — agent rules and runtime rules
