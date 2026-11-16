@@ -570,11 +570,20 @@ eq "check: a fail recorded for an older tree still blocks" 1 "$(rc chk)"
 rs override "user said commit anyway" >/dev/null
 eq "check: user override passes a tests fail" 0 "$(rc chk)"
 rs tests pass >/dev/null; echo g >> "$R/f.txt"; rs verdict PASS >/dev/null
-eq "check: pass recorded for an older tree → ok (the review covers the tree)" 0 "$(rc chk)"
+eq "check: pass recorded for an older tree → blocked" 1 "$(rc chk)"
+has "check: older test run → reason" "code changed after the last test run" "$(chk)"
+eq "gate: pass for an older tree → deny" deny "$(gate "$R")"
+rs tests pass >/dev/null
+eq "check: re-run tests on the current tree → ok" 0 "$(rc chk)"
+git -C "$R" add -A
+eq "check: staging does not invalidate the test run" 0 "$(rc chk)"
 # A new run starts with no tests record.
 rs abandon >/dev/null; rs start small-change test-runner reviewer >/dev/null; rs verdict PASS >/dev/null
 eq "check: a new run forgets the previous tests record" 0 "$(rc chk)"
-rs abandon >/dev/null
+echo "old.spec.ts > x" > "$SD/baseline.txt"; rs done >/dev/null
+eq "run-state: done clears the baseline" absent "$([ -f "$SD/baseline.txt" ] && echo present || echo absent)"
+rs start feature baseline >/dev/null; echo "old.spec.ts > x" > "$SD/baseline.txt"; rs abandon >/dev/null
+eq "run-state: abandon clears the baseline" absent "$([ -f "$SD/baseline.txt" ] && echo present || echo absent)"
 
 # --- verification: docs of the flow -----------------------------------------------------
 TR=$(cat "$ROOT/agents/test-runner.md"); DV=$(cat "$ROOT/agents/developer.md")
@@ -600,6 +609,30 @@ lacks "constraints: no 'Output code only'" "Output code only" "$(cat "$ROOT/cons
 has "tdd: RED points at the developer rule" 'agents/developer.md` → Workflow' "$(cat "$ROOT/skills/tdd/SKILL.md")"
 lacks "tdd: RED wording not duplicated" "Confirm they fail for the intended reason" "$(cat "$ROOT/skills/tdd/SKILL.md")"
 has "git-commit: tests reasons named" "manual confirmation" "$(cat "$ROOT/skills/git-commit/SKILL.md")"
+
+# --- planning discovery and task decomposition --------------------------------------------
+PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SK")
+DC=$(printf '%s\n' "$PLAN" | sed -n '/^## Design Check$/,/^$/p')
+for l in Callers/Consumers Pattern Tests; do
+  eq "skill: Design Check has $l" 1 "$(printf '%s\n' "$DC" | grep -c "^- $l: ")"
+done
+has "skill: discovery lines filled from grep before approval" '`Callers/Consumers`, `Pattern`, `Tests` are also filled by the main session before approval, from grep' "$(cat "$SK")"
+OR=$(printf '%s\n' "$PLAN" | sed -n '/^## Only When Relevant/,/^$/p')
+for l in Migration 'Dependency upgrade' Performance; do
+  eq "skill: Only When Relevant has $l" 1 "$(printf '%s\n' "$OR" | grep -c "^- $l: ")"
+done
+has "skill: Execution Steps tasks over 6 files" '(more than 6 Affected Files) Task 1: [file group] — tests:' "$PLAN"
+has "skill: task rule" 'More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines' "$(cat "$SK")"
+has "developer: works task by task" 'With `Task N` steps, work task by task' "$DV"
+has "developer: updates or marks callers" 'Update every file in `Callers/Consumers`, or append `no change needed: <reason>`' "$DV"
+has "reviewer: contract gate" 'neither in the diff nor marked there `no change needed: <reason>` → FAIL `[contract]`' "$RV"
+RA=$(cat "$ROOT/agents/refactor-architect.md")
+has "refactor-architect: characterization tests first" 'the first Migration Step is "Write characterization tests' "$RA"
+has "refactor-architect: waiver recorded" 'Characterization tests: waived by user — <reason>' "$RA"
+has "skill: refactor waiver recorded in the plan" 'Characterization tests: waived by user — <reason>' "$(sed -n '/^### Refactor/,/^### Review/p' "$SK")"
+has "test-runner: baseline mode skips steps 5–7" 'Except in baseline mode (step 3), still run steps 5–7' "$TR"
+has "skill: Small change has no baseline" 'It also has no test baseline' "$SC"
+has "readme: Small change has no baseline" 'It also has no test baseline' "$(cat "$ROOT/README.md")"
 
 # --- post-tool-use: tsc count of errors in other files -------------------------------
 TP="$TMP/tsproj"; mkdir -p "$TP/src" "$TMP/fakebin"; echo '{}' > "$TP/package.json"; echo '{}' > "$TP/tsconfig.json"

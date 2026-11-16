@@ -26,6 +26,18 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - `post-tool-use.sh`: when the tsc block shows the edited file's errors, a line `other files: N more errors` counts the errors elsewhere that are not shown
 - `reviewer`: a stub that `Out of Scope` names is not an out-of-scope edit
 
+**Planning discovery and task decomposition**
+- `plan.md → ## Design Check` gains `Callers/Consumers` (every file using a changed export, route or event, or `none — new`), `Pattern` (one neighbouring file to imitate) and `Tests` (existing tests covering the area + new ones), filled by the main session from grep before approval
+- More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines (file group + that task's tests); `developer` runs each task's tests before the next. `developer` updates every `Callers/Consumers` file or marks it `no change needed: <reason>` in the plan
+- New plan section `## Only When Relevant`: `Migration` (rollback, existing data), `Dependency upgrade` (breaking changelog items), `Performance` (measurement + target) — written only when the change has that part
+- `reviewer` contract gate: a `Callers/Consumers` file neither in the diff nor marked `no change needed: <reason>` → FAIL `[contract]`
+- `refactor-architect`: when no test covers the target area, the first Migration Step writes characterization tests, unless the user explicitly waives it (recorded under `## Risk`)
+
+**Verification follow-ups**
+- `run-state.sh check` blocks a `tests pass` recorded for an older work tree (code changed after the test run). No tests record still leaves the gate to the review alone
+- `run-state.sh done` and `abandon` also delete `baseline.txt`, so `/tdd` and `/refactor-scan` never read a stale baseline. `test-runner` no longer runs steps 5–7 in baseline mode when no test command exists
+- The Small change path has no test baseline: with already-failing tests the user is told and may override
+
 **Runtime rules now reach plugin users**
 - A plugin's root `CLAUDE.md` is not loaded in a user's session (`claude plugin validate` warns about it), so rules kept only there never applied outside this repo. They now live in the skill or agent that acts on them: Write/Edit limits, context-budget limits and "pass `extract-constraints.sh` output as-is" in `/review-harness`; rtk wrapping in the `developer` and `reviewer` agents; "never `rtk init -g`" in `/rtk-toggle`. `CLAUDE.md` is now the maintainer file
 - The `review-harness` skill description also lists bug-fix requests ("fix this") for auto-invocation
