@@ -47,7 +47,6 @@ Anything printed above is organisation-specific and is part of this skill; where
 - Questions, option labels and report text in this skill are written in English. Present them in the user's language
 - `front-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents.
 - Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
-- No legacy agents (`api-integrator` merged into `developer` — API work is developer's job, no separate handoff)
 
 ---
 
