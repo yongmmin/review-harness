@@ -122,6 +122,34 @@ has "detect-repo: prints registry keys" "- role: demo app" "$OUT"
 case "$OUT" in *"not this one"*) eq "detect-repo: stops at the next repo" clean leaked ;; *) PASS=$((PASS + 1)) ;; esac
 has "detect-repo: sibling with the same prefix is not matched" "not registered" "$(bash "$H/detect-repo.sh" "$TMP/my-app-api")"
 
+# --- detect-test-cmd -------------------------------------------------------------------
+REG="$TMP/reg-app"; mkdir -p "$REG/app" && git -C "$REG" init -q && echo 'x = 1' > "$REG/app/x.py"
+echo '{"scripts":{"test":"vitest"}}' > "$REG/package.json"
+cat >> "$REVIEW_HARNESS_HOME/knowledge/acme/repos.md" <<EOF
+
+### reg-app
+- **local_path**: \`$TMP/reg-app\`
+- **test_cmd**: \`make test\`
+- **check_cmd**: \`echo CHECK-MARKER; exit 1\`
+EOF
+dt() { bash "$H/detect-test-cmd.sh" "$1"; }
+eq "detect-test-cmd: registry test_cmd wins over package.json" "make test" "$(dt "$REG")"
+mkdir -p "$TMP/t-go" "$TMP/t-rs" "$TMP/t-npm" "$TMP/t-pnpm" "$TMP/t-none"
+echo 'module x' > "$TMP/t-go/go.mod"; eq "detect-test-cmd: go.mod" "go test ./..." "$(dt "$TMP/t-go")"
+echo '[package]' > "$TMP/t-rs/Cargo.toml"; eq "detect-test-cmd: Cargo.toml" "cargo test" "$(dt "$TMP/t-rs")"
+echo '{"scripts":{"test":"echo \"Error: no test specified\" && exit 1"}}' > "$TMP/t-npm/package.json"
+eq "detect-test-cmd: npm placeholder → nothing" "" "$(dt "$TMP/t-npm")"
+echo '{"scripts":{"test":"vitest run"}}' > "$TMP/t-pnpm/package.json"; touch "$TMP/t-pnpm/pnpm-lock.yaml"
+eq "detect-test-cmd: scripts.test + pnpm lock" "pnpm test" "$(dt "$TMP/t-pnpm")"
+eq "detect-test-cmd: nothing found → empty" "" "$(dt "$TMP/t-none")"
+
+# --- post-tool-use: registry check_cmd -------------------------------------------------
+pt() { jq -n --arg f "$1" '{tool_name:"Edit",tool_input:{file_path:$f}}' | bash "$H/post-tool-use.sh" 2>/dev/null; }
+has "post-tool-use: failing check_cmd → additionalContext" "CHECK-MARKER" \
+  "$(pt "$REG/app/x.py" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)"
+echo 'x = 1' > "$TMP/my-app/src/a.py"
+eq "post-tool-use: .py without check_cmd → no output" "" "$(pt "$TMP/my-app/src/a.py")"
+
 # --- org overlay + constraints ---------------------------------------------------------
 eq "org-overlay: none installed → empty" "" "$(bash "$H/org-overlay.sh" agents reviewer)"
 bash "$H/org-overlay.sh" agents ../x >/dev/null 2>&1; eq "org-overlay: rejects path traversal" 2 "$?"
@@ -152,8 +180,96 @@ eq "profile: unknown → empty stdout" "" "$OUT"
 bash "$H/extract-constraints.sh" reviewer ../constraints >/dev/null 2>&1; eq "profile: rejects path traversal" 2 "$?"
 N=$(grep -h 'hooks/extract-constraints.sh"' "$ROOT"/skills/*/SKILL.md | wc -l | tr -d ' ')
 [ "$N" -ge 4 ]; eq "profile: skill call sites found (>= 4, got $N)" 0 "$?"
-eq "profile: every skill call site passes web-frontend" "" \
-  "$(grep -h 'hooks/extract-constraints.sh"' "$ROOT"/skills/*/SKILL.md | grep -v web-frontend)"
+eq "profile: every skill call site uses detect-profile.sh" "" \
+  "$(grep -h 'hooks/extract-constraints.sh"' "$ROOT"/skills/*/SKILL.md | grep -v 'hooks/detect-profile.sh')"
+OUT=$(bash "$H/extract-constraints.sh" reviewer web-frontend,nope 2>/dev/null); eq "profile: list with an unknown name → exit 2" 2 "$?"
+eq "profile: list with an unknown name → empty stdout" "" "$OUT"
+bash "$H/extract-constraints.sh" reviewer web-frontend,../constraints >/dev/null 2>&1; eq "profile: list rejects path traversal" 2 "$?"
+eq "profile: empty argument = no profile" "$BASE" "$(bash "$H/extract-constraints.sh" reviewer "" 2>/dev/null)"
+
+# --- detect-profile --------------------------------------------------------------------
+dp() { bash "$H/detect-profile.sh" "$@"; }
+eq "detect-profile: .tsx → web-frontend" web-frontend "$(cd "$TMP" && dp src/App.tsx)"
+eq "detect-profile: .py only → none" "" "$(cd "$TMP" && dp app/main.py)"
+eq "detect-profile: controller only → none (no web-api profile yet)" "" "$(cd "$TMP" && dp src/user.controller.ts)"
+# Multi-profile path: a plugin copy with stub web-api / web-common profiles.
+PC="$TMP/plugin-copy"; mkdir -p "$PC" && cp -R "$ROOT/hooks" "$ROOT/profiles" "$ROOT/constraints.md" "$PC/"
+printf '## #review\n\n- api stub rule\n' > "$PC/profiles/web-api.md"
+printf '## #review\n\n- common stub rule\n' > "$PC/profiles/web-common.md"
+eq "detect-profile: .tsx + routes/ → all three" "web-frontend,web-api,web-common" \
+  "$(cd "$TMP" && bash "$PC/hooks/detect-profile.sh" src/App.tsx routes/x.ts)"
+OUT=$(bash "$PC/hooks/extract-constraints.sh" reviewer web-frontend,web-api 2>/dev/null)
+has "profile: list → one block per profile, in order" \
+  "## Profile — web-api (part of this agent's instructions)"$'\n\n'"## #review"$'\n\n'"- api stub rule" "$OUT"
+case "$OUT" in *"## Profile — web-frontend"*"## Profile — web-api"*) PASS=$((PASS + 1)) ;; *) eq "profile: list keeps order" ordered unordered ;; esac
+F="$TMP/fe"; mkdir -p "$F/src" && git -C "$F" init -q && echo 'x' > "$F/src/App.tsx"
+eq "detect-profile: no args → untracked .tsx" web-frontend "$(cd "$F" && dp)"
+# Clean tree (history via commit-tree, never `git commit`): fall back to package.json deps.
+C="$TMP/clean-fe"; mkdir -p "$C" && git -C "$C" init -q && echo '{"dependencies":{"react":"18"}}' > "$C/package.json" \
+  && git -C "$C" add -A && git -C "$C" update-ref HEAD \
+  "$(git -C "$C" -c user.name=t -c user.email=t@t.t commit-tree "$(git -C "$C" write-tree)" -m init)"
+eq "detect-profile: clean tree + react dep → web-frontend" web-frontend "$(cd "$C" && dp)"
+eq "detect-profile: .ts only in a react package → web-frontend" web-frontend "$(cd "$C" && dp src/hooks/useOrder.ts)"
+echo '{"dependencies":{"react":"19"}}' > "$C/package.json"
+eq "detect-profile: changed package.json counts by its own deps" web-frontend "$(cd "$C" && dp)"
+# Monorepo: each unmatched path counts by its nearest manifest (stub profiles in the plugin copy).
+M="$TMP/mono"; mkdir -p "$M/apps/web" "$M/apps/api" "$M/packages/util" "$M/services/py" && git -C "$M" init -q
+echo '{"dependencies":{"next":"14","react":"18"}}' > "$M/apps/web/package.json"
+echo '{"dependencies":{"@nestjs/core":"10"}}' > "$M/apps/api/package.json"
+echo '{"dependencies":{"lodash":"4"}}' > "$M/packages/util/package.json"
+printf '[project]\ndependencies = ["fastapi>=0.110"]\n' > "$M/services/py/pyproject.toml"
+eq "detect-profile: monorepo react .ts + nest .ts → all three" "web-frontend,web-api,web-common" \
+  "$(cd "$M" && bash "$PC/hooks/detect-profile.sh" apps/web/src/a.ts apps/api/src/b.ts)"
+eq "detect-profile: .ts in a package with neither → none" "" \
+  "$(cd "$M" && bash "$PC/hooks/detect-profile.sh" packages/util/src/c.ts)"
+eq "detect-profile: .py under a fastapi pyproject → web-api" web-api \
+  "$(cd "$M" && bash "$PC/hooks/detect-profile.sh" services/py/app/main.py)"
+# An API-name match must not cut off the manifest: a React package keeps its frontend rules.
+eq "detect-profile: src/api/ .ts in a react package → web-frontend" web-frontend "$(cd "$C" && dp src/api/client.ts)"
+eq "detect-profile: Next app/api route → web-frontend" web-frontend "$(cd "$M" && dp apps/web/app/api/orders/route.ts)"
+eq "detect-profile: src/api/ .ts in a react package, stubs → all three" "web-frontend,web-api,web-common" \
+  "$(cd "$C" && bash "$PC/hooks/detect-profile.sh" src/api/client.ts)"
+echo x > "$F/src/한글.tsx"; rm -f "$F/src/App.tsx"
+eq "detect-profile: non-ASCII .tsx name matches" web-frontend "$(cd "$F" && dp)"
+
+# --- registry: local_path, trailing whitespace, flat registry ---------------------------
+SP='  '
+mkdir -p "$TMP/nogit/sub" "$M/apps/api/src"
+cat >> "$REVIEW_HARNESS_HOME/knowledge/acme/repos.md" <<EOF
+
+### mono-api
+- **local_path**: \`$M/apps/api\`
+- **check_cmd**: \`pwd; exit 1\`
+
+### nogit
+- **local_path**: \`$TMP/nogit\`
+- **test_cmd**: \`make test\`$SP
+- **check_cmd**: \`echo 'x\cy END-MARK'; pwd; exit 1\`$SP
+EOF
+ctx() { pt "$1" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null; }
+has "post-tool-use: check_cmd runs in a monorepo package's local_path" "$M/apps/api"$'\n' "$(ctx "$M/apps/api/src/b.ts")"
+OUT=$(ctx "$TMP/nogit/sub/x.py")
+has "post-tool-use: check_cmd runs in a non-git local_path" "$TMP/nogit"$'\n' "$OUT"
+has "post-tool-use: trailing whitespace + \\c in output kept verbatim" 'x\cy END-MARK' "$OUT"
+eq "detect-test-cmd: trailing whitespace after the backticks" "make test" "$(dt "$TMP/nogit")"
+mkdir -p "$TMP/flathome/knowledge" "$TMP/flat"
+printf '### flat\n- **local_path**: `%s`\n- **check_cmd**: `echo FLAT-MARK; exit 1`\n' "$TMP/flat" > "$TMP/flathome/knowledge/repos.md"
+has "post-tool-use: check_cmd from the flat knowledge/repos.md" "FLAT-MARK" \
+  "$(REVIEW_HARNESS_HOME="$TMP/flathome" ctx "$TMP/flat/a.py")"
+
+# --- bun -------------------------------------------------------------------------------
+mkdir -p "$TMP/t-bun" "$TMP/t-bunrun"; touch "$TMP/t-bun/bun.lockb" "$TMP/t-bunrun/bun.lock"
+echo '{}' > "$TMP/t-bun/package.json"; echo '{"scripts":{"test":"vitest"}}' > "$TMP/t-bunrun/package.json"
+eq "detect-test-cmd: bun lockfile, no scripts.test → bun test" "bun test" "$(dt "$TMP/t-bun")"
+eq "detect-test-cmd: scripts.test + bun.lock → bun run test" "bun run test" "$(dt "$TMP/t-bunrun")"
+
+# Done criterion: a Python repo loads no React rules and finds pytest.
+PY="$TMP/py"; mkdir -p "$PY/app" && git -C "$PY" init -q && printf '[tool.pytest.ini_options]\n' > "$PY/pyproject.toml" \
+  && echo 'x = 1' > "$PY/app/main.py" && git -C "$PY" add -A
+PROF=$(cd "$PY" && dp)
+eq "python: detect-profile → none" "" "$PROF"
+lacks "python: reviewer constraints carry no React rules" "React" "$(bash "$H/extract-constraints.sh" reviewer "$PROF" 2>/dev/null)"
+eq "python: detect-test-cmd → pytest" "python -m pytest" "$(bash "$H/detect-test-cmd.sh" "$PY")"
 mkdir -p "$REVIEW_HARNESS_HOME/org/agents"
 printf '## #org\n\n- org rule one\n' > "$REVIEW_HARNESS_HOME/org/constraints.md"
 printf 'run ${CLAUDE_PLUGIN_ROOT}/hooks/x.sh\n' > "$REVIEW_HARNESS_HOME/org/agents/reviewer.md"
@@ -171,6 +287,12 @@ bash "$H/pre-tool-use.sh" --approve "$P/package.json" >/dev/null
 eq "pre-tool-use: approved → allow" allow "$(edit "$P/package.json")"
 bash "$H/pre-tool-use.sh" --revoke "$P/package.json" >/dev/null
 eq "pre-tool-use: revoked → deny" deny "$(edit "$P/package.json")"
+eq "pre-tool-use: .env → deny" deny "$(edit "$P/.env")"
+eq "pre-tool-use: .env.local → deny" deny "$(edit "$P/.env.local")"
+eq "pre-tool-use: .env.example → allow" allow "$(edit "$P/.env.example")"
+eq "pre-tool-use: pnpm-lock.yaml → deny" deny "$(edit "$P/pnpm-lock.yaml")"
+eq "pre-tool-use: go.sum → deny" deny "$(edit "$P/go.sum")"
+eq "pre-tool-use: bun.lock → deny" deny "$(edit "$P/bun.lock")"
 
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

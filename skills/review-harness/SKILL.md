@@ -110,7 +110,7 @@ Before classifying, check the Small change conditions (Workflow Selection → Sm
 
 | Intent | Detection | Workflow |
 |--------|-----------|----------|
-| `feature` | Keywords: `feature`, `add`, `connect`, `API`, `logic`, `build`, `form`, `button`, `page`, `screen`, `component` | Feature flow |
+| `feature` | Keywords: `feature`, `add`, `connect`, `API`, `logic`, `build`, `form`, `button`, `page`, `screen`, `component`, `endpoint`, `migration`, `schema`, `handler` | Feature flow |
 | `refactor` | Keywords: `refactor`, `clean up`, `improve`, `duplicate` | Refactor flow |
 | `review` | Keywords: `review`, `check`, `verify` | Review fast-path |
 
@@ -208,7 +208,7 @@ Spawn specialists with the `Agent` tool. When installed as a plugin, the `subage
 Per agent call, include only:
 
 1. The relevant `agents/*.md`
-2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> web-frontend` — pass its output in the spawn prompt (it carries the constraints, the profile's sections and the agent's org overlay)
+2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" <paths>)"`, where `<paths>` = the plan's Affected Files for developer / refactor-architect and nothing for reviewer / test-runner (current changes) — pass its output in the spawn prompt (it carries the constraints, the selected profiles' sections and the agent's org overlay)
 3. Minimal `plan.md` excerpt
 4. Compact handoff block
 5. Exact files needed

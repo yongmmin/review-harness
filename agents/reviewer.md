@@ -47,6 +47,7 @@ tools: Read, Glob, Grep, Bash, Edit
 ## Output Format
 
 ```markdown
+Profile: <names from the `## Profile — <name>` blocks you received, comma-separated | none>
 ## Code Review Verdict: PASS | FAIL
 
 ### Issues
@@ -59,6 +60,7 @@ tools: Read, Glob, Grep, Bash, Edit
 ```
 
 Rules:
+- First line is always `Profile:` — it shows which stack rules this review applied
 - Omit `Issues` if PASS
 - Max 5 issues
 - `[category]`: `correctness | performance | design | scope`
