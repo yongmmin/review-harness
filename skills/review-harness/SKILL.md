@@ -1,13 +1,13 @@
 ---
 name: review-harness
-description: Single entry point for code work in a repo — feature/API wiring (UI work included), refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests (in any language) like "build this", "add this", "fix this", "refactor", "review this". Not for git branch/PR creation (use /git-branch, /git-pr).
+description: Single entry point for code work in a repo — feature/API wiring (UI work included), bug fix, refactor, or review. Classifies intent, writes plan.md, then orchestrates specialist agents (developer → test-runner → reviewer → git-commit). Use for requests (in any language) like "build this", "add this", "fix this", "why does this fail", "refactor", "review this". Not for git branch/PR creation (use /git-branch, /git-pr).
 argument-hint: "[request] [--rtk=off|standard|aggressive|git-only]"
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git branch *) Bash(git log *)
 ---
 
 # Skill: review-harness
 
-**Trigger**: `/review-harness [request]` — or auto-invoked when a message looks like code work (feature, refactor, review)
+**Trigger**: `/review-harness [request]` — or auto-invoked when a message looks like code work (feature, bug fix, refactor, review)
 **Purpose**: Handle setup, intent detection, planning, execution, verification with minimal context overhead.
 
 ---
@@ -110,13 +110,14 @@ Rules: max 2 questions, only what blocks planning.
 
 ### 3. Intent Classification
 
-Before classifying, check the Small change conditions (Workflow Selection → Small change). If they all hold, take that path; otherwise classify the intent below.
+Before classifying, check the Small change conditions (Workflow Selection → Small change). If they all hold, take that path; otherwise classify the intent below. A request that describes a failure or symptom is `bugfix` and never takes the Small change path; a trivial textual fix with no failure (e.g. "fix this typo") is not `bugfix` and stays on the Small change path. If no intent matches, ask one clarifying question.
 
 | Intent | Detection | Workflow |
 |--------|-----------|----------|
 | `feature` | Keywords: `feature`, `add`, `connect`, `API`, `logic`, `build`, `form`, `button`, `page`, `screen`, `component`, `endpoint`, `migration`, `schema`, `handler` | Feature flow |
 | `refactor` | Keywords: `refactor`, `clean up`, `improve`, `duplicate` | Refactor flow |
-| `review` | Keywords: `review`, `check`, `verify` | Review fast-path |
+| `bugfix` | Keywords: `fix`, `bug`, `error`, `broken`, `fails`, `crash`, `regression`, or a "why" question about a failure | Bugfix flow |
+| `review` | Keywords: `review`; `check`, `verify` only when a diff exists to review and no failure symptom is described (a symptom → `bugfix`) | Review fast-path |
 
 Keywords are examples: match the same meaning in whatever language the user writes.
 
@@ -147,7 +148,7 @@ Applies only when intent is exactly `review`.
 
 ### 6. Plan Gate
 
-Create `plan.md`, then wait for explicit user approval before execution.
+Create `plan.md`, then wait for explicit user approval before execution (Bugfix exception: Workflow Selection → Bugfix).
 
 ```markdown
 # Plan: [task name]
@@ -156,7 +157,7 @@ Create `plan.md`, then wait for explicit user approval before execution.
 [what and why]
 
 ## Intent
-[feature / refactor / review]
+[feature / bugfix / refactor / review]
 
 ## Inputs
 - Design: [reference URL or none]
@@ -164,6 +165,12 @@ Create `plan.md`, then wait for explicit user approval before execution.
 
 ## Affected Files
 - path/to/file.tsx - [change]
+
+## Bug (bugfix only)
+- Symptom: [observed vs expected]
+- Repro: [failing test id, or command + its key output line]
+- Cause: [file:line — why it fails]
+- Regression test: [test file + name, or "none — <why none is possible>"]
 
 ## Design Check
 - Reuse: [component/hook/util to reuse, or "none — new primitive justified because X"]
@@ -182,7 +189,7 @@ Create `plan.md`, then wait for explicit user approval before execution.
 ```
 
 **Design Check rules**:
-- Required for `feature`, `refactor`. Omit for `review`
+- Required for `feature`, `bugfix`, `refactor`. Omit for `review`
 - Max 1 line per bullet. No prose
 - If `Reuse` says "new primitive", justification must be one concrete reason — not vague "for flexibility"
 - `Reuse` is filled at plan time by the main session — no agent does it for you. Before writing the plan, search the repo and the shared packages it depends on for an existing component/hook/util that covers the request, and use project knowledge
@@ -229,6 +236,7 @@ Never inline full `constraints.md`. Never pass unrelated files or raw verbose lo
 - decisions: keep existing filter sidebar pattern
 - blockers: cart.spec.ts failing
 - test_status: not_run | passed:npm run test | failed:npm run test
+- red: <regression test's failing output line before the fix> (bugfix only)
 ```
 
 Rules: omit empty fields, max 6 bullets, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
@@ -245,7 +253,7 @@ Rules: omit empty fields, max 6 bullets, one line each, no prose, identifiers/pa
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" start <workflow> <step> <step> ...
 ```
 
-with `<workflow>` = `small-change | feature | refactor | review` and the workflow's steps in order (e.g. `start feature developer test-runner reviewer git-commit`). If it refuses because a run is already active, go back to Request Gate 0.5. Then keep the file current — the script computes every counter, timestamp and hash; never write those values yourself:
+with `<workflow>` = `small-change | feature | bugfix | refactor | review` and the workflow's steps in order (e.g. `start feature developer test-runner reviewer git-commit`). If it refuses because a run is already active, go back to Request Gate 0.5. Then keep the file current — the script computes every counter, timestamp and hash; never write those values yourself:
 
 - step finished → `run-state.sh step <name>`
 - tests failed → `run-state.sh attempt`
@@ -265,7 +273,7 @@ with `<workflow>` = `small-change | feature | refactor | review` and the workflo
 Use this path when ALL hold:
 - the change touches at most 2 existing files and creates no new file
 - it adds no new component, hook, store, endpoint, or socket event
-- it is not a `refactor` intent
+- it is not a `refactor` or `bugfix` intent
 
 ```
 main session implements -> test-runner -> reviewer
@@ -285,6 +293,22 @@ search-knowledge? -> developer
 ```
 
 `developer` owns API integration inline (types → hook/service → UI states) — all code exists before `test-runner` runs, so tests always cover the full change.
+
+### Bugfix
+
+```
+reproduce -> plan.md (## Bug) -> user approval
+-> developer (regression test RED, then fix) -> test-runner -> reviewer
+-> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
+```
+
+Run state: `start bugfix reproduce developer test-runner reviewer git-commit`.
+
+- **Reproduce first**: run the failing test, or a command that shows the failure (request, script, CLI), and record it in `Repro`. Then trace it to `Cause` (`file:line` + why). If neither reproduces it, stop and ask the user for the exact symptom and environment (input, logs, version). Never fix by guess
+- **Fix of at most 2 files**: skip the approval wait, but show the user the `Cause` and `Regression test` lines before `developer` starts. The plan is still written
+- **"Why" only**: if the user asked why but not for a fix, stop after `Cause`, report the `## Bug` lines and ask whether to fix (`run-state.sh done` if not)
+- If `developer` reports the regression test passing before the fix, the `Cause` is wrong: run `run-state.sh attempt` (stop and report at `LIMIT REACHED`), then redo reproduce — run state still shows `reproduce` done; redo it anyway
+- Pass the developer's `red:` line to `reviewer`
 
 ### Refactor
 
@@ -338,7 +362,7 @@ Next steps (user-driven):
 
 ## Harness Loop
 
-Use retry loop for `feature` and `refactor` implementation steps.
+Use retry loop for `feature`, `bugfix` and `refactor` implementation steps.
 
 ```text
 MAX_ATTEMPTS = 3   # one shared counter in run-state.json; the script increments it

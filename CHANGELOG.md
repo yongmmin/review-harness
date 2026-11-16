@@ -4,6 +4,13 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Bug-fix workflow**
+- New `bugfix` intent (`fix`, `bug`, `error`, `broken`, `fails`, `crash`, `regression`, or "why" about a failure, in any language). `check`/`verify` route to review only when there is a diff to review and no failure symptom; a trivial fix with no failure ("fix this typo") stays Small change; no matching intent → one clarifying question
+- Bugfix flow in `/review-harness`: reproduce (failing test, or a command and its output) → `plan.md → ## Bug` (`Symptom`, `Repro`, `Cause` as `file:line` + why, `Regression test`) → developer runs the regression test RED, then fixes → test-runner → reviewer → git-commit. Not reproducible → ask the user, never fix by guess. Never takes the Small change path; a fix of at most 2 files skips the approval wait but shows `Cause` and `Regression test` first. Run state: `run-state.sh start bugfix …`
+- A regression test that passes before the fix means a wrong `Cause`: the loop back to reproduce counts as an attempt
+- `developer`: for a bugfix, writes (or runs the existing) regression test before the fix and reports its failing line as `red:` in the handoff (new optional handoff field)
+- `reviewer` static gates: bugfix with no regression test in the diff or the plan and no stated reason, or with no `red:` line → FAIL `[correctness]`; a change the `Cause` does not explain → FAIL `[scope]`
+
 **Runtime rules now reach plugin users**
 - A plugin's root `CLAUDE.md` is not loaded in a user's session (`claude plugin validate` warns about it), so rules kept only there never applied outside this repo. They now live in the skill or agent that acts on them: Write/Edit limits, context-budget limits and "pass `extract-constraints.sh` output as-is" in `/review-harness`; rtk wrapping in the `developer` and `reviewer` agents; "never `rtk init -g`" in `/rtk-toggle`. `CLAUDE.md` is now the maintainer file
 - The `review-harness` skill description also lists bug-fix requests ("fix this") for auto-invocation
