@@ -1,0 +1,14 @@
+{
+  "name": "front-harness",
+  "owner": {
+    "name": "yongmmin"
+  },
+  "plugins": [
+    {
+      "name": "front-harness",
+      "description": "Frontend Harness — 오케스트레이션 기반 React/Next.js 개발 자동화",
+      "source": ".",
+      "version": "0.4.0"
+    }
+  ]
+}

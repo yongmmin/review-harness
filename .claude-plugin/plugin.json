@@ -1,0 +1,23 @@
+{
+  "name": "front-harness",
+  "displayName": "Frontend Harness",
+  "description": "Frontend Harness: 오케스트레이션 기반 React/Next.js 개발 자동화 플러그인. Harness Engineering 원칙에 따라 전문 에이전트에게 위임한다.",
+  "version": "0.4.0",
+  "author": {
+    "name": "yongmmin"
+  },
+  "license": "MIT",
+  "keywords": [
+    "react",
+    "nextjs",
+    "three",
+    "r3f",
+    "figma",
+    "tdd",
+    "code-review"
+  ],
+  "metadata": {
+    "knowledge": "knowledge/index.md",
+    "hookContract": "PreToolUse gate → JSON permissionDecision; PostToolUse feedback → JSON additionalContext"
+  }
+}

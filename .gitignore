@@ -1,0 +1,26 @@
+# Organisation-specific content — kept on disk, never committed.
+# private/   overlays for skills, agents, constraints, docs
+# knowledge/ repo registry and domain knowledge
+private/
+knowledge/
+
+# Plugin runtime cache
+.fe-harness-cache/
+.front-harness-cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Node
+node_modules/
