@@ -2,6 +2,19 @@
 
 이 플러그인은 기존 `front-agent` (일반 React/Next 플러그인) 의 Harness Engineering 원칙을 가져와 재구축한 버전입니다.
 
+### v0.4.1 (2026-11-16)
+
+**코드 개발 품질에 집중 — UI/디자인 전용 기능 제거**
+- UI·디자인 구현 전용 skill 5개와 agent 2개 제거. 남는 workflow 는 Feature / Small change / Review / Refactor, skill 10개, agent 4개
+- UI 요청은 `feature` 로 분류. 디자인 URL 은 `plan.md → Inputs.Design` 에 적는 참고 입력일 뿐 workflow 를 고르지 않음
+- `plan.md` 의 `Reuse` 항목은 계획 단계에서 메인 세션이 채움. 비어 있으면 reviewer 가 FAIL
+- reviewer 정적 gate 추가: 다른 앱 레포 코드 import, 아이콘만 있는 버튼의 접근 가능한 이름 누락, 키보드로 조작할 수 없는 클릭 요소, `.npmrc` staged, token 이 연결돼 있는데 raw hex, server state 를 Zustand 에 보관
+- developer 규칙 추가: 다른 앱 레포 import 금지, Tailwind 주 버전 확인, browser 전용 import 는 `dynamic({ssr:false})`
+
+**조직 overlay 와 knowledge 를 플러그인 폴더 밖으로**
+- overlay 는 `~/.front-harness/org/`, knowledge 는 `~/.front-harness/knowledge/` 에서 읽음 (`FRONT_HARNESS_HOME` 으로 변경 가능). 플러그인 폴더에는 조직 전용 파일이 없음
+- README 를 범용 하네스 기준으로 다시 쓰고 "knowledge 준비" 절 추가. knowledge 자동 생성 skill 은 0.5.0 예정
+
 ### v0.4.0 (2026-11-16)
 
 **Review gate 를 대화가 아닌 파일로 강제**
@@ -18,13 +31,12 @@
 - 기존 레포에 남은 `.front-harness-cache/` / `plan.md` 는 자동 삭제하지 않음
 
 **조직 전용 내용 분리**
-- 조직 전용 내용을 gitignore 대상 `private/` · `knowledge/` 로 분리, tracked 파일은 범용 규칙만 유지 (`hooks/org-overlay.sh`)
+- 조직 전용 내용을 저장소에서 분리, 저장소의 파일은 범용 규칙만 유지 (`hooks/org-overlay.sh`)
 
 ### v0.3.1 (2026-11-16)
 
-- 에이전트 모델 티어링: reviewer / refactor-architect → `fable`, component-auditor → `sonnet`, developer / ui-builder / test-runner 는 `opus` 유지
+- 에이전트 모델 티어링: reviewer / refactor-architect → `fable`, developer / test-runner 는 `opus` 유지
 - `front-harness` Small change 경로 추가: 기존 파일 2개 이하·신규 요소 없는 변경은 메인 세션이 직접 구현 → test-runner → reviewer → git-commit
-- `component-auditor` skip 조건 정리 ("ALL hold" + "OR" 모순 제거, Small change 경로 예외 추가)
 - `constraints.md #failure-patterns` GC: 90일 초과 6건 제거. useEffect cleanup 누락 / index-as-key 2건은 `agents/reviewer.md` 정적 게이트로 승격
 - Small change 경로는 `plan.md` 작성과 승인 대기를 건너뜀
 - 사용률 기반 모델 선택: 5시간 사용률 ≥ 80% 이면 reviewer / refactor-architect 를 띄우기 전에 한 번 묻고(`Fable 유지` / `이번 실행은 Opus`), 선택은 그 실행 동안 유지. `front-harness` / `code-review` / `refactor-scan` 공통 (`hooks/usage-state.sh`, 사용률은 status line wrapper 가 `~/.claude/usage-state.json` 에 기록). 80% 미만이거나 `unknown` 이면 묻지 않고 frontmatter 값 유지
@@ -54,8 +66,6 @@
 **기타**
 - `plugin.json`: 비표준 `knowledge` 키 → `metadata` 로 이동(`claude plugin validate` 경고 제거), `displayName`/`keywords` 추가, 0.3.0
 - `git-commit`: `plan.md`, `.front-harness-cache/` 스테이징 금지 가드
-- `a11y-check`: Forms & Feedback / Motion(`prefers-reduced-motion`) 항목, 도구 근거(jsx-a11y, Storybook a11y) 요구
-- `pixel-check` / `implement-figma`: Figma MCP 호출 순서(`figma-design-to-code` 스킬 → `get_design_context` + `get_screenshot`) 및 MCP 미연결 시 skip 보고 명시
 - `refactor-scan`: 슬라이스(≤5파일) 단위 실행 + 슬라이스마다 검증
 
 ### v0.2.0 (2026-07-10)
@@ -92,7 +102,7 @@
 
 **초기 셋업**
 
-- 플러그인 스켈레톤 (`.claude-plugin/`, `agents/`, `skills/`, `hooks/`, `knowledge/`, `CLAUDE.md`, `constraints.md`)
+- 플러그인 스켈레톤 (`.claude-plugin/`, `agents/`, `skills/`, `hooks/`, `CLAUDE.md`, `constraints.md`)
 - 7개 agents + 17개 skills + 7개 hooks 포팅 (영어, 토큰 최소화)
 - 모든 에이전트 모델을 `claude-opus-4-7` 로 핀
 

@@ -7,7 +7,7 @@
 1. **Conductor** — 오케스트레이터는 직접 코드를 작성하지 않고 전문 에이전트에게 위임
 2. **Evidence First** — 테스트 실행 결과 없이 완료 선언 금지
 3. **YAGNI** — 명시적으로 요청된 것만 구현. 추측 기능 추가 금지
-4. **Reuse First** — 새 UI 를 만들기 전에 component-auditor 가 재사용 가능한 컴포넌트를 먼저 탐색
+4. **Reuse First** — 계획 단계에서 메인 세션이 재사용 가능한 컴포넌트·hook·util 을 먼저 찾아 `plan.md` 의 `Reuse` 항목에 적음. 비어 있으면 reviewer 가 FAIL
 5. **Token Budget** — 모든 에이전트에 최소 컨텍스트만 전달 (constraints.md 태그별 부분 로딩, stderr 로 토큰 측정)
 6. **User-Driven Git** — branch 생성 / push / PR 모두 사용자 트리거
 
@@ -45,12 +45,12 @@
 
 | Hook | 트리거 | 역할 |
 |---|---|---|
-| **`session-start.sh`** | SessionStart | knowledge/index.md 컴팩트 요약 출력 + `detect-repo.sh` 호출해서 active repo 메타데이터 컨텍스트 주입 + `~/.front-harness/state/<repo-id>/cache/` 1시간 이상 파일 정리 |
+| **`session-start.sh`** | SessionStart | `~/.front-harness/knowledge/index.md` 컴팩트 요약 출력 + `detect-repo.sh` 호출해서 active repo 메타데이터 컨텍스트 주입 + `~/.front-harness/state/<repo-id>/cache/` 1시간 이상 파일 정리 |
 | **`pre-tool-use.sh`** | PreToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | `package.json`/`next.config.*`/`tsconfig.json` 수정을 deny. 사용자 승인 후 `pre-tool-use.sh --approve <path>` 로 30분 TTL 승인 기록 → 재시도 통과 |
 | **`post-tool-use.sh`** | PostToolUse (Write\|Edit\|MultiEdit\|NotebookEdit) | TS/TSX 파일 저장 시 incremental tsc + eslint 병렬 실행, 실패 시 컴팩트 에러만 (디바운스 3초, 자동 캐시 정리). 토큰 예산 stderr 로깅 |
-| **`detect-repo.sh`** | session-start + skill 로드 시 | `cwd` 가 `knowledge/<org>/repos.md` 의 어떤 레포에 매칭되는지 awk 파싱. 매칭되면 컴팩트 메타데이터 (`name`/`role`/`stack`/`layout`/`env`/`path_alias`/`doc_routing` 등) 출력. 레지스트리가 없으면 아무것도 출력하지 않고, 매칭이 없으면 `not registered` |
-| **`extract-constraints.sh`** | 에이전트 spawn 직전 | `constraints.md` 에서 해당 에이전트에 필요한 섹션 태그만 추출 (`#code-rules`/`#filesystem`/`#completion`/`#review`/`#failure-patterns`) + `private/constraints.md` 의 `#org` 섹션과 에이전트 overlay 를 덧붙임. 토큰 예산 stderr 로깅 |
-| **`org-overlay.sh`** | skill 로드 시 + `extract-constraints.sh` | 조직 overlay(`private/skills\|agents/<name>.md`) 출력. 없으면 아무것도 출력하지 않음 |
+| **`detect-repo.sh`** | session-start + skill 로드 시 | `cwd` 가 `~/.front-harness/knowledge/<org>/repos.md` 의 어떤 레포에 매칭되는지 awk 파싱. 매칭되면 컴팩트 메타데이터 (`name`/`role`/`stack`/`layout`/`env`/`path_alias`/`doc_routing` 등) 출력. 레지스트리가 없으면 아무것도 출력하지 않고, 매칭이 없으면 `not registered` |
+| **`extract-constraints.sh`** | 에이전트 spawn 직전 | `constraints.md` 에서 해당 에이전트에 필요한 섹션 태그만 추출 (`#code-rules`/`#filesystem`/`#completion`/`#review`/`#failure-patterns`) + `~/.front-harness/org/constraints.md` 의 `#org` 섹션과 에이전트 overlay 를 덧붙임. 토큰 예산 stderr 로깅 |
+| **`org-overlay.sh`** | skill 로드 시 + `extract-constraints.sh` | 조직 overlay(`~/.front-harness/org/skills\|agents/<name>.md`) 출력. 없으면 아무것도 출력하지 않음 |
 | **`knowledge-has-content.sh`** | `/search-knowledge` 호출 직전 | knowledge/wisdom 파일에 placeholder 외 실제 내용이 있는지 빠르게 검증. 비어있으면 `/search-knowledge` 호출 자체를 skip |
 | **`rtk-wrap.sh`** | 플러그인 내부 Bash 호출 | `git`/`gh`/`tsc`/`eslint`/`jest`/`vitest`/`grep`/`find`/`ls` 등의 호출을 `rtk` 로 감싸서 출력 압축 (모드별). `rtk` 미설치 시 raw 명령으로 fallback. 다른 프로젝트엔 영향 없음 |
 | **`usage-state.sh`** | `/front-harness`, `/code-review`, `/refactor-scan` 로드 시 | `~/.claude/usage-state.json` (사용자 status line wrapper 가 기록) 에서 5시간 사용률을 읽어 `N% (resets HH:MM)` 출력. 파일 없음 / 10분 초과 / window 리셋 시 `unknown` |
@@ -93,8 +93,7 @@
 
 구버전(≤0.1.0) 심볼릭 링크 설치의 잔재가 남아 있다면 `./install.sh` 를 한 번 실행하면 자동 정리됨 (또는 수동으로):
 ```bash
-for skill in front-harness implement-figma match-style tdd code-review a11y-check \
-  pixel-check refactor-scan component-audit save-knowledge search-knowledge \
+for skill in front-harness tdd code-review refactor-scan save-knowledge search-knowledge \
   git-branch git-commit git-pr rtk-toggle; do
   rm -f ~/.claude/skills/$skill
   rm -f ~/.claude/commands/$skill.md
@@ -109,12 +108,12 @@ done
 
 | 태그 | 대상 에이전트 |
 |---|---|
-| `#code-rules` | developer / ui-builder / component-auditor / refactor-architect |
-| `#filesystem` | developer / ui-builder |
-| `#completion` | developer / ui-builder / test-runner |
+| `#code-rules` | developer / refactor-architect |
+| `#filesystem` | developer |
+| `#completion` | developer / test-runner |
 | `#review` | reviewer |
 | `#failure-patterns` | reviewer / test-runner |
-| `#org` | developer / ui-builder / reviewer / refactor-architect / component-auditor (`private/constraints.md` 에 있음. 없으면 생략) |
+| `#org` | developer / reviewer / refactor-architect (`~/.front-harness/org/constraints.md` 에 있음. 없으면 생략) |
 
 ### 토큰 예산 측정
 
@@ -163,34 +162,30 @@ GC 룰: 3072 바이트 초과 시 (extract-constraints.sh stderr 로 관측) 유
 - 세션 flag 는 `~/.front-harness/state/<repo-id>/rtk-session.flag` 에만 저장 (작업 트리별, 레포 밖)
 - `rtk` 미설치 시 silent fallback to raw
 
-## 조직 overlay 구조
+## 조직 overlay 와 knowledge 구조
 
-조직·회사에 한정된 내용은 tracked 파일에 두지 않는다. gitignore 대상인 `private/` 와 `knowledge/` 에만 둔다.
+조직·회사에 한정된 내용은 이 저장소에 두지 않는다. 플러그인 폴더 밖의 `~/.front-harness/` 에만 둔다 (`FRONT_HARNESS_HOME` 으로 위치 변경 가능).
 
 ```
-private/
-├── skills/<skill>.md           # skill 별 조직 overlay
-├── agents/<agent>.md           # 에이전트별 조직 overlay
-├── constraints.md              # `#org` constraints 섹션
-└── docs/                       # 이 문서들의 조직판
+~/.front-harness/
+├── org/
+│   ├── skills/<skill>.md       # skill 별 조직 overlay
+│   ├── agents/<agent>.md       # 에이전트별 조직 overlay
+│   └── constraints.md          # `## #org` constraints 섹션
+├── knowledge/
+│   ├── index.md                # 세션 시작 시 컴팩트 요약 자동 로드
+│   └── <org>/
+│       ├── repos.md            # 레포 레지스트리 (detect-repo.sh 가 읽음)
+│       └── *.md                # 도메인 지식
+├── state/<repo-id>/            # 실행 상태 (run-state.json, plan.md 등)
+└── wisdom/                     # cross-project 학습
 ```
 
 - `hooks/org-overlay.sh <skills|agents> <name>` 이 overlay 파일을 출력한다. 파일이 없으면 아무것도 출력하지 않는다
 - 모든 `SKILL.md` 는 로드 시점에 자기 overlay 를 주입받는다
 - `hooks/extract-constraints.sh <agent>` 는 `#org` 섹션과 에이전트 overlay 를 오케스트레이터가 에이전트에 넘기는 내용 뒤에 붙인다
-- 새로 clone 한 상태(`private/`, `knowledge/` 없음)에서는 overlay 가 비고, `detect-repo.sh` 는 아무것도 출력하지 않으며, `knowledge-has-content.sh` 는 비어 있다고 보고한다. 플러그인은 범용 React/Next.js harness 로 동작한다
-
-## Knowledge 구조
-
-```
-knowledge/                      # gitignore 대상
-├── index.md                    # 세션 시작 시 컴팩트 요약 자동 로드
-└── <org>/
-    ├── repos.md                # 레포 레지스트리 (detect-repo.sh 가 읽음)
-    └── *.md                    # 도메인 지식
-```
-
-상세 도메인 파일은 on-demand 로 `search-knowledge` 가 로드. 세션 시작 시엔 `index.md` 만 자동.
+- `org/` 와 `knowledge/` 가 없으면 overlay 가 비고, `detect-repo.sh` 는 아무것도 출력하지 않으며, `knowledge-has-content.sh` 는 비어 있다고 보고한다. 플러그인은 범용 규칙만으로 동작한다
+- 상세 도메인 파일은 on-demand 로 `search-knowledge` 가 로드. 세션 시작 시엔 `index.md` 만 자동
 
 ### 글로벌 wisdom (cross-project 학습)
 
@@ -202,4 +197,4 @@ knowledge/                      # gitignore 대상
 └── issues.md
 ```
 
-진짜 cross-project (특정 조직 한정 아닌) 학습만 여기 저장. 조직 특화는 위의 `knowledge/<org>/*` 으로.
+진짜 cross-project (특정 조직 한정 아닌) 학습만 여기 저장. 조직 특화는 위의 `~/.front-harness/knowledge/<org>/*` 으로.
