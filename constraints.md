@@ -10,8 +10,10 @@
 > | `#filesystem` | developer |
 > | `#completion` | developer, test-runner |
 > | `#review` | reviewer |
-> | `#failure-patterns` | reviewer, test-runner |
+> | `#failure-patterns` | reviewer, test-runner — the per-user ledger `~/.review-harness/failure-patterns.md` (honours `REVIEW_HARNESS_HOME`), not this file; its path reaches those agents as a `ledger: <path>` line |
 > | `#org` | developer, reviewer, refactor-architect — organisation-specific rules, read from `~/.review-harness/org/constraints.md` (absent when no organisation overlay is installed) |
+>
+> **Ledger** (`failure-patterns.md`): reviewer, test-runner and the orchestrator's LIMIT step append repeatable AI mistakes under its `## #failure-patterns` heading (a new file starts with that heading). Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]`. It holds ONLY patterns not caught anywhere else.
 >
 > **GC rule**: if `#failure-patterns` exceeds 3072 bytes (watch the `[token-budget]` stderr line from `extract-constraints.sh`), merge similar rules and drop entries older than 90 days. Never re-add a rule that is already a static gate in `agents/reviewer.md` or a profile (`profiles/*.md`), a rule in `#review`/`#org`, or enforced by ESLint/tsc — the ledger is only for gaps those layers miss.
 
@@ -72,14 +74,3 @@ Design quality — FAIL if any:
 Design quality — PASS notes:
 - Three similar lines is acceptable; do not demand abstraction for hypothetical reuse
 - Style-only or naming preferences are not failures
-
----
-
-## #failure-patterns
-
-> reviewer/test-runner appends here on repeatable AI mistakes.
-> Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]`
->
-> **Scope**: this ledger holds ONLY patterns not caught anywhere else. Do not add rules already enforced by ESLint/tsc, listed as static FAIL gates in `agents/reviewer.md` or a profile (`profiles/*.md`), or stated in `#review`/`#org`.
-> Distilled 2026-07-10: 34 seeded entries removed — all were duplicates of reviewer gates, `#org` rules, or ESLint-enforced rules. Which ESLint rules a repo actually enforces differs per repo; check the repo's own config (org overlays may list them).
-> GC 2026-11-16: 6 entries dropped (all older than 90 days). useEffect cleanup and index-as-key were promoted to static gates in `agents/reviewer.md` (now in `profiles/web-frontend.md`).

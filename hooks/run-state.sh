@@ -4,7 +4,8 @@
 # The script computes every value itself (attempt counter, timestamps, work-tree hash);
 # callers never pass numbers or hashes.
 #
-#   start <workflow> [step...]  create a run; refuses while another run is active
+#   start <workflow> [step...]  create a run (clears the previous baseline.txt and attempts.md); refuses while
+#                               another run is active
 #   step <name>                 mark a step done
 #   attempt                     count a failed attempt (test failure); exit 2 at the limit
 #   verdict PASS|FAIL [category...]
@@ -119,7 +120,7 @@ case "${1:-}" in
       exit 1
     fi
     wf="$2"; shift 2
-    rm -f "$STATE_DIR/baseline.txt"   # the previous run's already-failing tests
+    rm -f "$STATE_DIR/baseline.txt" "$STATE_DIR/attempts.md"   # the previous run's failing tests and attempts log
     steps=$(printf '%s\n' "$@" | jq -R . | jq -cs 'map(select(length > 0) | {name: ., done: false})')
     new_file "$wf" active "$steps" && echo "run-state: started '$wf' → $FILE"
     ;;

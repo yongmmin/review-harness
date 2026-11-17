@@ -143,6 +143,7 @@ The plugin never creates files inside the repo you are working in. Run state liv
 |---|---|
 | `run-state.json` | Current workflow, completed steps, retry count, reviewer verdict, test result |
 | `baseline.txt` | Tests that already failed before the current run's change |
+| `attempts.md` | One line per failed attempt (`N. hypothesis → change → result`) on a path without `plan.md` (Small change); with a plan the lines go to its `## Attempts`. Cleared by `run-state.sh start` |
 | `plan.md` | The plan awaiting approval. Its full path is reported every time it is written |
 | `rtk-session.flag` | Output-compression mode |
 | `register-declined` | You chose not to register this repo; `/review-harness` stops offering `/register-repo` here |
@@ -154,6 +155,12 @@ One file sits directly in `~/.review-harness/state/`, shared by all repos:
 | File | Content |
 |---|---|
 | `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories (re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed. `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it |
+
+One file sits directly in `~/.review-harness/`, also shared by all repos:
+
+| File | Content |
+|---|---|
+| `failure-patterns.md` | The failure-pattern ledger: repeatable AI mistakes that no other rule catches, under a `## #failure-patterns` heading. Appended by `reviewer` / `test-runner` (and at the attempt limit); `extract-constraints.sh` gives it to both with its path. Yours alone — a plugin update never touches it |
 
 If a run is interrupted, the next `/review-harness` asks whether to resume it or start new.
 
