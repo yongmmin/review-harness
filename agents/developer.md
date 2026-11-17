@@ -33,6 +33,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 4. Write tests (RED), run them and confirm they fail for the intended reason before implementing (a missing behaviour, not a syntax or import error). Bugfix (`plan.md → ## Bug`): write the `Regression test` first (or run the existing test named there) and run it before touching the fix — it must fail for the `Cause`'s reason. Put its failing output line in the handoff as `red: <line>`. If it passes before the fix, stop and report: the `Cause` is wrong. On a retry, keep the `red:` line given in your prompt
 5. Implement to pass tests (GREEN)
 6. Hand off to test-runner
+7. Retry with a reviewer fix list: patch each issue. If you have evidence an issue is wrong (file:line, test output, plan line), reply `dispute: <issue id> — <evidence>` for it instead and change no code in that reply; once per issue
 
 ---
 

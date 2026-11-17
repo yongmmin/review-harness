@@ -3,6 +3,7 @@
 #   caught: the verdict is FAIL and one numbered line under `### Issues` contains the expected file's basename
 #           (expect line 3; `|` separates acceptable files) and one expect line-2 keyword. Case-insensitive.
 #   extra:  FAIL issue lines that do not match (false or additional findings); 0 when the verdict is not FAIL.
+#           Lines routed `route: defer` are notes, not FAIL reasons: they count as neither.
 #   category=match|other (only when caught and expect line 4 lists `|`-separated categories): whether a matching
 #           line carries one of them as `[category]`.
 set -eu
@@ -27,6 +28,7 @@ if printf '%s\n' "$OUT" | grep -q 'code review verdict:[^a-z]*fail'; then
   ISSUES=$(printf '%s\n' "$OUT" | awk '/^#+[ \t]*issues/ { on = 1; next } /^#/ { on = 0 } on && /^[ \t]*[0-9]+[.)]/')
   while IFS= read -r line; do
     [ -n "$line" ] || continue
+    case "$line" in *"route: defer"*) continue ;; esac   # a defer note is not a FAIL reason
     if has_any "$line" "$FILES" && has_any "$line" "$KEYS"; then
       CAUGHT=1
       if [ -n "$CATS" ] && has_any "$line" "[$(printf '%s' "$CATS" | sed 's/|/]|[/g')]"; then CATHIT=1; fi

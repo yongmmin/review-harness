@@ -51,7 +51,7 @@ Anything printed above is organisation-specific and is part of this skill; where
       and records its own verdict with that command (the script stores the work-tree hash).
       No `review: … recorded` line in the reply -> spawn reviewer once more to record it. Still missing ->
       no verdict: never record it yourself; report that to the user. git-commit stays blocked.
-3. On FAIL -> return compact fix list
+3. On FAIL -> return compact fix list, with each issue's `route:` (`defer` issues are notes, not FAIL reasons)
 4. On PASS -> report PASS. No commit follows from this skill; a later git-commit verifies the recorded verdict with `run-state.sh check`
 ```
 

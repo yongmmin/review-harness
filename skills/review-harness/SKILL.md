@@ -393,7 +393,7 @@ Next steps (user-driven):
 
 ## Harness Loop
 
-Use retry loop for `feature`, `bugfix` and `refactor` implementation steps.
+Use retry loop for `feature`, `bugfix` and `refactor` implementation steps (Small change: the main session is the implementer).
 
 ```text
 MAX_ATTEMPTS = 3   # one shared counter in run-state.json; the script increments it
@@ -408,7 +408,16 @@ if tests fail:
 
 if reviewer returns FAIL:
   (run-state.sh verdict FAIL already counted the attempt)
-  retry with only the reviewer's fix list
+  act on each issue's route:
+    replan -> update plan.md for it and get the user's re-approval before the retry
+              (Small change: no plan — ask the user, or switch to the Feature path)
+    patch  -> retry with only the patch / replan issues as the fix list
+    defer  -> never retried; keep for the final report
+
+if developer answers `dispute: <issue id> — <evidence>` instead of patching (no code change):
+  run-state.sh dispute <issue id...>   # exit 2: this round's dispute is used — retry with the fix list
+  re-run reviewer with the dispute lines; its verdict is not an attempt
+  an issue it keeps goes back into the fix list and cannot be disputed again
 
 if the script prints "LIMIT REACHED" (exit 2):
   record a repeatable failure pattern if appropriate (append to constraints.md #failure-patterns)
@@ -416,12 +425,14 @@ if the script prints "LIMIT REACHED" (exit 2):
   user decides whether to file a GitHub issue manually (plugin does not auto-create issues)
 ```
 
-Test failures and reviewer FAILs count against the same `MAX_ATTEMPTS`.
+Test failures and reviewer FAILs count against the same `MAX_ATTEMPTS`; disputes do not.
+
+Every retry runs `test-runner` again before `reviewer`, on the Small change path too: the tests record holds only for the work tree it was taken on. Only the dispute re-judge, which changes no code, skips it.
 
 Retry context must contain only:
 - failing command
 - failing file/test identifier
-- shortest useful error excerpt, or the reviewer's fix list
+- shortest useful error excerpt, or the reviewer's `patch` / `replan` issues
 - bugfix: the first developer run's `red:` line — carry it through every retry so a re-spawned developer's handoff, and the `reviewer` prompt, never drop it
 
 Never resend full previous transcript.
@@ -435,3 +446,4 @@ Never resend full previous transcript.
 - **Never auto-create branches or PRs** — these are user-driven (see "Git Operations Policy")
 - **Never auto-push** — `git push` is the user's action
 - Save knowledge only if reusable pattern, decision, or repeatable issue emerged
+- List the reviewer's `defer` issues in the final report (also at `LIMIT REACHED`)
