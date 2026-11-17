@@ -1025,7 +1025,29 @@ for c in "/usr/bin/git commit -m x" "/opt/homebrew/bin/git commit" "git -C . com
   "git commit -m \"fix; merge --abort\"" "bash \"$H/rtk-wrap.sh\" git commit -m x" \
   "git commit -m \"fix --dry-run bug\"" "git commit -m 'a --dry-run'" "git commit -m --dry-run" "git commit --message --dry-run" \
   "git merge -m \"x --abort y\" main" "git am \"--abort.patch\"" "git status
-git revert HEAD"; do
+git revert HEAD" \
+  "git commit --trailer --dry-run -m x" "git commit --author --dry-run" "git commit -am --dry-run" "git commit -sm --dry-run" \
+  "git commit -m x -- --dry-run" "git commit --dry-run --no-dry-run -m x" "git commit --dry-run --no-dr -m x" \
+  "git merge --into-name --abort main" "git merge -X --abort main" "git merge --abort --no-abort main" \
+  "git commit --mess --dry-run" "git commit --m --dry-run" "git commit --trail --dry-run -m x" "git merge --into --abort main" \
+  "git merge --mess --abort main" "git am --dir --abort x.patch" "git commit --dry-run -m \"x\" --no-dry-run" \
+  "git commit --dry-run \"--no-dry-run\" -m x" "git commit --dry-run -m x\$(date) --no-dry-run" \
+  "git merge --abort \"\$B\" --no-abort" "X=--no-dry-run; git commit --dry-run \$X -m x" "git commit -m a\\ --dry-run" \
+  "git commit --dry-run \\
+--no-dry-run -m x" "git rebase \"--continue\"" "git rebase --cont\\inue" "git rebase \\
+--continue" \
+  "echo xgit commit --dry-run ;
+git commit --dry-run \"--no-dry-run\" -m x" "git commit --dry-run 2>&1 --no-dry-run -m x" \
+  "git commit --dry-run &>/dev/null --no-dry-run -m x" "git commit --dry-run >| o.txt --no-dry-run -m x" \
+  "git merge --abort 2>&1 --no-abort main" "git rebase 2>&1 --continue" "git commit -m x > --dry-run" "git merge main 2> --abort" \
+  "git commit -m x # --dry-run" "git merge main # --abort" "git cherry-pick abc # --skip" \
+  "git commit --dry-run --no-dry-{run,run} -m x" "git rebase {--continue,}" "git commit --dry-run -F <(echo hi) --no-dry-run" \
+  "git commit --dry-run --no-dry-ru[n] -m x" "git rebase;git commit -m x" \
+  "git commit --dry-run -m5>x --no-dry-run" "git commit --dry-run -m 2&>x --no-dry-run" "git merge --abort -m5>x --no-abort main" \
+  "git commit>x -m y" "git commit</dev/null -m y" "git merge>x main" "git rebase>x --continue" \
+  "git commit -m x --end-of-options --dry-run" \
+  "git merge -- --abort" "git cherry-pick -X --skip abc" "git revert --strategy --quit HEAD" "git am --directory --abort x.patch" \
+  "git am -p --abort x.patch" "git rebase --cont" "git rebase --continu"; do
   eq "gate: $c → deny" deny "$(gate "$R" "$c")"
 done
 for c in "git log" "git log --grep=commit" "git log --oneline --merges" "git diff HEAD~1 -- a" "git show HEAD:commit.txt" \
@@ -1033,7 +1055,14 @@ for c in "git log" "git log --grep=commit" "git log --oneline --merges" "git dif
   "git revert --quit" "git am --abort" "git rebase --abort" "git rebase main" "git merge-base HEAD main" "git commit-tree abc" \
   "git branch --merged" "git config merge.ff false" "gitk commit" "legit commit" "git-lfs commit" \
   "git log && git merge --abort" "echo committed" "git commit --dry-run" "git commit -a --dry-run -m x" \
-  "git am --show-current-patch" "git am --show-current-patch=diff" "git commit -m x --dry-run"; do
+  "git am --show-current-patch" "git am --show-current-patch=diff" "git commit -m x --dry-run" \
+  "git commit -s --dry-run" "git commit -mx --dry-run" "git commit --trailer a=b --dry-run" "git commit -am x --dry-run" \
+  "git commit -v --dry-run --short" "git rebase -x make main" "git rebase --onto main topic" "git rebase --committer-date-is-author-date main" \
+  "bash \"$H/rtk-wrap.sh\" git merge --abort" "(cd sub && git merge --abort)" "x=\$(git commit --dry-run)" \
+  "git commit --dry-run 2>&1 | head" "git -C \"/a b\" commit --dry-run" "git commit --dry-run
+git status" "git rebase; git status" "git commit -m x 2>&1 --dry-run" "git commit --dry-run >/dev/null 2>&1" \
+  "git merge --abort; git status --short" "git cherry-pick --abort 2>/dev/null || true" "git rebase -i HEAD~3" \
+  "git rebase main 2>&1 | tail -5" "git commit --dry-run -- src/a.ts" "git commit -m5>x --dry-run" "git rebase main>x"; do
   eq "gate: $c → allow" allow "$(gate "$R" "$c")"
 done
 rs abandon >/dev/null
