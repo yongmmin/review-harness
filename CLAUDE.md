@@ -26,6 +26,7 @@ Maintainer file for working on this repository. Claude Code does not load a plug
 - `PreToolUse` plain-text stdout is invisible to Claude → `pre-tool-use.sh` emits `permissionDecision: deny` + reason for protected config files; approval is recorded with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.sh" --approve <path>` (30-min TTL, per project) after the user says yes
 - `PostToolUse` plain-text stdout is invisible too → `post-tool-use.sh` emits `hookSpecificOutput.additionalContext` with the compact tsc/eslint errors (exit 0). An agent that sees `PostToolUse validation failed` must fix before continuing
 - `PreToolUse` on `Bash` → `commit-gate.sh` denies `git commit` while a run is `active` and `run-state.sh check` fails (no verdict, FAIL, code changed after the review or the last test run, failing tests, or no tests without the user's manual confirmation). No state file or no active run → silent pass; an active run untouched for 24h → `additionalContext` advice only, no deny. It only sees Claude's Bash calls, never the user's own terminal
+- `SubagentStart` / `SubagentStop` → `agent-usage.sh` records per-agent tokens and time into the active run silently: no output, always exit 0, never blocks
 - `SessionStart` stdout IS context → `session-start.sh` keeps printing plain text
 
 ---

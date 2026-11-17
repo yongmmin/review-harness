@@ -157,7 +157,7 @@ One file sits directly in `~/.review-harness/state/`, shared by all repos:
 
 | File | Content |
 |---|---|
-| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories and who recorded them (`by`: `reviewer`, else `unknown`; re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed. `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it |
+| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories and who recorded them (`by`: `reviewer`, else `unknown`; re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed, and per agent type (spawns, active seconds, tokens, tool calls) plus run token totals when the `SubagentStart`/`SubagentStop` hook recorded them (subagents only). `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it, including the first-review PASS rate and median tokens / active minutes per run |
 
 One file sits directly in `~/.review-harness/`, also shared by all repos:
 
@@ -170,7 +170,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 11 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 17 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 18 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md) — agent rules

@@ -44,6 +44,30 @@
           }
         ]
       }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "^(review-harness:)?(developer|test-runner|reviewer|refactor-architect)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-usage.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^(review-harness:)?(developer|test-runner|reviewer|refactor-architect)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-usage.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

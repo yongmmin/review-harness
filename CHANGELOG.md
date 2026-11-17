@@ -4,6 +4,11 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Agent usage**
+- New `hooks/agent-usage.sh` on `SubagentStart` / `SubagentStop` (matcher `^(review-harness:)?(developer|test-runner|reviewer|refactor-architect)$`): records each plugin agent's active time (sum of start→stop spans, resumes included), tokens (input, output, cache read, cache write; one count per `message.id` of its transcript, replaced on every stop) and tool calls of the active run in `<state dir>/agents.json` (never in `run-state.json`: the review gate's file and its stale clock stay untouched; deleted by `start`, `done`, `abandon`), through new `run-state.sh agent-start` / `agent-stop`. Never blocks, prints nothing, always exits 0; no active run, a stale run, no `jq`, an unreadable transcript or an agent the run never started → nothing recorded. Main-session tokens are not measured
+- `runs.jsonl` gains `agents` (per agent type: `n`, `s`, `in`, `out`, `cr`, `cw`, `tools`) and `tokens` (run totals) when agent data exists; `run-state.sh status` adds ` · agents N`
+- `run-stats.sh`: `first review PASS: N% (k/n)` right after the runs line (runs whose first verdict is PASS, of runs with a verdict); with agent data, median tokens per run (total and output), median active minutes per run and a per-agent line (share of tokens, median seconds), all labelled "subagents only"
+
 **Bug-fix workflow**
 - New `bugfix` intent (`fix`, `bug`, `error`, `broken`, `fails`, `crash`, `regression`, or "why" about a failure, in any language). `check`/`verify` route to review only when there is a diff to review and no failure symptom; a trivial fix with no failure ("fix this typo") stays Small change; no matching intent → one clarifying question
 - Bugfix flow in `/review-harness`: reproduce (failing test, or a command and its output) → `plan.md → ## Bug` (`Symptom`, `Repro`, `Cause` as `file:line` + why, `Regression test`) → developer runs the regression test RED, then fixes → test-runner → reviewer → git-commit. Not reproducible → ask the user, never fix by guess. Never takes the Small change path; a fix of at most 2 files skips the approval wait but shows `Cause` and `Regression test` first. Run state: `run-state.sh start bugfix …`
