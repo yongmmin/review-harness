@@ -390,6 +390,66 @@ eq "review-harness: register offer by default" offer "$(reg)"
 touch "$(bash "$H/state-dir.sh" --create "$NX")/register-declined"
 eq "review-harness: declined flag stops the offer" declined "$(reg)"
 
+# --- find-consumers: other registered repos that use a changed name ----------------------
+FC="$TMP/fc"; mkdir -p "$FC/home/knowledge/acme" "$FC/api/src" "$FC/web/src" "$FC/admin/src" "$FC/big"
+printf 'export class UserDto { userName: string }\n' > "$FC/api/src/user.dto.ts"
+printf 'const n = res.userName;\n\tlabel(`${res.userName}`)\r\nconst x = userNameX;\n' > "$FC/web/src/a.ts"
+FCSKIP="node_modules dist .next build out coverage storybook-static .git"
+for d in $FCSKIP; do mkdir -p "$FC/web/$d"; echo 'userName' > "$FC/web/$d/f.js"; done
+echo 'nothing here' > "$FC/admin/src/b.ts"
+printf '%s\n' 'get("/api/users")' 'fetch("https://x.io/api/users?id=1")' > "$FC/web/src/r.ts"
+printf 'const evilTerm = "\342\200\256x\342\201\246y\342\200\252";\n' > "$FC/web/src/z.ts"
+i=1; while [ $i -le 25 ]; do echo "userName $i"; i=$((i + 1)); done > "$FC/big/many.ts"
+cat > "$FC/home/knowledge/acme/repos.md" <<EOF
+### api
+- **local_path**: \`$FC/api\`
+
+### web (\`@acme/web\`)
+- **local_path**: \`$FC/web\`$SP
+
+### admin
+- **local_path**: \`$FC/admin\`
+
+### big
+- **local_path**: \`$FC/big\`
+
+### gone
+- **local_path**: \`$FC/gone\`
+EOF
+fcons() { (cd "$1" && shift && REVIEW_HARNESS_HOME="${FCH:-$FC/home}" bash "$H/find-consumers.sh" "$@" 2>&1); }
+BEFORE=$(snap "$FC")
+OUT=$(fcons "$FC/api/src" userName)
+eq "find-consumers: hits per other repo, word match, trimmed, safe" "web (@acme/web): src/a.ts:1: const n = res.userName;
+web (@acme/web): src/a.ts:2: label(\${res.userName})
+admin: no match" "$(printf '%s\n' "$OUT" | sed -n 1,3p)"
+lacks "find-consumers: the current repo is skipped" "api:" "$OUT"
+for d in $FCSKIP; do lacks "find-consumers: skips $d/" ": $d/" "$OUT"; done
+eq "find-consumers: 20 lines per repo, then a count" "20 big: +5 more" \
+  "$(printf '%s\n' "$OUT" | grep -c '^big: many.ts:') $(printf '%s\n' "$OUT" | grep '^big: +')"
+has "find-consumers: missing local_path is reported" "gone: local_path not found: $FC/gone" "$OUT"
+eq "find-consumers: writes nothing" "$BEFORE" "$(snap "$FC")"
+eq "find-consumers: several terms in one search" "3" "$(fcons "$FC/api" nothing res.userName | grep -c '^\(admin\|web\)')"
+has "find-consumers: a term starting with - is a term" "web (@acme/web): no match" "$(fcons "$FC/api" --version)"
+eq "find-consumers: no term → exit 2" 2 "$(fcons "$FC/api" >/dev/null; echo $?)"
+mkdir -p "$TMP/norg"; for t in awk sed grep tr head sort cat ls dirname; do ln -sf "$(command -v $t)" "$TMP/norg/$t"; done
+eq "find-consumers: grep fallback gives the same output" "$OUT" \
+  "$(cd "$FC/api/src" && PATH="$TMP/norg" REVIEW_HARNESS_HOME="$FC/home" "$BASH" "$H/find-consumers.sh" userName 2>&1)"
+# A term with a non-word end (a route) is a plain literal match: whole-word would miss it inside a URL.
+RT='web (@acme/web): src/r.ts:1: get("/api/users")
+web (@acme/web): src/r.ts:2: fetch("https://x.io/api/users?id=1")'
+has "find-consumers: route term inside a URL (rg or grep)" "$RT" "$(fcons "$FC/api" /api/users)"
+has "find-consumers: route term inside a URL, grep fallback" "$RT" \
+  "$(cd "$FC/api" && PATH="$TMP/norg" REVIEW_HARNESS_HOME="$FC/home" "$BASH" "$H/find-consumers.sh" /api/users 2>&1)"
+eq "find-consumers: a line hit by a word and a route term prints once" 1 "$(fcons "$FC/api" get /api/users | grep -c 'src/r.ts:1:')"
+eq "find-consumers: Unicode bidi controls stripped" 'web (@acme/web): src/z.ts:1: const evilTerm = "xy";' "$(fcons "$FC/api" evilTerm | grep 'z.ts')"
+OUT=$(FCH="$FC/none" fcons "$FC/api" userName; echo "exit $?")
+eq "find-consumers: no registry → one notice, exit 0" "1 exit 0" "$(printf '%s\n' "$OUT" | grep -vc '^exit') $(printf '%s\n' "$OUT" | tail -n 1)"
+has "find-consumers: no registry notice" "no repo registry" "$OUT"
+mkdir -p "$FC/flat/knowledge"; printf '### api\n- **local_path**: `%s`\n' "$FC/api" > "$FC/flat/knowledge/repos.md"
+has "find-consumers: only the current repo registered → notice" "no other registered repo" "$(FCH="$FC/flat" fcons "$FC/api" userName)"
+has "find-consumers: flat registry, unregistered cwd searches all" "api: src/user.dto.ts:1: export class UserDto { userName: string }" \
+  "$(FCH="$FC/flat" fcons "$TMP" userName)"
+
 # --- bun -------------------------------------------------------------------------------
 mkdir -p "$TMP/t-bun" "$TMP/t-bunrun"; touch "$TMP/t-bun/bun.lockb" "$TMP/t-bunrun/bun.lock"
 echo '{}' > "$TMP/t-bun/package.json"; echo '{"scripts":{"test":"vitest"}}' > "$TMP/t-bunrun/package.json"
@@ -632,6 +692,32 @@ has "skill: task rule" 'More than 6 Affected Files → `Execution Steps` become 
 has "developer: works task by task" 'With `Task N` steps, work task by task' "$DV"
 has "developer: updates or marks callers" 'Update every file in `Callers/Consumers`, or append `no change needed: <reason>`' "$DV"
 has "reviewer: contract gate" 'neither in the diff nor marked there `no change needed: <reason>` → FAIL `[contract]`' "$RV"
+
+# --- changes across repos: plan Contract, consumer search, producer first, reviewer gate ------
+CT=$(printf '%s\n' "$PLAN" | sed -n '/^## Contract (only when another repo may use what changes)$/,/^$/p')
+for l in Producer Consumers Compatibility 'Deploy order'; do
+  eq "skill: plan template ## Contract has $l" 1 "$(printf '%s\n' "$CT" | grep -c "^- $l: ")"
+done
+has "skill: Contract is additive or breaking" '- Compatibility: [additive | breaking]' "$CT"
+has "skill: Contract consumers may be none with a reason" '"none — <reason>"' "$CT"
+CR=$(grep '^\*\*Contract rules\*\*' "$SK")
+has "skill: breaking contract runs find-consumers.sh from the plugin root" 'run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/find-consumers.sh" <term...>`' "$CR"
+has "skill: unchanged consumer repo needs an Out of Scope follow-up" 'gets its follow-up named in `Out of Scope`' "$CR"
+has "skill: producer run first" 'The producer run goes first' "$CR"
+has "skill: a pasted Contract block is Inputs.API in any intent" '**Pasted Contract (any intent, trigger or not)**: a `## Contract` block from the producer repo'"'"'s run is always the spec — record it as-is in `plan.md → Inputs.API`' \
+  "$(sed -n '/^### 4. API Spec Check/,/^### 5/p' "$SK")"
+lacks "skill: pasted Contract is not a trigger-only table row" '| `## Contract` block pasted' "$(cat "$SK")"
+for x in 'type changed' 'an existing optional request field made required' '(a request field made optional is not breaking)'; do
+  has "skill: breaking definition — $x" "$x" "$CR"
+done
+has "skill: final report carries the Contract block" 'A plan with `## Contract`: end the final report with that block verbatim' "$(sed -n '/^## Completion/,$p' "$SK")"
+has "reviewer: breaking contract with no consumers FAILs" 'A `## Contract` marked `breaking` whose `Consumers` line names no repo and no `none — <reason>` → FAIL `[contract]`' "$RV"
+has "reviewer: unaddressed consumer hits FAIL" 'a consumer repo listed in that breaking contract with hits that the diff does not change and `Out of Scope` does not name as a follow-up → FAIL `[contract]`' "$RV"
+for l in 18 44; do has "web-api: line $l points to the plan's Contract" 'the plan'"'"'s `## Contract`' "$(sed -n "${l}p" "$ROOT/profiles/web-api.md")"; done
+NH=$(ls "$H"/*.sh | wc -l | tr -d ' ')
+has "docs/hooks.md: hook count" "## $NH Hooks" "$(cat "$ROOT/docs/hooks.md")"
+has "readme: hook count" "the $NH hook scripts" "$(cat "$ROOT/README.md")"
+has "docs/hooks.md: find-consumers row" '| **`find-consumers.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
 RA=$(cat "$ROOT/agents/refactor-architect.md")
 has "refactor-architect: characterization tests first" 'the first Migration Step is "Write characterization tests' "$RA"
 has "refactor-architect: waiver recorded" 'Characterization tests: waived by user — <reason>' "$RA"

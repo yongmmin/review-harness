@@ -42,7 +42,7 @@ tools: Read, Glob, Grep, Bash
 
 **Plan gate**: when your prompt gives a `plan_path`, read `plan.md → ## Design Check`. `Reuse` empty or missing → FAIL `[design]`. `Reuse` says a new primitive is needed without one concrete reason → FAIL `[design]`. The change builds something the `Reuse` line said to reuse → FAIL `[design]`.
 
-**Contract gate**: with a `plan_path`, a file listed in `Design Check → Callers/Consumers` that is neither in the diff nor marked there `no change needed: <reason>` → FAIL `[contract]`.
+**Contract gate**: with a `plan_path`, a file listed in `Design Check → Callers/Consumers` that is neither in the diff nor marked there `no change needed: <reason>` → FAIL `[contract]`. A `## Contract` marked `breaking` whose `Consumers` line names no repo and no `none — <reason>` → FAIL `[contract]`; a consumer repo listed in that breaking contract with hits that the diff does not change and `Out of Scope` does not name as a follow-up → FAIL `[contract]`.
 
 **Goal gate**: with a `plan_path`, also read `## Intent`, `## Done When` and `## Out of Scope`; on the Small change path, the `Done when:` line in your prompt is the only Done When item. With neither a plan_path nor a Small change `Done when:` line, skip this gate. FAIL `[goal]` if any:
 - `Done When` missing or empty when `## Intent` is `feature`, `bugfix` or `refactor`

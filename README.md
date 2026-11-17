@@ -71,6 +71,7 @@ bash hooks/org-overlay.sh skills review-harness         # prints the overlay you
 bash hooks/extract-constraints.sh reviewer web-frontend   # #org section, then the web-frontend profile block, then the agent overlay
 bash hooks/detect-profile.sh src/App.tsx                 # profiles for these paths (no args: the current changes)
 bash hooks/detect-test-cmd.sh /absolute/path/to/my-app    # the test command the test step will run
+bash hooks/find-consumers.sh userName                    # from a repo: the other registered repos that use this name (reads only)
 ```
 
 Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules.
@@ -114,6 +115,7 @@ Review         reviewer
 - In a repo with no test command, you are shown the manual checks from `Done When` and asked to confirm them before the commit.
 - Test failures and reviewer FAILs share a limit of 3 retries. At the limit it stops and reports what is still wrong.
 - Each reviewer issue carries a route: `patch` (fixed in the next retry), `replan` (the plan is wrong: `plan.md` is updated and you approve it again before the retry) or `defer` (outside this change: listed in the final report, never retried, and not a reason to FAIL). Every FAIL reason is listed at once. The developer may dispute an issue once with evidence instead of patching it; the reviewer re-judges that issue only, and a dispute does not use up a retry. Every retry re-runs the tests before the reviewer.
+- **Changes across repos**: when a change adds, changes or removes a route, socket event or request/response field another repo may use, the plan gets a `## Contract` (producer, consumer repos, `additive` or `breaking`, deploy order). For a breaking one, `find-consumers.sh` searches the other registered repos for each renamed or removed name and the hits go into the plan; the reviewer FAILs a breaking contract with no consumers listed, or a consumer repo with hits that is neither changed nor named as a follow-up in `Out of Scope`. Run the producer repo first: its final report ends with the `## Contract` block, which you paste into the consumer repo's run as its API spec.
 - Everything after `DONE` (branch, push, PR) is yours to do.
 
 ## Agents and models
@@ -167,7 +169,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 11 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 16 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 17 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md) — agent rules
