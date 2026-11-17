@@ -136,6 +136,8 @@ If triggered, ask once in user's language:
 | Endpoint/query pasted | Record as-is in `plan.md → Inputs.API` |
 | None | Ask: "What request/response shape do you expect?" — record described shape |
 
+**Pasted Contract (any intent, trigger or not)**: a `## Contract` block from the producer repo's run is always the spec — record it as-is in `plan.md → Inputs.API` and ask nothing more.
+
 **Token budget:**
 - Pass API spec only to `developer` — never to others (reviewer sees resulting code, not the spec)
 - If URL provided, `developer` fetches only relevant endpoint(s) on demand
@@ -186,6 +188,12 @@ Create `plan.md`, then wait for explicit user approval before execution (Bugfix 
 - Pattern: [one neighbouring file to imitate]
 - Tests: [existing test files covering the area; new tests to add]
 
+## Contract (only when another repo may use what changes)
+- Producer: [this repo]
+- Consumers: [repo → files from find-consumers.sh, or "none — <reason>"]
+- Compatibility: [additive | breaking]
+- Deploy order: [e.g. producer first; for breaking: consumers updated first, or both together]
+
 ## Only When Relevant (omit lines that do not apply)
 - Migration: [rollback path; what happens to existing data]
 - Dependency upgrade: [breaking changelog items that touch this repo]
@@ -215,6 +223,8 @@ Create `plan.md`, then wait for explicit user approval before execution (Bugfix 
 - Caught design mistakes BEFORE implementation. Read by user during approval and re-read by `reviewer` during design check
 
 **Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes (behavior a user, caller or test sees — not "code written"), each with its check: a test name, a command, or a manual step. `Out of Scope` is 1–2 lines naming what the change must not touch. `reviewer` checks both.
+
+**Contract rules**: write `## Contract` only when the change adds, changes or removes a route, socket event or request/response field another repo may use. `breaking` = renamed, removed, type changed, a response field made optional/nullable, a new required request field, or an existing optional request field made required (a request field made optional is not breaking). For `breaking`, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/find-consumers.sh" <term...>` from the repo root with every renamed, removed, retyped, now-optional or now-required field, route and event; it greps the other registered repos — list the hits per repo under `Consumers`. A consumer repo this run does not change gets its follow-up named in `Out of Scope`. `reviewer` FAILs a breaking contract with no consumers listed. The producer run goes first; the consumer repo's run takes this block as its `Inputs.API` (Completion).
 
 **Only When Relevant**: write a line only when the change has that part (a schema or data migration, a dependency version bump, a performance goal); otherwise omit the section. No new intent for these.
 
@@ -458,3 +468,4 @@ Never resend full previous transcript.
 - **Never auto-push** — `git push` is the user's action
 - Save knowledge only if reusable pattern, decision, or repeatable issue emerged
 - List the reviewer's `defer` issues in the final report (also at `LIMIT REACHED`)
+- A plan with `## Contract`: end the final report with that block verbatim and one line asking the user to paste it into the consumer repo's `/review-harness` run, which records it as `Inputs.API`

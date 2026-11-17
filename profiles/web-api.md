@@ -15,7 +15,7 @@
 - **Write after read**: upsert, an atomic conditional update or a transaction for read-then-write on the same key; pass the transaction client/session to every call inside it
 - **Promises**: await, return or `.catch` every promise in handlers, crons and listeners; no `async` callback in `forEach`
 - **Access**: scope every lookup of a user-owned record by its owner, and every query on a soft-delete model by the deleted filter
-- **Contracts**: change routes, socket events and response fields additively; when a break is intended, list every consumer in the plan
+- **Contracts**: change routes, socket events and response fields additively; when a break is intended, list every consumer in the plan's `## Contract`
 
 ## #review
 
@@ -41,7 +41,7 @@ Static review gates — FAIL if any:
 - CORS `origin: true` / `'*'` (HTTP or Socket.IO server) together with credentials; cookie `sameSite: 'none'` without `secure: true` → FAIL `[security]`
 
 **Contract**
-- Renamed or removed route, socket event or response field (incl. a case-style change or a field dropped from an ORM `select`), or a response field made optional/nullable, without keeping the old shape → FAIL `[contract]` — if the break is intended, the plan or the PR description lists every consumer and this gate passes
+- Renamed or removed route, socket event or response field (incl. a case-style change or a field dropped from an ORM `select`), or a response field made optional/nullable, without keeping the old shape → FAIL `[contract]` — if the break is intended, the plan's `## Contract` or the PR description lists every consumer and this gate passes
 
 **Realtime and ops**
 - Socket gateway that targets a user through an in-process map of sockets or an in-memory timer that targets a user's socket instead of an adapter-backed room; `server.emit` to all sockets for user-scoped data → FAIL `[correctness]` (breaks with more than one instance)
