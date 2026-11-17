@@ -47,7 +47,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 - `README.md` is documentation only — do not load during execution
 - Questions, option labels and report text in this skill are written in English. Present them in the user's language
 - `review-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents.
-- In orchestration mode, Write/Edit limited to `plan.md` and the `register-declined` flag (Small change path excepted)
+- In orchestration mode, Write/Edit limited to `plan.md`, `attempts.md` and the `register-declined` flag in the state dir, and the failure-pattern ledger (Small change path excepted)
 - Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 
 ---
@@ -259,9 +259,10 @@ Never inline full `constraints.md`. Never pass unrelated files or raw verbose lo
 - test_status: not_run | passed:npm run test | failed:npm run test
 - red: <regression test's failing output line before the fix> (bugfix only)
 - assumptions: <what developer assumed where the plan was silent> (developer only)
+- root cause: <file:line — why the last change did not fix it> (developer, when the same test or issue fails again)
 ```
 
-Rules: omit empty fields, max 6 bullets plus `red:` for bugfix and `assumptions:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
+Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:` and `root cause:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
 
 ---
 
@@ -402,6 +403,10 @@ run implementation agent
 run test-runner when applicable
 run reviewer
 
+every failed attempt (tests or reviewer FAIL; not a dispute re-judge):
+  append one line to `## Attempts` in plan.md (no plan: <state dir>/attempts.md):
+    N. hypothesis → change → result   # what the attempt assumed, what it changed, which test/issue failed
+
 if tests fail:
   run-state.sh attempt
   retry with only the failing error context
@@ -420,8 +425,13 @@ if developer answers `dispute: <issue id> — <evidence>` instead of patching (n
   an issue it keeps goes back into the fix list and cannot be disputed again
 
 if the script prints "LIMIT REACHED" (exit 2):
-  record a repeatable failure pattern if appropriate (append to constraints.md #failure-patterns)
+  record a repeatable failure pattern if appropriate (append to the `ledger:` path from extract-constraints.sh,
+    in the entry format and scope of agents/reviewer.md step 5; a new file starts with `## #failure-patterns`)
   stop and report full failure context — including the remaining reviewer fix list — to user
+  if the same test or issue failed in every attempt, ask the user whether the plan is wrong:
+    Replan -> revise plan.md, re-approval, then run-state.sh abandon and start a new run
+              (Small change: no plan — ask the user, or switch to the Feature path)
+    Stop   -> end here
   user decides whether to file a GitHub issue manually (plugin does not auto-create issues)
 ```
 
@@ -433,6 +443,7 @@ Retry context must contain only:
 - failing command
 - failing file/test identifier
 - shortest useful error excerpt, or the reviewer's `patch` / `replan` issues
+- the Attempts lines so far, so the retry does not repeat an idea that already failed; on the second failure of the same test or issue the developer gives `root cause:` before editing
 - bugfix: the first developer run's `red:` line — carry it through every retry so a re-spawned developer's handoff, and the `reviewer` prompt, never drop it
 
 Never resend full previous transcript.

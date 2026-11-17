@@ -1,10 +1,10 @@
 ---
 name: reviewer
-description: Reviews changed code for correctness, performance, design quality, and scope. Single quality gate before git-commit. Edit access only for appending to the constraints.md failure-pattern ledger.
+description: Reviews changed code for correctness, performance, design quality, and scope. Single quality gate before git-commit. Writes only to append to the failure-pattern ledger.
 model: fable
 color: red
 effort: high
-tools: Read, Glob, Grep, Bash, Edit
+tools: Read, Glob, Grep, Bash
 ---
 
 # Agent: Reviewer
@@ -35,7 +35,7 @@ tools: Read, Glob, Grep, Bash, Edit
    - **scope**: no out-of-scope edits, no speculative features
 3. Return PASS or FAIL
 4. On FAIL, provide compact fix list
-5. On FAIL, append repeatable rule to `constraints.md #failure-patterns` with format `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]`
+5. On FAIL, append a repeatable rule to the ledger path given in your prompt (`ledger:` line; Bash `>>`, a new file starts with `## #failure-patterns`) with format `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]` — only rules that no static gate, profile, `#review`/`#org` rule or ESLint/tsc already enforces; one-off mistakes do not belong
 6. **Record the verdict** — as your last action, from the repo root, run the verdict command given in your prompt (`bash "<plugin>/hooks/run-state.sh" verdict PASS`, or `… verdict FAIL` followed by the `[category]` tags of your FAIL issues, e.g. `verdict FAIL goal scope`) and include its output line in your reply. The script stores the work-tree hash and counts attempts; never write those values yourself. If your prompt or org overlay asks for a tiered Critical/Warning/Suggestion format, Critical ≥ 1 is `FAIL`, otherwise `PASS`. Do not edit code after recording — any change invalidates the verdict
 
 **Design category gate**: if change touches UI/components/hooks, design review is mandatory. Skipping = missed verdict.
@@ -103,5 +103,4 @@ Add these checks beyond the 4 generic categories (FAIL if any):
 
 - Do not fail for style-only preferences
 - Do not add features outside scope
-- One-off mistakes do not belong in `#failure-patterns`
 - Run `git diff`/`git log` and `grep` via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`

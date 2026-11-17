@@ -1,7 +1,8 @@
 #!/bin/bash
 # extract-constraints.sh
 # Usage: extract-constraints.sh <agent-name> [profile[,profile...]]
-# Prints only constraints.md sections relevant to the given agent, then — for each profile named —
+# Prints only constraints.md sections relevant to the given agent (the failure-pattern ledger comes from
+# ~/.review-harness/failure-patterns.md, with its path on a `ledger:` line), then — for each profile named —
 # the agent's sections of profiles/<profile>.md (stack-specific rules), followed by the same sections of the
 # org file ~/.review-harness/org/profiles/<profile>.md when present. There is no default profile;
 # an empty list (e.g. empty detect-profile.sh output) means none.
@@ -54,14 +55,18 @@ case "$AGENT" in
     ;;
 esac
 
-# Extract each section from first `## #tag` heading to next `## ` or `---`
+# Extract each section from its `## #tag` heading to the next `## #` heading
 # `org` is the organisation-specific section: it lives in ~/.review-harness/org/constraints.md
 # and is simply absent when no organisation overlay is installed.
+# `failure-patterns` is the per-user ledger ~/.review-harness/failure-patterns.md (outside the plugin, so a
+# plugin update never overwrites it); its agents also get a `ledger: <path>` line to append to.
 RH_HOME="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}"
 ORG_CONSTRAINTS="$RH_HOME/org/constraints.md"
+LEDGER="$RH_HOME/failure-patterns.md"
 extract_section() {
   local tag="$1" file="${2:-$CONSTRAINTS}"
   [ "$tag" = org ] && file="$ORG_CONSTRAINTS"
+  [ "$tag" = failure-patterns ] && { file="$LEDGER"; printf 'ledger: %s\n\n' "$LEDGER"; }
   [ -f "$file" ] || return 0
   awk -v tag="## #$tag" '
     BEGIN { printing = 0 }

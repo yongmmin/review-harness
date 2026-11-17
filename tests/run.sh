@@ -660,6 +660,53 @@ FE=$(sed -n '/^## #review/,/^Review scope:/p' "$ROOT/profiles/web-frontend.md")
 has "web-frontend: memo gates only on a hot path" 'only on a measured or obviously hot path' "$FE"
 lacks "web-frontend: no unconditional inline-literal gate" $'\n- Inline object/function literal as prop without `useMemo`/`useCallback`\n' "$FE"
 
+# --- retry memory and the failure-pattern ledger --------------------------------------------
+LEDGER="$REVIEW_HARNESS_HOME/failure-patterns.md"
+for a in reviewer test-runner; do
+  has "ledger: $a gets the absolute ledger path" "ledger: $LEDGER" "$(ec $a 2>/dev/null)"
+done
+for a in developer refactor-architect; do lacks "ledger: $a gets no ledger line" "ledger: " "$(ec $a 2>/dev/null)"; done
+lacks "ledger: absent file → no section" "## #failure-patterns" "$(ec reviewer 2>/dev/null)"
+eq "constraints.md: no #failure-patterns section left" 0 "$(grep -c '^## #failure-patterns' "$ROOT/constraints.md")"
+RV_NO_LEDGER=$(ec reviewer 2>&1 >/dev/null)
+printf 'ledger preamble LP-X\n\n## #failure-patterns\n\n- [2026-11-17] [category:scope] edits outside plan - stay in Affected Files\n' > "$LEDGER"
+for a in reviewer test-runner; do
+  has "ledger: $a gets its entries" "- [2026-11-17] [category:scope] edits outside plan" "$(ec $a 2>/dev/null)"
+  lacks "ledger: $a never gets the preamble" "LP-X" "$(ec $a 2>/dev/null)"
+done
+lacks "ledger: developer never gets entries" "edits outside plan" "$(ec developer 2>/dev/null)"
+[ "$(ec reviewer 2>&1 >/dev/null | sed 's/.*: \([0-9]*\) bytes.*/\1/')" -gt "$(printf '%s' "$RV_NO_LEDGER" | sed 's/.*: \([0-9]*\) bytes.*/\1/')" ]
+eq "ledger: entries count in the budget" 0 "$?"
+rm -f "$LEDGER"
+for f in reviewer test-runner; do
+  AG=$(cat "$ROOT/agents/$f.md")
+  lacks "$f: no constraints.md ledger" "constraints.md #failure-patterns" "$AG"
+  has "$f: appends to the ledger path in its prompt" "ledger path given in your prompt" "$AG"
+  has "$f: ledger scope clause" 'only rules that no static gate, profile, `#review`/`#org` rule or ESLint/tsc already enforces; one-off mistakes do not belong' "$AG"
+  lacks "$f: no Edit tool left" "Bash, Edit" "$(sed -n 's/^tools: //p' "$ROOT/agents/$f.md")"
+done
+HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK")
+lacks "skill: LIMIT no longer writes constraints.md" "constraints.md #failure-patterns" "$HL"
+has "skill: LIMIT appends to the ledger path" 'the `ledger:` path' "$HL"
+has "skill: LIMIT names the ledger format" 'entry format and scope of agents/reviewer.md step 5; a new file starts with `## #failure-patterns`' "$HL"
+has "skill: LIMIT replan on the Small change path" '(Small change: no plan — ask the user, or switch to the Feature path)' "$(sed -n '/prints "LIMIT REACHED"/,/^```$/p' "$SK")"
+has "skill: dispute re-judge is no attempt line" 'not a dispute re-judge' "$HL"
+has "skill: attempts line per retry" 'N. hypothesis → change → result' "$HL"
+has "skill: attempts in plan.md or attempts.md" '`## Attempts` in plan.md' "$HL"
+has "skill: attempts.md without a plan" '<state dir>/attempts.md' "$HL"
+has "skill: retry context carries the Attempts lines" 'the Attempts lines' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SK")"
+has "skill: third failure of the same test or issue asks about the plan" 'whether the plan is wrong' "$HL"
+has "skill: orchestrator may write attempts.md" '`attempts.md`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
+has "skill: handoff schema allows root cause:" '- root cause: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
+has "developer: root cause on the second failure" '`root cause: <file:line' "$(cat "$ROOT/agents/developer.md")"
+README_STATE=$(cat "$ROOT/README.md")
+has "readme: attempts.md in the state table" '| `attempts.md` |' "$README_STATE"
+has "readme: failure-patterns.md documented" '| `failure-patterns.md` |' "$README_STATE"
+R="$TMP/attempts"; new_repo "$R"; SD=$(bash "$H/state-dir.sh" --create "$R"); echo "1. x → y → z" > "$SD/attempts.md"
+rs start small-change test-runner reviewer >/dev/null
+eq "run-state: start clears the previous run's attempts.md" absent "$([ -f "$SD/attempts.md" ] && echo present || echo absent)"
+rs abandon >/dev/null
+
 # --- post-tool-use: tsc count of errors in other files -------------------------------
 TP="$TMP/tsproj"; mkdir -p "$TP/src" "$TMP/fakebin"; echo '{}' > "$TP/package.json"; echo '{}' > "$TP/tsconfig.json"
 printf '#!/bin/sh\ncat "$TSC_FAKE_OUT"; exit 2\n' > "$TMP/fakebin/npx"; chmod +x "$TMP/fakebin/npx"

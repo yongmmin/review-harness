@@ -34,6 +34,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 5. Implement to pass tests (GREEN)
 6. Hand off to test-runner
 7. Retry with a reviewer fix list: patch each issue. If you have evidence an issue is wrong (file:line, test output, plan line), reply `dispute: <issue id> — <evidence>` for it instead and change no code in that reply; once per issue
+8. Retry whose `Attempts` lines show the same test or reviewer issue failed before: first write `root cause: <file:line — why the last change did not fix it>` in the handoff, then edit for that cause — not another variant of the last change
 
 ---
 
