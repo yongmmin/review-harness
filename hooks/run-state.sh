@@ -9,7 +9,12 @@
 #   attempt                     count a failed attempt (test failure); exit 2 at the limit
 #   verdict PASS|FAIL [category...]
 #                               record the reviewer verdict + work-tree hash; FAIL counts as an attempt and may
-#                               carry the [category] tags of its issues (kept for the run log; unknown words warn)
+#                               carry the [category] tags of its issues (kept for the run log; unknown words warn).
+#                               The verdict right after a dispute, on the disputed work tree, is a re-judge: marked,
+#                               and a FAIL counts no attempt
+#   dispute <issue id...>       record the developer's dispute of the last FAIL on its unchanged work tree; one per
+#                               review round (a re-judge opens none), exit 2 when it is used; exit 1 after a code
+#                               change or at the attempt limit; never counts as an attempt
 #   tests pass|fail|none|manual-confirmed
 #                               record the test result + work-tree hash (active run only); manual-confirmed
 #                               (the user's yes to the manual checks) only replaces none; pass and
@@ -86,7 +91,8 @@ log_run() {
   fi
   jq -c --arg end "$1" --arg repo "$(basename "$STATE_DIR")" --arg files "$files" --argjson now "$(now)" '
     {repo: $repo, workflow, started_at, ended_at: $now, duration_s: ($now - .started_at), attempts,
-     verdicts: [(.verdicts // [])[] | if type == "string" then {v: .} else . end], tests: .tests.status, override: .override.reason,
+     verdicts: [(.verdicts // [])[] | if type == "string" then {v: .} else . end], disputes: (.disputes // 0),
+     tests: .tests.status, override: .override.reason,
      end: (if .attempts >= .max_attempts then "limit" else $end end)}
     + (if $files == "" then {} else {files_changed: ($files | tonumber)} end)' "$FILE" 2>/dev/null \
     | { IFS= read -r line && printf '%s\n' "$line" >> "$(dirname "$STATE_DIR")/runs.jsonl"; } 2>/dev/null \
@@ -141,13 +147,32 @@ case "${1:-}" in
     # /git-commit can check it, without making the commit hook enforce anything.
     [ "$(st)" = active ] || new_file review idle '[]'
     h=$(tree_hash)
-    update --arg v "$v" --arg h "$h" --argjson cats "$cats" '.review = {verdict: $v, tree: $h, at: $now}
-      | .verdicts = (.verdicts // []) + [{v: $v} + (if $cats == [] then {} else {cats: $cats} end)]
-      | if $v == "FAIL" then .attempts += 1 else . end
+    # a re-judge only when the disputed code is unchanged; any verdict closes the dispute
+    rejudge=$(jq -r --arg h "$h" '.dispute.pending == true and .dispute.tree == $h' "$FILE" 2>/dev/null)
+    update --arg v "$v" --arg h "$h" --argjson cats "$cats" --argjson rj "${rejudge:-false}" '.review = {verdict: $v, tree: $h, at: $now}
+      | .verdicts = (.verdicts // []) + [{v: $v} + (if $cats == [] then {} else {cats: $cats} end) + (if $rj then {rejudge: true} else {} end)]
+      | if .dispute.pending == true then .dispute.pending = false else . end
+      | if $v == "FAIL" and ($rj | not) then .attempts += 1 else . end
       | if $v == "PASS" and any(.steps[]; .name == "reviewer") then .steps |= map(if .name == "reviewer" then .done = true else . end) else . end' || exit 1
-    echo "review: $v recorded for work tree $h"
+    echo "review: $v recorded for work tree $h$([ "$rejudge" = true ] && echo " (re-judge after a dispute — not an attempt)")"
     # PASS exits 0; FAIL exits with report_attempts (2 at the limit)
     [ "$v" = PASS ] || report_attempts
+    ;;
+  dispute)
+    [ -z "${2:-}" ] && { echo "usage: run-state.sh dispute <issue id...>" >&2; exit 2; }
+    { [ "$(st)" = active ] && [ "$(get '.review.verdict // ""')" = FAIL ]; } \
+      || { echo "run-state: nothing to dispute — no reviewer FAIL in an active run" >&2; exit 1; }
+    [ "$(get '.attempts')" -ge "$MAX_ATTEMPTS" ] && { echo "run-state: limit reached — stop and report the remaining failures to the user" >&2; exit 1; }
+    h=$(tree_hash)
+    [ "$h" = "$(get '.review.tree // ""')" ] \
+      || { echo "run-state: code changed since the FAIL — not a dispute. Run test-runner and reviewer on the change" >&2; exit 1; }
+    # round = reviews that were not re-judges, so a re-judge never opens a second dispute
+    round=$(get '[.verdicts[]? | select(type != "object" or (.rejudge | not))] | length')
+    if [ "$(get '.dispute.round // -1')" = "$round" ]; then
+      echo "run-state: this review round's dispute is used — patch the issues instead" >&2; exit 2
+    fi
+    update --argjson r "$round" --arg i "${*:2}" --arg h "$h" '.dispute = {round: $r, issues: $i, tree: $h, pending: true} | .disputes = (.disputes // 0) + 1' || exit 1
+    echo "dispute: issue ${*:2} recorded for review round $round — re-run reviewer on it only; not an attempt"
     ;;
   tests)
     case "${2:-}" in pass|fail|none|manual-confirmed) ;; *) echo "usage: run-state.sh tests pass|fail|none|manual-confirmed" >&2; exit 2 ;; esac
@@ -216,5 +241,5 @@ case "${1:-}" in
       + " · updated \((($now - .updated_at) / 60) | floor)m ago"' "$FILE"
     ;;
   hash) tree_hash ;;
-  *) echo "usage: run-state.sh start|step|attempt|verdict|tests|override|check|done|abandon|status|hash" >&2; exit 2 ;;
+  *) echo "usage: run-state.sh start|step|attempt|verdict|dispute|tests|override|check|done|abandon|status|hash" >&2; exit 2 ;;
 esac

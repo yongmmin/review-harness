@@ -52,6 +52,8 @@ tools: Read, Glob, Grep, Bash, Edit
 
 An edit to something `Out of Scope` names → FAIL `[scope]` (a stub that `Out of Scope` names, left for the later change, is not such an edit).
 
+**Dispute**: when your prompt carries `dispute: <issue id> — <evidence>` lines for your last FAIL, re-judge only the disputed issue(s) against the evidence on the unchanged code: drop the issue, or keep it with one line why. Repeat the round's other FAIL issues unchanged and add no new ones. Record the verdict as usual; the script marks it as a re-judge.
+
 ---
 
 ## Output Format
@@ -61,7 +63,7 @@ Profile: <names from the `## Profile — <name>` blocks you received, comma-sepa
 ## Code Review Verdict: PASS | FAIL
 
 ### Issues
-1. [category] [file:line] - [problem] -> [fix]
+1. [category] [file:line] - [problem] -> [fix] (route: patch | replan | defer)
 
 ### Handoff
 - changed_files: path1, path2
@@ -71,8 +73,10 @@ Profile: <names from the `## Profile — <name>` blocks you received, comma-sepa
 
 Rules:
 - First line is always `Profile:` — it shows which stack rules this review applied
-- Omit `Issues` if PASS
-- Max 5 issues
+- Every issue ends with its route: `patch` (fixable in code under the current plan), `replan` (the plan is wrong or missing something — the fix changes `Done When`, `Design Check`, `Affected Files` or `Out of Scope`), `defer` (real, but outside this change — a note for the final report)
+- The verdict is FAIL only when a `patch` or `replan` issue exists; `defer` issues never make a FAIL, and their categories are not passed to the verdict command
+- Tiered format: Critical = `patch` (or `replan`); Warning and Suggestion = `defer` (they never make the verdict FAIL — promote a Warning to Critical if it must be fixed)
+- List every `patch` / `replan` issue; at most 5 `defer` issues. On PASS, `Issues` holds only `defer` issues (omit it when none)
 - `[category]`: `correctness | performance | design | scope | goal | security | contract | ops | state-mgmt`
 - Max 3 handoff bullets
 

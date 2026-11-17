@@ -113,6 +113,7 @@ Review         reviewer
 - The baseline run records tests that already fail before the change; afterwards only new failures count, and you are told in one line if there were any. After the tests, test-runner also runs the repo's `check_cmd` (or `tsc --noEmit` when there is a `tsconfig.json`) once and reports it.
 - In a repo with no test command, you are shown the manual checks from `Done When` and asked to confirm them before the commit.
 - Test failures and reviewer FAILs share a limit of 3 retries. At the limit it stops and reports what is still wrong.
+- Each reviewer issue carries a route: `patch` (fixed in the next retry), `replan` (the plan is wrong: `plan.md` is updated and you approve it again before the retry) or `defer` (outside this change: listed in the final report, never retried, and not a reason to FAIL). Every FAIL reason is listed at once. The developer may dispute an issue once with evidence instead of patching it; the reviewer re-judges that issue only, and a dispute does not use up a retry. Every retry re-runs the tests before the reviewer.
 - Everything after `DONE` (branch, push, PR) is yours to do.
 
 ## Agents and models
@@ -152,7 +153,7 @@ One file sits directly in `~/.review-harness/state/`, shared by all repos:
 
 | File | Content |
 |---|---|
-| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed. `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it |
+| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories (re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed. `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it |
 
 If a run is interrupted, the next `/review-harness` asks whether to resume it or start new.
 

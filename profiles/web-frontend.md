@@ -99,8 +99,7 @@ export function useOrderListQuery(userId: number) {
 
 React performance — FAIL if any:
 - `useEffect` missing dep or unstable ref causing infinite loop
-- Inline object/function literal as prop without `useMemo`/`useCallback`
-- `React.memo` absent on pure component with stable props re-rendered from parent
+- Inline object/function literal as prop without `useMemo`/`useCallback`, or `React.memo` absent on a pure component with stable props re-rendered from parent — only on a measured or obviously hot path (list item in a large list, per-frame/animation callback, high-frequency input); elsewhere not a FAIL
 - `useMemo`/`useCallback` wrapping primitive or trivially cheap expression
 - Sync blocking op (sort/filter/heavy compute on large array) in render path without memo
 
