@@ -28,6 +28,11 @@
 #                               summary line to <state root>/runs.jsonl (read by run-stats.sh), never rewritten
 #   status                      one-line summary ("none" when there is nothing to resume)
 #   hash                        print the current work-tree hash
+#   agent-start <id> <type>     (agent-usage.sh) open an active-time span for a subagent in agents.json; active,
+#                               non-stale run only, else no-op
+#   agent-stop <id> <type> <transcript>
+#                               (agent-usage.sh) close the span and replace the agent's tokens / tool calls / model
+#                               from its transcript; an agent this run never started is ignored
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAX_ATTEMPTS=3
@@ -38,6 +43,7 @@ STALE_SECONDS="${REVIEW_HARNESS_RUN_STALE_SECONDS:-86400}"
 command -v jq >/dev/null 2>&1 || { echo "run-state: jq is required" >&2; exit 3; }
 STATE_DIR=$(bash "$HERE/state-dir.sh" "$PWD") || exit 3
 FILE="$STATE_DIR/run-state.json"
+AGENTS="$STATE_DIR/agents.json"   # per-agent usage of the active run; never in $FILE, see agent-start
 
 now() { date +%s; }
 st() { { [ -f "$FILE" ] && jq -er '.status' "$FILE" 2>/dev/null; } || echo none; }
@@ -85,6 +91,18 @@ new_file() { # $1 workflow, $2 status, $3 steps json
       + ($base | if . == "" then {} else {base: .} end)' > "$FILE.$$.tmp" && mv -f "$FILE.$$.tmp" "$FILE"
 }
 
+agents_json() { local a; a=$(jq -c 'objects' "$AGENTS" 2>/dev/null); echo "${a:-"{}"}"; }
+
+# agents_update [jq opts...] <filter> — apply the filter to agents.json (temp + mv) under a mkdir lock; gives up
+# silently after ~1s.
+agents_update() {
+  local filter="${*: -1}" i=0
+  set -- "${@:1:$#-1}"
+  until mkdir "$AGENTS.lock" 2>/dev/null; do i=$((i + 1)); [ "$i" -ge 20 ] && return 0; sleep 0.05; done
+  agents_json | jq --argjson now "$(now)" "$@" "$filter" > "$AGENTS.$$.tmp" && mv -f "$AGENTS.$$.tmp" "$AGENTS"
+  rm -f "$AGENTS.$$.tmp"; rmdir "$AGENTS.lock"
+}
+
 # log_run <done|abandoned> — append this run's summary to <state root>/runs.jsonl. One short line in a single
 # O_APPEND write, so concurrent runs never interleave; a failed write warns and never changes the exit code.
 log_run() {
@@ -93,12 +111,17 @@ log_run() {
   if [ -n "$root" ] && [ -n "$base" ] && git -C "$root" rev-parse -q --verify "$base^{commit}" >/dev/null 2>&1; then
     files=$({ git -C "$root" diff --name-only "$base" --; git -C "$root" ls-files -o --exclude-standard; } 2>/dev/null | sort -u | grep -c .)
   fi
-  jq -c --arg end "$1" --arg repo "$(basename "$STATE_DIR")" --arg files "$files" --argjson now "$(now)" '
+  jq -c --arg end "$1" --arg repo "$(basename "$STATE_DIR")" --arg files "$files" --argjson now "$(now)" \
+    --argjson ag "$(agents_json)" '
     {repo: $repo, workflow, started_at, ended_at: $now, duration_s: ($now - .started_at), attempts,
      verdicts: [(.verdicts // [])[] | if type == "string" then {v: .} else . end], disputes: (.disputes // 0),
      tests: .tests.status, override: .override.reason,
      end: (if .attempts >= .max_attempts then "limit" else $end end)}
-    + (if $files == "" then {} else {files_changed: ($files | tonumber)} end)' "$FILE" 2>/dev/null \
+    + (if $files == "" then {} else {files_changed: ($files | tonumber)} end)
+    + ([$ag[]] | if . == [] then {} else
+        {agents: (group_by(.type) | map({type: .[0].type, n: length, s: (map(.s) | add), in: (map(.in) | add),
+                  out: (map(.out) | add), cr: (map(.cr) | add), cw: (map(.cw) | add), tools: (map(.tools) | add)})),
+         tokens: {in: (map(.in) | add), out: (map(.out) | add), cr: (map(.cr) | add), cw: (map(.cw) | add)}} end)' "$FILE" 2>/dev/null \
     | { IFS= read -r line && printf '%s\n' "$line" >> "$(dirname "$STATE_DIR")/runs.jsonl"; } 2>/dev/null \
     || echo "run-state: could not append the run to $(dirname "$STATE_DIR")/runs.jsonl" >&2
   return 0
@@ -124,6 +147,7 @@ case "${1:-}" in
     fi
     wf="$2"; shift 2
     rm -f "$STATE_DIR/baseline.txt" "$STATE_DIR/attempts.md"   # the previous run's failing tests and attempts log
+    rm -rf "$AGENTS" "$AGENTS.lock"
     steps=$(printf '%s\n' "$@" | jq -R . | jq -cs 'map(select(length > 0) | {name: ., done: false})')
     new_file "$wf" active "$steps" && echo "run-state: started '$wf' → $FILE"
     ;;
@@ -237,21 +261,48 @@ case "${1:-}" in
     [ -f "$FILE" ] || { echo "run-state: none"; exit 0; }
     [ "$1" = done ] && new=done || new=abandoned
     [ "$(st)" = active ] && log_run "$new"
+    rm -rf "$AGENTS" "$AGENTS.lock"
     update --arg s "$new" '.status = $s' && echo "run-state: $new"
     ;;
   status)
     [ "$(st)" = active ] || { echo none; exit 0; }
     stale=""; is_stale && stale=" STALE(>$((STALE_SECONDS / 3600))h)"
     h=$(tree_hash)
-    jq -r --arg h "$h" --arg stale "$stale" --argjson now "$(now)" '
+    jq -r --arg h "$h" --arg stale "$stale" --argjson now "$(now)" --argjson ag "$(agents_json)" '
       "active\($stale): \(.workflow)"
       + " · done: \([.steps[] | select(.done) | .name] | join(",") | if . == "" then "-" else . end)"
       + " · pending: \([.steps[] | select(.done | not) | .name] | join(",") | if . == "" then "-" else . end)"
       + " · attempts \(.attempts)/\(.max_attempts)"
       + " · tests: \(.tests.status // "-")"
       + " · review: \(if .review == null then "none" elif .review.verdict == "FAIL" then "FAIL" elif .review.tree == $h then "PASS(current)" else "PASS(outdated — code changed)" end)\(if .review.by then " by \(.review.by)" else "" end)"
-      + " · updated \((($now - .updated_at) / 60) | floor)m ago"' "$FILE"
+      + " · updated \((($now - .updated_at) / 60) | floor)m ago"
+      + ($ag | length | if . > 0 then " · agents \(.)" else "" end)' "$FILE"
     ;;
   hash) tree_hash ;;
-  *) echo "usage: run-state.sh start|step|attempt|verdict|dispute|tests|override|check|done|abandon|status|hash" >&2; exit 2 ;;
+  # Agent usage lives in agents.json, never in run-state.json: the hook fires asynchronously, so writing the gate's
+  # file could drop a verdict or test result recorded at the same moment, and would reset the stale clock
+  # (updated_at). Parallel agent-start/stop calls serialise on a mkdir lock; a call that cannot take it within ~1s
+  # records nothing, and a lock left by a killed call drops all agent data until the next start/done/abandon — telemetry
+  # only, never the gate. Tokens are replaced on every stop, so a later stop of the same agent (resume) corrects a
+  # transcript that was still being written.
+  agent-start)
+    [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: run-state.sh agent-start <id> <type>" >&2; exit 2; }
+    [ "$(st)" = active ] && ! is_stale || exit 0
+    agents_update --arg id "$2" --arg t "${3##*:}" \
+      '.[$id] = (.[$id] // {type: $t, model: null, s: 0, in: 0, out: 0, cr: 0, cw: 0, tools: 0}) + {open: $now}'
+    ;;
+  agent-stop)
+    [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: run-state.sh agent-stop <id> <type> <transcript>" >&2; exit 2; }
+    [ "$(st)" = active ] && ! is_stale && jq -e --arg id "$2" '.[$id] != null' "$AGENTS" >/dev/null 2>&1 || exit 0
+    # One usage per message.id (it repeats on a line per content block; the last line wins); a torn line is skipped.
+    u=$([ -r "${4:-}" ] && jq -Rnc '[inputs | fromjson? | objects | select(.type == "assistant") | .message | objects] as $m
+      | (reduce ($m[] | select(.id != null)) as $x ({}; .[$x.id] = ($x.usage // {})) | [.[]]) as $u
+      | {in: ($u | map(.input_tokens // 0) | add // 0), out: ($u | map(.output_tokens // 0) | add // 0),
+         cr: ($u | map(.cache_read_input_tokens // 0) | add // 0), cw: ($u | map(.cache_creation_input_tokens // 0) | add // 0),
+         tools: ([$m[] | .content | arrays | .[] | objects | select(.type == "tool_use") | .id] | unique | length)}
+      + ([$m[] | .model | strings | select(. != "<synthetic>")] | if . == [] then {} else {model: last} end)' "$4" 2>/dev/null)
+    agents_update --arg id "$2" --argjson u "${u:-null}" \
+      'if .[$id] then .[$id] |= ((if .open then .s += ($now - .open) | .open = null else . end) + ($u // {})) else . end'
+    ;;
+  *) echo "usage: run-state.sh start|step|attempt|verdict|dispute|tests|override|check|done|abandon|status|hash|agent-start|agent-stop" >&2; exit 2 ;;
 esac
