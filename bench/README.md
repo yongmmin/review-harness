@@ -127,7 +127,22 @@ Reading (both runs):
 - **The run-1 "missing test" findings did not recur** (0 in run 2), so the noise difference in run 1 was chance or an effect of the method change between runs; the two cannot be separated.
 - **One consistent difference:** with `web-common`/`web-api` loaded, the reviewer also flags the API-side rename that breaks consumers (2 of 2 runs), not only the stale consumer. That is the contract gate (mined from 12 cross-repo breaks) doing what it says.
 
-Next: run the three plan-based cases in the cells above, three runs per cell.
+### Run 3 (plan-based cases)
+
+Model: Fable (production reviewer model) · Date: 2026-11-17 · Plugin HEAD: `a7ab0e8` · **One run per cell** (below the three this README asks for — read it as a first look) · Empty home · Opaque fixture dirs and prompt names; for the no-plan cells the plan files were moved out of the fixtures' parent folder
+
+| Case | pre-stage4 + plan | current + plan | current, no plan |
+|------|-------------------|----------------|------------------|
+| `goal-not-wired` | caught, `[correctness]` | caught, `[goal]` | caught, `[design]` (+ 1 extra) |
+| `bug-cause-elsewhere` | caught, `[correctness]` + `[scope]` | caught, `[correctness]` + `[scope]` + `[goal]` | caught, `[correctness]` |
+| `contract-caller-missed` | caught, `[correctness]` | caught, `[contract]` | caught, `[correctness]` |
+
+Extra findings: every finding in the plan cells was about the planted problem. The no-plan `goal-not-wired` cell added a second FAIL issue, `[correctness]`: once wired, a filter with no matches would show "No orders yet." — a real edge case, but not the planted problem.
+
+Reading:
+- **Detection: 9 of 9.** These cases are also within this model's reach from the diff alone.
+- **What the plan and the new gates change is the footing of the FAIL, not detection.** With the plan, the reviewer cites Done When / Callers and uses the intended category 3 of 3 (`current`) against 1 of 3 (`pre-stage4`). Without the plan, the unwired-feature FAIL rests on a design judgement ("no production caller"), and the review offers "or drop the files from this change" as an equal fix; in its reply outside the review block, that reviewer added that the verdict would flip to PASS if the wiring were deliberately a later change — a FAIL a developer could argue away.
+- The larger effect — whether the plan makes the developer wire it in the first place — needs the developer-side bench below.
 
 ## Developer-side bench (deferred — design only)
 

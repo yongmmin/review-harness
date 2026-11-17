@@ -110,7 +110,8 @@ if [ "$CMD" = "npx" ] && [ -n "${1:-}" ]; then
   CATEGORY=$(rtk_handles "$1")
 fi
 
-# rtk's argument parser eats a `--` (`git diff -- <path>` then fails), so a command with one runs raw.
+# rtk's argument parser can drop a `--` (rtk 0.40 drops a `--`, so `rtk grep -n -- '--continue' <file>` reads the dash pattern as an option),
+# so a command with one runs raw.
 HAS_DASHDASH=0
 for a in "$@"; do [ "$a" = "--" ] && HAS_DASHDASH=1; done
 
