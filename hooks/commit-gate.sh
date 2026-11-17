@@ -1,15 +1,17 @@
 #!/bin/bash
 # commit-gate.sh — PreToolUse(Bash) backstop for the review gate.
 # Denies commands that write git history — `git commit`, `merge`, `cherry-pick`, `revert`, `am` (their
-# `--abort` / `--quit` / `--skip` pass) and `rebase --continue` — while a review-harness run is active and
-# `run-state.sh check` fails. Catches `/abs/path/git`, global options before the subcommand (`-C <dir>`,
+# `--abort` / `--quit` / `--skip` pass, as do `commit --dry-run` and `am --show-current-patch`) and
+# `rebase --continue` — while a review-harness run is active and `run-state.sh check` fails. Catches `/abs/path/git`, global options before the subcommand (`-C <dir>`,
 # `-c k=v`, `--git-dir <dir>`, …) and commands inside `&&` / `;` / `|` chains, `$( )` and quoted strings.
 # Read-only commands (log, diff, show, status, stash list, …) always pass. It only sees Claude's Bash calls:
 # commits the user types in their own terminal are never affected.
 # No state file, or no active run → silent pass. Active run idle for >24h → advice only. No jq → advice that
 # the gate is inactive.
 # Known limits: matches the command text, so `git -C <other repo> commit` is checked against the session cwd,
-# a quoted mention (`echo "git commit"`) is treated as a commit, and commits made through a script are not seen.
+# a quoted mention (`echo "git commit"`) is treated as a commit, commits made through a script are not seen, and
+# `git pull` is not covered although it can create a merge commit, and an option after a quoted argument
+# (`-m "a b" --dry-run`) is not seen, so that dry run is treated as a commit (fails closed).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INPUT=$(cat)
 HAS_JQ=1; command -v jq >/dev/null 2>&1 || HAS_JQ=0
@@ -27,11 +29,22 @@ set -f   # word-split the hit below without glob expansion
 WRITES=0
 while IFS= read -r hit; do
   # shellcheck disable=SC2046
-  set -- $(printf '%s\n' "$hit" | sed -E "s#^$GIT$OPT[[:space:]]+##")
+  # Quoted text (a commit message) and the value after a message/file flag are data, not options:
+  # `commit -m "fix --dry-run bug"` and `commit -m --dry-run` must still count as commits.
+  set -- $(printf '%s\n' "$hit" | sed -E "s#^$GIT$OPT[[:space:]]+##; s/\"[^\"]*\"/ _q_ /g; s/'[^']*'/ _q_ /g")
   sub=$(printf '%s' "${1:-}" | tr -cd 'a-z-'); shift
+  args=""; skip=0
+  for a in "$@"; do
+    if [ "$skip" = 1 ]; then skip=0; continue; fi
+    case "$a" in -m|-F|-C|-c|--message|--file|--reuse-message|--reedit-message|--template|-t) skip=1; continue ;; esac
+    args="$args $a"
+  done
+  # shellcheck disable=SC2086
+  set -- $args
   case "$sub" in
-    commit) WRITES=1 ;;
+    commit) case " $* " in *" --dry-run "*) ;; *) WRITES=1 ;; esac ;;
     rebase) case " $* " in *" --continue "*) WRITES=1 ;; esac ;;
+    am) case " $* " in *" --abort "*|*" --quit "*|*" --skip "*|*" --show-current-patch "*|*" --show-current-patch="*) ;; *) WRITES=1 ;; esac ;;
     *) case " $* " in *" --abort "*|*" --quit "*|*" --skip "*) ;; *) WRITES=1 ;; esac ;;
   esac
 done <<EOF

@@ -379,6 +379,9 @@ eq "register-repo: no registry file → 0 same-name headings" 0 "$(dups "$TMP/rr
 printf '### next-app\n- **local_path**: `/elsewhere/next-app`\n' >> "$TMP/rr4/knowledge/repos.md"
 eq "register-repo: same-name heading counted" 1 "$(dups "$TMP/rr4")"
 has "register-repo: injects the scan" "- **role**: TODO" "$(cd "$NX" && REVIEW_HARNESS_HOME="$TMP/rr0" CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$(awk '/^```!$/{f=1;next} /^```$/{if(f)exit} f' "$RR")" 2>/dev/null)"
+BT="$TMP/bad\`dir"; mkdir -p "$BT"
+has "register-repo: a failed scan shows its reason" "scan unavailable: scan-repo: the repo path contains a backtick" \
+  "$(cd "$BT" && REVIEW_HARNESS_HOME="$TMP/rr0" CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$(awk '/^```!$/{f=1;next} /^```$/{if(f)exit} f' "$RR")" 2>/dev/null)"
 # The injected block runs in the user's shell: under zsh an unmatched glob must not print "no matches found".
 if command -v zsh >/dev/null 2>&1; then
   zt() { (cd "$NX" && REVIEW_HARNESS_HOME="$1" CLAUDE_PLUGIN_ROOT="$ROOT" zsh -f -c "$(awk '/^```!$/{f=1;next} /^```$/{if(f)exit} f' "$RR")" 2>&1); }
@@ -1018,8 +1021,10 @@ for c in "/usr/bin/git commit -m x" "/opt/homebrew/bin/git commit" "git -C . com
   "git --git-dir .git commit" "git --git-dir=.git commit" "git --work-tree . commit" "git -c a=b -c 'c=d e' commit" \
   "git --no-pager commit" "git merge main" "git merge --ff-only main" "git merge --continue" "git cherry-pick abc" \
   "git revert HEAD" "git am x.patch" "git rebase --continue" "git status; git commit -m x" "git add . && /usr/bin/git commit" \
-  "true || git merge x" "bash -c \"git commit -m x\"" "(cd sub && git commit)" "x=\$(git cherry-pick y)" \
-  "git commit -m \"fix; merge --abort\"" "bash \"$H/rtk-wrap.sh\" git commit -m x" "git status
+  "true || git merge x" "bash -c \"git commit -m x\"" "git commit -m \"--dry-run\"" "(cd sub && git commit)" "x=\$(git cherry-pick y)" \
+  "git commit -m \"fix; merge --abort\"" "bash \"$H/rtk-wrap.sh\" git commit -m x" \
+  "git commit -m \"fix --dry-run bug\"" "git commit -m 'a --dry-run'" "git commit -m --dry-run" "git commit --message --dry-run" \
+  "git merge -m \"x --abort y\" main" "git am \"--abort.patch\"" "git status
 git revert HEAD"; do
   eq "gate: $c → deny" deny "$(gate "$R" "$c")"
 done
@@ -1027,7 +1032,8 @@ for c in "git log" "git log --grep=commit" "git log --oneline --merges" "git dif
   "git status" "git stash list" "git merge --abort" "git merge --quit" "git cherry-pick --abort" "git cherry-pick --skip" \
   "git revert --quit" "git am --abort" "git rebase --abort" "git rebase main" "git merge-base HEAD main" "git commit-tree abc" \
   "git branch --merged" "git config merge.ff false" "gitk commit" "legit commit" "git-lfs commit" \
-  "git log && git merge --abort" "echo committed"; do
+  "git log && git merge --abort" "echo committed" "git commit --dry-run" "git commit -a --dry-run -m x" \
+  "git am --show-current-patch" "git am --show-current-patch=diff" "git commit -m x --dry-run"; do
   eq "gate: $c → allow" allow "$(gate "$R" "$c")"
 done
 rs abandon >/dev/null

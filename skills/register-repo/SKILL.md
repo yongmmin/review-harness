@@ -21,7 +21,9 @@ T=$(K="$K" bash -c 'ls "$K"/*/repos.md' 2>/dev/null | head -n 1)
   && T="$(K="$K" bash -c 'ls -d "$K"/*/' | sed 's#/*$##')/repos.md"
 T="${T:-$K/repos.md}"
 echo "registry file: $T"
-B=$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/scan-repo.sh" "$PWD" 2>/dev/null)
+# On failure, rerun for the reason so a success never mixes stderr into the block.
+B=$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/scan-repo.sh" "$PWD" 2>/dev/null) \
+  || B="scan unavailable: $(bash "${CLAUDE_PLUGIN_ROOT}/hooks/scan-repo.sh" "$PWD" 2>&1 >/dev/null)"
 N=$(printf '%s\n' "$B" | sed -n '1s/^### //p')
 C=$(grep -cxF "### $N" "$T" 2>/dev/null)
 echo "existing headings named '$N' in registry file: ${C:-0}"
@@ -44,7 +46,7 @@ Questions, option labels and report text are written in English. Present them in
 ## Workflow
 
 1. **Already registered** — the injected Active Repo block has a `- name:` line → show that block and the `registry file` path, say the repo is already registered (edit that file by hand to change it), and stop. No update flow
-2. **No scan** — `scan unavailable` → report it and stop
+2. **No scan** — `scan unavailable` → report it with the reason printed after it and stop
 3. **Ask** — one `AskUserQuestion` call, at most 3 questions. The proposed block holds facts read from files: never add stack entries, commands or paths it does not contain
    - Role: `What does this repo do, in one line?` Options: a one-line guess from the `stack` line | `Leave it out`. A typed answer replaces the guess
    - Commands: show the proposed `test_cmd` / `check_cmd` (or "none"). Options: `Keep as proposed` | `Drop check_cmd`. A typed answer replaces either command

@@ -44,6 +44,7 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - New `hooks/run-stats.sh [--repo <id|name>] [--since <days>]`: runs, mean attempts before PASS, share of runs with a reviewer FAIL, FAIL category counts (`untagged` for a FAIL recorded without tags), override rate, limit-reached count, and the same per workflow. Needs `jq` (clear message without it); skips torn lines
 - Bench: three plan-based cases that look fine without the plan — `goal-not-wired` (`[goal]`), `bug-cause-elsewhere` (`[scope]` / `[correctness]` against `Cause`), `contract-caller-missed` (`[contract]`). A case may ship `plan.md` and `handoff.md`; `prompt.sh <arm> <fixture> [case-dir]` copies the plan next to the fixture and passes it as `plan_path` with the handoff lines. `expect.txt` may give the expected categories on line 4 (`score.sh` adds `category=match|other`). New `bench_next` skeleton in `bench/lib.sh`
 - `bench/README.md`: three runs per cell for new results, cells for the plan-based cases, a design note for a developer-side bench (hidden acceptance tests; deferred, not built), and an "A/B on real tasks" procedure that reads `runs.jsonl` per arm
+- `bench/README.md` Run 3 (plan-based cases, one run per cell): 9 of 9 caught in every arm; with the plan the current reviewer uses the intended category 3 of 3 (pre-stage4: 1 of 3), so the plan changes the footing of the FAIL, not detection
 
 **Review triage**
 - `reviewer` issues end with `route: patch | replan | defer`. Only `patch` / `replan` issues make a FAIL (and give the verdict categories); `defer` issues are notes for the final report. Every FAIL reason is listed at once ("Max 5 issues" is gone); at most 5 `defer` issues
@@ -75,6 +76,7 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - Org verdict categories: `~/.review-harness/org/categories.txt` (one `[a-z-]+` word per line) adds categories `run-state.sh verdict FAIL` accepts; other words still warn
 - `refactor-architect` and the main session route `git`, `grep`/`find` and test commands through `rtk-wrap.sh`, like the other agents
 - `constraints.md #review`: the two failure-pattern lines are one pointer to `agents/reviewer.md` step 5 (the reviewer's base extract shrinks)
+- `commit-gate.sh` lets the read-only `git commit --dry-run` and `git am --show-current-patch` pass, and its header says `git pull` (which can create a merge commit) is not covered; `/register-repo` prints scan-repo's reason after `scan unavailable:` instead of the bare notice
 
 **Fixed**
 - `detect-repo.sh` printed no `hint` line and no `=== End Active Repo ===` marker when the org hint file was missing
@@ -83,7 +85,7 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - `detect-repo.sh` read only the first `knowledge/<org>/repos.md`: it now matches against every org registry in sorted order, then the flat `knowledge/repos.md` (first match wins; the block is printed from the file that matched; the not-registered hint names the first file, which is `/register-repo`'s target). `find-consumers.sh` searches the repos of the same files, each `local_path` once
 - `pre-tool-use.sh` / `post-tool-use.sh` needed `shasum`: they now hash with the same fallback as `state-dir.sh` (`shasum` → `sha1sum` → `cksum`), so approvals and the edit debounce work on systems without `shasum`
 - `session-start.sh` showed `~/.review-harness/knowledge/index.md` as the source even when `REVIEW_HARNESS_HOME` points elsewhere; it shows the real path
-- `rtk-wrap.sh`: rtk dropped a `--` separator (`git diff -- <path>` failed), so a command containing `--` now runs raw; `aggressive` mode passed `-u`, which rtk does not accept — it passes `--ultra-compact`
+- `rtk-wrap.sh`: rtk dropped a `--` separator (rtk 0.40 drops a `--`, so `rtk grep -n -- '--continue' <file>` reads the dash pattern as an option), so a command containing `--` now runs raw; `aggressive` mode passed `-u`, which rtk does not accept — it passes `--ultra-compact`
 - `test-runner` description now names `baseline.txt` among the files it writes; `find-consumers.sh` header lists every breaking kind (renamed/removed/retyped/now-optional/now-required)
 
 ### v0.6.0 (2026-11-16)
