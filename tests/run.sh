@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 H="$ROOT/hooks"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 export REVIEW_HARNESS_HOME="$TMP/home"
-unset CLAUDE_PLUGIN_ROOT REVIEW_HARNESS_ALLOW_CONFIG_EDITS REVIEW_HARNESS_RUN_STALE_SECONDS
+unset CLAUDE_PLUGIN_ROOT REVIEW_HARNESS_ALLOW_CONFIG_EDITS REVIEW_HARNESS_RUN_STALE_SECONDS REVIEW_HARNESS_RTK
 PASS=0; FAIL=0
 
 eq() { # eq <name> <expected> <actual>
@@ -103,6 +103,10 @@ eq "detect-repo: no registry → silent" "" "$(bash "$H/detect-repo.sh" "$TMP")"
 mkdir -p "$TMP/wh/knowledge" "$TMP/wh/wisdom" "$TMP/emptyhome"; echo "- a wisdom line" > "$TMP/wh/wisdom/summary.md"
 has "session-start: wisdom under REVIEW_HARNESS_HOME" "a wisdom line" \
   "$(cd "$TMP" && HOME="$TMP/emptyhome" REVIEW_HARNESS_HOME="$TMP/wh" bash "$H/session-start.sh")"
+echo "- **x**: y" > "$TMP/wh/knowledge/index.md"
+has "session-start: Source names the knowledge index under REVIEW_HARNESS_HOME" "- Source: $TMP/wh/knowledge/index.md (" \
+  "$(cd "$TMP" && HOME="$TMP/emptyhome" REVIEW_HARNESS_HOME="$TMP/wh" bash "$H/session-start.sh")"
+rm -f "$TMP/wh/knowledge/index.md"
 HOME="$TMP/emptyhome" REVIEW_HARNESS_HOME="$TMP/wh" bash "$H/knowledge-has-content.sh"
 eq "knowledge-has-content: wisdom under REVIEW_HARNESS_HOME counts" 0 "$?"
 mkdir -p "$REVIEW_HARNESS_HOME/knowledge/acme" "$TMP/my-app/src" "$TMP/my-app-api"
@@ -345,10 +349,14 @@ lacks "scan-repo: empty paths array is skipped, no null" "null" "$OUT"
 mkdir -p "$TMP/injhome/knowledge" && printf '%s\n' "$OUT" > "$TMP/injhome/knowledge/repos.md"
 has "scan-repo: injected block is still registered" "- name: inject" "$(REVIEW_HARNESS_HOME="$TMP/injhome" bash "$H/detect-repo.sh" "$INJ")"
 eq "scan-repo: injected tsconfig gives no test_cmd" "" "$(REVIEW_HARNESS_HOME="$TMP/injhome" dt "$INJ")"
-# A backtick in the repo folder name cannot cut the local_path span short.
-BT="$TMP/tick\`dir"; mkdir -p "$BT"
-eq "scan-repo: backtick in the folder name → stripped, one backtick pair" "- **local_path**: \`$TMP/tickdir\`" \
-  "$(sr "$BT" | grep '^- \*\*local_path')"
+# A backtick in the repo path would cut the local_path span short: the scan refuses it.
+BT="$TMP/tick\`dir"; mkdir -p "$BT/sub"
+for d in "$BT" "$BT/sub"; do
+  OUT=$(bash "$H/scan-repo.sh" "$d" 2>&1 >/dev/null); RC=$?
+  eq "scan-repo: backtick in the repo path → exit 1 (${d#$TMP/})" 1 "$RC"
+  eq "scan-repo: backtick in the repo path → no block (${d#$TMP/})" "" "$(sr "$d")"
+  has "scan-repo: backtick in the repo path → says why (${d#$TMP/})" "contains a backtick" "$OUT"
+done
 # Round trip: the proposed block, appended to a flat registry, is matched by detect-repo.sh and read by detect-test-cmd.sh.
 RT="$TMP/rthome"; mkdir -p "$RT/knowledge"; sr "$NX" > "$RT/knowledge/repos.md"
 OUT=$(REVIEW_HARNESS_HOME="$RT" bash "$H/detect-repo.sh" "$NX/src")
@@ -808,7 +816,9 @@ lacks "post-tool-use: no count on the all-files fallback" "other files:" "$(tsct
 
 # --- run log (runs.jsonl) ----------------------------------------------------------------
 RH="$TMP/loghome"; LOG="$RH/state/runs.jsonl"
-rl() { (cd "$R" && REVIEW_HARNESS_HOME="$RH" bash "$H/run-state.sh" "$@" 2>&1); }
+rl() { # verdicts are recorded as the reviewer records them
+  local by=(); [ "$1" = verdict ] && by=(--by reviewer)
+  (cd "$R" && REVIEW_HARNESS_HOME="$RH" bash "$H/run-state.sh" "$@" ${by[@]+"${by[@]}"} 2>&1); }
 lines() { wc -l < "$LOG" | tr -d ' '; }
 R="$TMP/logrepo"; new_repo "$R"   # f.txt already edited
 rl start feature developer reviewer >/dev/null; echo n > "$R/new.txt"
@@ -816,7 +826,7 @@ rl verdict FAIL '[goal]' contract >/dev/null; rl attempt >/dev/null; rl verdict 
 rl override "ship it" >/dev/null; rl done >/dev/null
 eq "run log: done appends one line" 1 "$(lines)"
 L=$(tail -n 1 "$LOG")
-eq "run log: fields" '{"workflow":"feature","attempts":2,"verdicts":[{"v":"FAIL","cats":["goal","contract"]},{"v":"PASS"}],"tests":"pass","override":"ship it","end":"done","files_changed":2}' \
+eq "run log: fields" '{"workflow":"feature","attempts":2,"verdicts":[{"v":"FAIL","cats":["goal","contract"],"by":"reviewer"},{"v":"PASS","by":"reviewer"}],"tests":"pass","override":"ship it","end":"done","files_changed":2}' \
   "$(printf '%s' "$L" | jq -c '{workflow, attempts, verdicts, tests, override, end, files_changed}')"
 eq "run log: repo is the state folder id" "$(basename "$(REVIEW_HARNESS_HOME="$RH" bash "$H/state-dir.sh" "$R")")" "$(printf '%s' "$L" | jq -r .repo)"
 eq "run log: duration = ended_at - started_at" true "$(printf '%s' "$L" | jq '.duration_s == .ended_at - .started_at and .duration_s >= 0')"
@@ -845,16 +855,16 @@ OUT=$(rl verdict FAIL '[Goal]' 'scope,' bogus goal); RC=$?
 eq "verdict: FAIL with categories keeps the exit code" 0 "$RC"
 has "verdict: unknown category → warning" "unknown category ignored: bogus" "$OUT"
 has "verdict: categories do not change the attempt count" "attempts: 1/3" "$OUT"
-eq "verdict: tags normalised, deduplicated, in order" '{"v":"FAIL","cats":["goal","scope"]}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
+eq "verdict: tags normalised, deduplicated, in order" '{"v":"FAIL","cats":["goal","scope"],"by":"reviewer"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
 rl verdict FAIL >/dev/null
-eq "verdict: FAIL without tags stores no cats" '{"v":"FAIL"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
+eq "verdict: FAIL without tags stores no cats" '{"v":"FAIL","by":"reviewer"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
 has "verdict: PASS ignores categories" "categories are for FAIL only" "$(rl verdict PASS goal)"
-eq "verdict: PASS stored without cats" '{"v":"PASS"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
+eq "verdict: PASS stored without cats" '{"v":"PASS","by":"reviewer"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
 eq "verdict: unknown first word still exit 2" 2 "$(rc rl verdict MAYBE goal)"
 # a run state written before categories (string verdicts) still logs as objects
 jq '.verdicts = ["FAIL"] + .verdicts' "$SD/run-state.json" > "$SD/x" && mv "$SD/x" "$SD/run-state.json"
 rl done >/dev/null
-eq "run log: old string verdicts read back" '[{"v":"FAIL"},{"v":"FAIL","cats":["goal","scope"]},{"v":"FAIL"},{"v":"PASS"}]' "$(tail -n 1 "$LOG" | jq -c .verdicts)"
+eq "run log: old string verdicts read back" '[{"v":"FAIL"},{"v":"FAIL","cats":["goal","scope"],"by":"reviewer"},{"v":"FAIL","by":"reviewer"},{"v":"PASS","by":"reviewer"}]' "$(tail -n 1 "$LOG" | jq -c .verdicts)"
 eq "run log: no dispute → disputes 0" 0 "$(tail -n 1 "$LOG" | jq .disputes)"
 # disputes: one per review round, never an attempt
 R="$TMP/disputerepo"; new_repo "$R"; SD=$(REVIEW_HARNESS_HOME="$RH" bash "$H/state-dir.sh" "$R")
@@ -869,7 +879,7 @@ has "dispute: not counted as an attempt" "not an attempt" "$OUT"
 eq "dispute: second in the same round → exit 2" 2 "$(rc rl dispute 1)"
 has "dispute: re-judge FAIL is not an attempt" "attempts: 1/3" "$(rl verdict FAIL scope)"
 eq "dispute: the re-judge opens no new round" 2 "$(rc rl dispute 1)"
-eq "dispute: re-judge marked in the verdicts" '{"v":"FAIL","cats":["scope"],"rejudge":true}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
+eq "dispute: re-judge marked in the verdicts" '{"v":"FAIL","cats":["scope"],"rejudge":true,"by":"reviewer"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
 echo h >> "$R/f.txt"; has "dispute: the next review counts again" "attempts: 2/3" "$(rl verdict FAIL scope)"
 rl dispute 1 >/dev/null; eq "dispute: allowed again in the next round" 0 "$?"
 rl tests pass >/dev/null; rl verdict PASS >/dev/null
@@ -882,7 +892,7 @@ eq "run log: re-judges kept in the verdicts" 'FAIL FAIL,rejudge FAIL PASS,rejudg
 rl start feature reviewer >/dev/null; rl verdict FAIL goal >/dev/null; rl dispute 1 >/dev/null
 echo i >> "$R/f.txt"
 has "dispute → edit → FAIL counts an attempt" "attempts: 2/3 — retry" "$(rl verdict FAIL scope)"
-eq "dispute → edit → FAIL is no re-judge" '{"v":"FAIL","cats":["scope"]}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
+eq "dispute → edit → FAIL is no re-judge" '{"v":"FAIL","cats":["scope"],"by":"reviewer"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
 eq "dispute → edit: pending cleared" false "$(jq '.dispute.pending' "$SD/run-state.json")"
 echo j >> "$R/f.txt"
 eq "dispute: code changed since the FAIL → exit 1" 1 "$(rc rl dispute 1)"
@@ -1001,6 +1011,138 @@ eq "bench score: line 4, missed → no category" "missed extra=0" "$(bash "$B/sc
 printf '%s\n' '## Code Review Verdict: FAIL' '### Issues' '1. [design] [src/b.ts:1] - magic value (route: patch)' \
   '2. [correctness] [src/a.service.ts:3] - missing await (route: defer)' > "$TMP/out-defer.md"
 eq "bench score: a defer line is neither caught nor extra" "missed extra=1" "$(bash "$B/score.sh" "$TMP/expect.txt" "$TMP/out-defer.md")"
+
+# --- commit gate: other git forms and history-writing commands ----------------------------
+R="$TMP/gate2"; new_repo "$R"; rs start small-change reviewer >/dev/null
+for c in "/usr/bin/git commit -m x" "/opt/homebrew/bin/git commit" "git -C . commit -m x" "git -C \"/a b/c\" commit" \
+  "git --git-dir .git commit" "git --git-dir=.git commit" "git --work-tree . commit" "git -c a=b -c 'c=d e' commit" \
+  "git --no-pager commit" "git merge main" "git merge --ff-only main" "git merge --continue" "git cherry-pick abc" \
+  "git revert HEAD" "git am x.patch" "git rebase --continue" "git status; git commit -m x" "git add . && /usr/bin/git commit" \
+  "true || git merge x" "bash -c \"git commit -m x\"" "(cd sub && git commit)" "x=\$(git cherry-pick y)" \
+  "git commit -m \"fix; merge --abort\"" "bash \"$H/rtk-wrap.sh\" git commit -m x" "git status
+git revert HEAD"; do
+  eq "gate: $c → deny" deny "$(gate "$R" "$c")"
+done
+for c in "git log" "git log --grep=commit" "git log --oneline --merges" "git diff HEAD~1 -- a" "git show HEAD:commit.txt" \
+  "git status" "git stash list" "git merge --abort" "git merge --quit" "git cherry-pick --abort" "git cherry-pick --skip" \
+  "git revert --quit" "git am --abort" "git rebase --abort" "git rebase main" "git merge-base HEAD main" "git commit-tree abc" \
+  "git branch --merged" "git config merge.ff false" "gitk commit" "legit commit" "git-lfs commit" \
+  "git log && git merge --abort" "echo committed"; do
+  eq "gate: $c → allow" allow "$(gate "$R" "$c")"
+done
+rs abandon >/dev/null
+# Without jq the gate cannot read the command or the run state: advice, never a silent pass or a deny.
+mkdir -p "$TMP/nojqbin"; for t in bash cat grep sed dirname tr head; do ln -sf "$(command -v $t)" "$TMP/nojqbin/$t"; done
+ngate() { printf '{"tool_input":{"command":"%s"},"cwd":"/"}' "$1" | PATH="$TMP/nojqbin" "$BASH" "$H/commit-gate.sh"; }
+OUT=$(ngate "git commit -m x")
+eq "gate: no jq, git commit → advice" advice "$(decision "$OUT")"
+has "gate: no jq → says the gate is inactive" "inactive: jq is not installed" "$(printf '%s' "$OUT" | jq -r .hookSpecificOutput.additionalContext)"
+eq "gate: no jq, git merge → advice" advice "$(decision "$(ngate "git merge main")")"
+eq "gate: no jq, read-only git → silent" "" "$(ngate "git log")"
+
+# --- verdict authorship -------------------------------------------------------------------
+R="$TMP/actor"; new_repo "$R"; SD=$(bash "$H/state-dir.sh" "$R"); rs start feature reviewer >/dev/null
+OUT=$(rs verdict FAIL --by reviewer scope)
+eq "verdict: --by before a category → by" reviewer "$(jq -r '.verdicts[-1].by' "$SD/run-state.json")"
+eq "verdict: --by is not a category" '["scope"]' "$(jq -c '.verdicts[-1].cats' "$SD/run-state.json")"
+lacks "verdict: --by value is not warned as a category" "ignored: reviewer" "$OUT"
+has "status: who recorded the review" "review: FAIL by reviewer" "$(rs status)"
+rs verdict FAIL design --by reviewer >/dev/null
+eq "verdict: --by last → by, categories kept" 'reviewer ["design"]' "$(jq -r '.verdicts[-1] | "\(.by) \(.cats | tostring)"' "$SD/run-state.json")"
+OUT=$(rs verdict FAIL scope --by 'Bad Actor')
+has "verdict: malformed --by → warning" "ignored --by" "$OUT"
+eq "verdict: malformed --by → unknown" unknown "$(jq -r '.verdicts[-1].by' "$SD/run-state.json")"
+has "verdict: --by without a value → warning" "ignored --by" "$(rs verdict FAIL --by)"
+rs abandon >/dev/null; rs start feature reviewer >/dev/null
+rs verdict FAIL --by reviewer scope >/dev/null
+rs verdict PASS >/dev/null
+eq "verdict: no --by → by unknown" unknown "$(jq -r '.verdicts[-1].by' "$SD/run-state.json")"
+has "status: an unknown author is shown" "review: PASS(current) by unknown" "$(rs status)"
+eq "verdict: an unknown author does not block" 0 "$( (cd "$R" && bash "$H/run-state.sh" check >/dev/null 2>&1); echo $?)"
+rs done >/dev/null
+eq "run log: verdict authors" "reviewer unknown" "$(tail -n 1 "$REVIEW_HARNESS_HOME/state/runs.jsonl" | jq -r '[.verdicts[].by] | join(" ")')"
+for f in "$ROOT/agents/reviewer.md" "$ROOT/skills/review-harness/SKILL.md" "$ROOT/skills/code-review/SKILL.md"; do
+  has "$(basename "$(dirname "$f")")/$(basename "$f"): reviewer verdict command sets the actor" \
+    ' --by reviewer`' "$(grep 'run-state.sh" verdict' "$f")"
+done
+
+# --- org verdict categories ---------------------------------------------------------------
+mkdir -p "$TMP/cathome/org"; printf 'qa-docs\nBad Word\n../x\n' > "$TMP/cathome/org/categories.txt"
+R="$TMP/orgcat"; new_repo "$R"
+OUT=$(cd "$R" && REVIEW_HARNESS_HOME="$TMP/cathome" bash "$H/run-state.sh" verdict FAIL qa-docs bogus bad 2>&1)
+lacks "verdict: org category accepted" "ignored: qa-docs" "$OUT"
+has "verdict: unknown category still warns" "unknown category ignored: bogus" "$OUT"
+has "verdict: malformed org line is no category" "unknown category ignored: bad" "$OUT"
+eq "verdict: org category stored" '["qa-docs"]' \
+  "$(jq -c '.verdicts[-1].cats' "$(REVIEW_HARNESS_HOME="$TMP/cathome" bash "$H/state-dir.sh" "$R")/run-state.json")"
+has "verdict: without the org file the word is unknown" "unknown category ignored: qa-docs" "$(rs verdict FAIL qa-docs)"
+
+# --- hashing without shasum ---------------------------------------------------------------
+mkdir -p "$TMP/nosha"
+for t in bash cat grep sed awk dirname basename tr head cut date mkdir rm jq paste ls wc cksum sort find; do
+  ln -sf "$(command -v $t)" "$TMP/nosha/$t"
+done
+P2="$TMP/proj-nosha"; mkdir -p "$P2"; echo '{}' > "$P2/package.json"
+nedit() { decision "$(jq -n --arg f "$1" '{tool_name:"Edit",tool_input:{file_path:$f}}' | PATH="$TMP/nosha" "$BASH" "$H/pre-tool-use.sh")"; }
+eq "pre-tool-use: no shasum/sha1sum, not approved → deny" deny "$(nedit "$P2/package.json")"
+PATH="$TMP/nosha" "$BASH" "$H/pre-tool-use.sh" --approve "$P2/package.json" >/dev/null 2>&1
+eq "pre-tool-use: no shasum/sha1sum, approved → allow" allow "$(nedit "$P2/package.json")"
+eq "pre-tool-use: no shasum/sha1sum, approval is per file" deny "$(nedit "$P2/tsconfig.json")"
+npt() { jq -n --arg f "$1" '{tool_name:"Edit",tool_input:{file_path:$f}}' | PATH="$TMP/nosha" "$BASH" "$H/post-tool-use.sh" 2>/dev/null \
+  | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null; }
+has "post-tool-use: no shasum/sha1sum → first file checked" "END-MARK" "$(npt "$TMP/nogit/sub/n1.py")"
+has "post-tool-use: no shasum/sha1sum → another file is not debounced with it" "END-MARK" "$(npt "$TMP/nogit/sub/n2.py")"
+
+# --- several registry files ---------------------------------------------------------------
+MH="$TMP/multihome"; mkdir -p "$MH/knowledge/a-org" "$MH/knowledge/b-org" "$TMP/multi-a" "$TMP/multi-b/src" "$TMP/multi-c" "$TMP/multi-d"
+printf '### alpha\n- **local_path**: `%s`\n- **role**: in a\n\n### dup\n- **local_path**: `%s`\n- **role**: dup in a\n' "$TMP/multi-a" "$TMP/multi-d" > "$MH/knowledge/a-org/repos.md"
+printf '### alpha\n- **local_path**: `%s`\n- **role**: alpha in b\n- **test_cmd**: `make b`\n\n### dup\n- **local_path**: `%s`\n- **role**: dup in b\n' \
+  "$TMP/multi-b" "$TMP/multi-d" > "$MH/knowledge/b-org/repos.md"
+printf '### gamma\n- **local_path**: `%s`\n' "$TMP/multi-c" > "$MH/knowledge/repos.md"
+dr() { REVIEW_HARNESS_HOME="$MH" bash "$H/detect-repo.sh" "$1"; }
+OUT=$(dr "$TMP/multi-b/src")
+has "detect-repo: the second registry file is read" "- role: alpha in b" "$OUT"
+lacks "detect-repo: the block comes from the file that matched" "- role: in a" "$OUT"
+has "detect-repo: the first registry file is read" "- role: in a" "$(dr "$TMP/multi-a")"
+eq "detect-repo: a path in two files → the first file in sorted order" "- role: dup in a" "$(dr "$TMP/multi-d" | grep role)"
+has "detect-repo: the flat registry is read last" "- name: gamma" "$(dr "$TMP/multi-c")"
+eq "detect-test-cmd: registry test_cmd from the second file" "make b" "$(REVIEW_HARNESS_HOME="$MH" dt "$TMP/multi-b")"
+HINT=$(dr "$TMP" | sed -n 's/^- hint: register the repo in //p')
+eq "detect-repo: unmatched hint names the first registry file" "$MH/knowledge/a-org/repos.md" "$HINT"
+eq "register-repo: target = the file the hint names" "$HINT" "$(target "$MH")"
+echo 'userName' > "$TMP/multi-b/src/x.ts"; echo 'userName' > "$TMP/multi-c/y.ts"
+OUT=$(cd "$TMP/multi-a" && REVIEW_HARNESS_HOME="$MH" bash "$H/find-consumers.sh" userName 2>&1)
+has "find-consumers: repos of every registry file" "alpha: src/x.ts:1: userName" "$OUT"
+has "find-consumers: the flat registry too" "gamma: y.ts:1: userName" "$OUT"
+eq "find-consumers: a path in two files is searched once" 1 "$(printf '%s\n' "$OUT" | grep -c '^dup: ')"
+
+# --- rtk-wrap -----------------------------------------------------------------------------
+FB="$TMP/fakertk"; mkdir -p "$FB"
+cat > "$FB/rtk" <<'EOF'
+#!/bin/bash
+# Like rtk 0.40: drops a `--` right after the subcommand, and knows only --ultra-compact.
+echo "RTK-RAN $1"; [ "$1" = --ultra-compact ] && shift
+c=$1; s=$2; shift 2; [ "${1:-}" = -- ] && shift
+exec "$c" "$s" "$@"
+EOF
+chmod +x "$FB/rtk"
+R="$TMP/rtkrepo"; new_repo "$R"; echo x > "$R/gone.txt"; git -C "$R" add gone.txt; rm "$R/gone.txt"
+rw() { (cd "$R" && PATH="$FB:$PATH" REVIEW_HARNESS_RTK="$1" bash "$H/rtk-wrap.sh" "${@:2}" 2>&1); }
+OUT=$(rw standard git diff -- gone.txt)
+has "rtk-wrap: '--' passed through unchanged" "deleted file mode" "$OUT"
+lacks "rtk-wrap: '--' runs raw" "RTK-RAN" "$OUT"
+has "rtk-wrap: no '--' → still through rtk" "RTK-RAN" "$(rw standard git status --short)"
+eq "rtk-wrap: aggressive → --ultra-compact" "RTK-RAN --ultra-compact" "$(rw aggressive git status --short | head -n 1)"
+
+# --- small doc items ----------------------------------------------------------------------
+has "refactor-architect: rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$RA"
+has "skill: main session rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
+has "test-runner: description names baseline.txt" "Writes only to baseline.txt and to append to the failure-pattern ledger" "$(sed -n 's/^description: //p' "$ROOT/agents/test-runner.md")"
+RVW=$(sed -n '/^## #review/,/^Logic correctness/p' "$ROOT/constraints.md")
+lacks "constraints #review: no #failure-patterns append rule" "append to \`#failure-patterns\`" "$RVW"
+has "constraints #review: points to reviewer step 5" "agents/reviewer.md\` step 5" "$RVW"
+has "find-consumers: header names every breaking kind" "renamed/removed/retyped/now-optional/now-required" "$(sed -n 3p "$H/find-consumers.sh")"
+lacks "find-consumers: no 'same hygiene as scan-repo.sh'" "same hygiene as scan-repo.sh" "$(cat "$H/find-consumers.sh")"
 
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

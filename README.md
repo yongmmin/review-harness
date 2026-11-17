@@ -40,11 +40,12 @@ With only the plugin installed, it runs on generic rules. To make it aware of yo
 | Location | Content |
 |---|---|
 | `~/.review-harness/knowledge/index.md` | Overview summarised at session start |
-| `~/.review-harness/knowledge/<org>/repos.md` | Repo registry, used to match the current directory to a repo |
+| `~/.review-harness/knowledge/<org>/repos.md` | Repo registry, used to match the current directory to a repo (with several org folders, each is read in sorted order; the first match wins) |
 | `~/.review-harness/knowledge/<org>/*.md` | Domain knowledge (architecture, conventions, …) |
 | `~/.review-harness/org/skills/<skill>.md` | Organisation rules appended to a skill |
 | `~/.review-harness/org/agents/<agent>.md` | Organisation rules appended to an agent |
 | `~/.review-harness/org/constraints.md` | A `## #org` section appended to agent constraints |
+| `~/.review-harness/org/categories.txt` | Extra reviewer FAIL categories for the run log, one `[a-z-]+` word per line |
 | `~/.review-harness/org/profiles/<profile>.md` | Organisation rules for one profile, in the same `## #tag` format; loaded only when that profile is selected, inside its block |
 
 To register a repo, run `/register-repo` inside it: it scans the repo's manifests (stack, layout, path alias, test and check commands), asks up to 3 questions (role, commands, team rules) and appends the block to `repos.md` only after you confirm. `/review-harness` offers it once per work tree when the repo is not registered. The other files are written by hand. `repos.md` holds one block per repo in this format:
@@ -132,7 +133,7 @@ The model is the `model:` value in each `agents/*.md` frontmatter.
 ## Rules you need to know
 
 1. **You run the git operations.** The plugin commits automatically, but for branches, pushes and PRs it only writes the commands and text.
-2. **No commit without a reviewer PASS.** The verdict is stored in a file together with a hash of the work tree at review time. If you change code after the review, it must be reviewed again (`git add` does not count as a change). A failed test run, a test run older than the current code, or a repo without tests whose manual checks you have not confirmed, also blocks the commit. To commit anyway, say so explicitly; it is recorded as an override.
+2. **No commit without a reviewer PASS.** The verdict is stored in a file together with a hash of the work tree at review time. If you change code after the review, it must be reviewed again (`git add` does not count as a change). A failed test run, a test run older than the current code, or a repo without tests whose manual checks you have not confirmed, also blocks the commit. While a run is active, Claude's `merge`, `cherry-pick`, `revert`, `am` and `rebase --continue` are held to the same check. To commit anyway, say so explicitly; it is recorded as an override.
 3. **An organisation overlay can add rules.** Example: a gate that requires QA documents to be updated when behaviour changes.
 4. **At 80% of the 5-hour usage limit it asks which model to use.** Before starting reviewer / refactor-architect it asks once: `Keep Fable` / `Opus for this run`. Usage is read from `~/.claude/usage-state.json`, written by your status line; if the file is missing or older than 10 minutes it does not ask.
 5. **Editing `package.json`, `next.config.*`, `tsconfig*.json`, lock files (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`, `go.sum`, …) or `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`) needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
@@ -156,7 +157,7 @@ One file sits directly in `~/.review-harness/state/`, shared by all repos:
 
 | File | Content |
 |---|---|
-| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories (re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed. `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it |
+| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories and who recorded them (`by`: `reviewer`, else `unknown`; re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed. `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it |
 
 One file sits directly in `~/.review-harness/`, also shared by all repos:
 

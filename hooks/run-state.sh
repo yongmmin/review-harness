@@ -8,9 +8,11 @@
 #                               another run is active
 #   step <name>                 mark a step done
 #   attempt                     count a failed attempt (test failure); exit 2 at the limit
-#   verdict PASS|FAIL [category...]
+#   verdict PASS|FAIL [category...] [--by <word>]
 #                               record the reviewer verdict + work-tree hash; FAIL counts as an attempt and may
-#                               carry the [category] tags of its issues (kept for the run log; unknown words warn).
+#                               carry the [category] tags of its issues (kept for the run log; unknown words warn;
+#                               <home>/org/categories.txt adds words, one [a-z-]+ per line). `--by <word>` anywhere
+#                               after verdict names who recorded it ([a-z-]+, else "unknown") — shown, never enforced.
 #                               The verdict right after a dispute, on the disputed work tree, is a re-judge: marked,
 #                               and a FAIL counts no attempt
 #   dispute <issue id...>       record the developer's dispute of the last FAIL on its unchanged work tree; one per
@@ -30,6 +32,7 @@ set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAX_ATTEMPTS=3
 CATEGORIES="correctness performance design scope goal security contract ops state-mgmt"   # = agents/reviewer.md
+ORG_CATEGORIES=$(grep -xE '[a-z-]+' "${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/org/categories.txt" 2>/dev/null | tr '\n' ' ')
 STALE_SECONDS="${REVIEW_HARNESS_RUN_STALE_SECONDS:-86400}"
 
 command -v jq >/dev/null 2>&1 || { echo "run-state: jq is required" >&2; exit 3; }
@@ -134,15 +137,22 @@ case "${1:-}" in
     ;;
   verdict)
     v=$(printf '%s' "${2:-}" | tr '[:lower:]' '[:upper:]')
-    case "$v" in PASS|FAIL) ;; *) echo "usage: run-state.sh verdict PASS|FAIL [category...]" >&2; exit 2 ;; esac
-    cats=""
+    case "$v" in PASS|FAIL) ;; *) echo "usage: run-state.sh verdict PASS|FAIL [category...] [--by <word>]" >&2; exit 2 ;; esac
+    cats=""; by=unknown; want_by=0
     for w in "${@:3}"; do
+      if [ "$want_by" = 1 ]; then   # the word after --by names who recorded the verdict
+        want_by=0
+        if printf '%s' "$w" | grep -qxE '[a-z-]+'; then by=$w; else echo "run-state: ignored --by $w — expected one [a-z-]+ word" >&2; fi
+        continue
+      fi
+      [ "$w" = --by ] && { want_by=1; continue; }
       w=$(printf '%s' "$w" | tr -d '[],' | tr '[:upper:]' '[:lower:]')
       [ -n "$w" ] || continue
       if [ "$v" = PASS ]; then echo "run-state: categories are for FAIL only — ignored: $w" >&2; continue; fi
-      case " $CATEGORIES " in *" $w "*) case " $cats " in *" $w "*) ;; *) cats="$cats $w" ;; esac ;;
-        *) echo "run-state: unknown category ignored: $w (known: $CATEGORIES)" >&2 ;; esac
+      case " $CATEGORIES $ORG_CATEGORIES " in *" $w "*) case " $cats " in *" $w "*) ;; *) cats="$cats $w" ;; esac ;;
+        *) echo "run-state: unknown category ignored: $w (known: $CATEGORIES${ORG_CATEGORIES:+ $ORG_CATEGORIES})" >&2 ;; esac
     done
+    [ "$want_by" = 1 ] && echo "run-state: ignored --by with no value" >&2
     cats=$(printf '%s\n' $cats | jq -R . | jq -cs 'map(select(length > 0))')
     # No active run (standalone /code-review): keep the verdict in an idle record so a later
     # /git-commit can check it, without making the commit hook enforce anything.
@@ -150,8 +160,9 @@ case "${1:-}" in
     h=$(tree_hash)
     # a re-judge only when the disputed code is unchanged; any verdict closes the dispute
     rejudge=$(jq -r --arg h "$h" '.dispute.pending == true and .dispute.tree == $h' "$FILE" 2>/dev/null)
-    update --arg v "$v" --arg h "$h" --argjson cats "$cats" --argjson rj "${rejudge:-false}" '.review = {verdict: $v, tree: $h, at: $now}
-      | .verdicts = (.verdicts // []) + [{v: $v} + (if $cats == [] then {} else {cats: $cats} end) + (if $rj then {rejudge: true} else {} end)]
+    update --arg v "$v" --arg h "$h" --argjson cats "$cats" --argjson rj "${rejudge:-false}" --arg by "$by" \
+      '.review = {verdict: $v, tree: $h, at: $now, by: $by}
+      | .verdicts = (.verdicts // []) + [{v: $v} + (if $cats == [] then {} else {cats: $cats} end) + (if $rj then {rejudge: true} else {} end) + {by: $by}]
       | if .dispute.pending == true then .dispute.pending = false else . end
       | if $v == "FAIL" and ($rj | not) then .attempts += 1 else . end
       | if $v == "PASS" and any(.steps[]; .name == "reviewer") then .steps |= map(if .name == "reviewer" then .done = true else . end) else . end' || exit 1
@@ -238,7 +249,7 @@ case "${1:-}" in
       + " · pending: \([.steps[] | select(.done | not) | .name] | join(",") | if . == "" then "-" else . end)"
       + " · attempts \(.attempts)/\(.max_attempts)"
       + " · tests: \(.tests.status // "-")"
-      + " · review: \(if .review == null then "none" elif .review.verdict == "FAIL" then "FAIL" elif .review.tree == $h then "PASS(current)" else "PASS(outdated — code changed)" end)"
+      + " · review: \(if .review == null then "none" elif .review.verdict == "FAIL" then "FAIL" elif .review.tree == $h then "PASS(current)" else "PASS(outdated — code changed)" end)\(if .review.by then " by \(.review.by)" else "" end)"
       + " · updated \((($now - .updated_at) / 60) | floor)m ago"' "$FILE"
     ;;
   hash) tree_hash ;;

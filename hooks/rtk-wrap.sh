@@ -110,10 +110,14 @@ if [ "$CMD" = "npx" ] && [ -n "${1:-}" ]; then
   CATEGORY=$(rtk_handles "$1")
 fi
 
-if should_prefix "$MODE" "$CATEGORY" && command -v rtk >/dev/null 2>&1; then
+# rtk's argument parser eats a `--` (`git diff -- <path>` then fails), so a command with one runs raw.
+HAS_DASHDASH=0
+for a in "$@"; do [ "$a" = "--" ] && HAS_DASHDASH=1; done
+
+if [ "$HAS_DASHDASH" = 0 ] && should_prefix "$MODE" "$CATEGORY" && command -v rtk >/dev/null 2>&1; then
   EXTRA=""
   if [ "$MODE" = "aggressive" ]; then
-    EXTRA="-u"
+    EXTRA="--ultra-compact"
   fi
   # Preserve the original command as-is (npx included) — stripping npx would
   # make rtk resolve tsc/eslint globally and miss node_modules/.bin binaries.

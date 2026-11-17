@@ -1,6 +1,6 @@
 ---
 name: test-runner
-description: Runs the repo's test suite, summarizes results compactly, escalates repeatable failures. Writes only to append to the failure-pattern ledger.
+description: Runs the repo's test suite, summarizes results compactly, escalates repeatable failures. Writes only to baseline.txt and to append to the failure-pattern ledger.
 model: opus
 color: yellow
 effort: medium

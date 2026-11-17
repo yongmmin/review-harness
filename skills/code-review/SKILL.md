@@ -47,7 +47,7 @@ Anything printed above is organisation-specific and is part of this skill; where
    -> pass ONLY: the output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" reviewer "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" <paths>)"`
       (`<paths>` = the review target's file list — the explicit path, or the branch diff's files; nothing when the target is the uncommitted diff, which detect-profile.sh reads itself. The output carries the constraints, the selected profiles' sections and the agent's org overlay),
       the Active Repo block, the file list above, the review target, and the verdict command
-      `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" verdict <PASS|FAIL> [FAIL issue categories...]`. Reviewer reads diffs itself
+      `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" verdict <PASS|FAIL> [FAIL issue categories...] --by reviewer`. Reviewer reads diffs itself
       and records its own verdict with that command (the script stores the work-tree hash).
       No `review: … recorded` line in the reply -> spawn reviewer once more to record it. Still missing ->
       no verdict: never record it yourself; report that to the user. git-commit stays blocked.

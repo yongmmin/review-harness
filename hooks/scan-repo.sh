@@ -11,12 +11,14 @@
 #   - **test_cmd**:   detect-test-cmd.sh
 #   - **check_cmd**:  `ruff check .` (ruff config) or `go vet ./...` (go.mod); none for TS (post-tool-use runs tsc/eslint)
 #   - **special**:    workspaces: <patterns> (package.json workspaces / pnpm-workspace.yaml)
-# Lines with nothing found are left out.
+# Lines with nothing found are left out. A repo path containing a backtick → exit 1 (the registry cannot hold it).
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 D="${1:-$PWD}"
 [ -d "$D" ] || { echo "scan-repo: not a directory: $D" >&2; exit 1; }
 R=$(cd "$D/$(git -C "$D" rev-parse --show-cdup 2>/dev/null)" && pwd) || exit 1
+# A backtick would end the `…` span detect-repo.sh reads local_path from, so such a repo cannot be registered.
+case "$R" in *'`'*) echo "scan-repo: the repo path contains a backtick, which the registry cannot hold: $R — rename or move the folder to register it" >&2; exit 1 ;; esac
 HAS_JQ=0; command -v jq >/dev/null 2>&1 && HAS_JQ=1
 join() { paste -sd, - | sed 's/,/, /g'; }
 
@@ -89,9 +91,7 @@ fi
 one() { printf '%s' "$1" | tr '\n\r' '  '; }
 line() { [ -n "$2" ] && printf -- '- **%s**: %s\n' "$1" "$(one "$2")"; }
 printf '### %s\n' "$(one "$(basename "$R")")"
-# A backtick would end the `…` span detect-repo.sh reads, so it is stripped. The stripped path is not the
-# repo root, so detect-repo.sh does not match the repo (register-repo's verify step then stops).
-line local_path "\`$(printf '%s' "$R" | tr -d '`')\`"
+line local_path "\`$R\`"
 line role TODO
 line stack "$STACK"
 line layout "${LAYOUT:+\`$LAYOUT\`}"

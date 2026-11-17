@@ -1,7 +1,8 @@
 #!/bin/bash
 # detect-repo.sh
 # Match current working directory (passed as $1, or $PWD) against registered
-# repos in ~/.review-harness/knowledge/<org>/repos.md and emit a compact summary.
+# repos and emit a compact summary. Registry files: every ~/.review-harness/knowledge/<org>/repos.md in
+# sorted order, then the flat knowledge/repos.md; the first block that matches wins.
 #
 # Output (stdout, compact — meant to be loaded into agent context):
 #   === Active Repo ===
@@ -22,23 +23,26 @@
 set -e
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# First registry found wins. No registry → exit silently below.
+# No registry → exit silently below. find-consumers.sh and register-repo read the same list.
 RH_HOME="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}"
-REPOS_FILE=$(ls "$RH_HOME"/knowledge/*/repos.md 2>/dev/null | head -n 1)
-REPOS_FILE="${REPOS_FILE:-$RH_HOME/knowledge/repos.md}"
+REPOS_FILES=()
+for f in "$RH_HOME"/knowledge/*/repos.md "$RH_HOME/knowledge/repos.md"; do
+  if [ -f "$f" ]; then REPOS_FILES+=("$f"); fi
+done
 CWD="${1:-$PWD}"
 
 # Resolve to absolute path (handles ~ expansion if caller did it)
 ABS_CWD=$(cd "$CWD" 2>/dev/null && pwd || echo "$CWD")
 
-if [ ! -f "$REPOS_FILE" ]; then
+if [ ${#REPOS_FILES[@]} -eq 0 ]; then
   exit 0
 fi
 
 # Find the first repo whose local_path is a prefix of ABS_CWD
-# Awk pass: read repos.md, capture the most recent ### heading as repo name,
-# emit when local_path matches.
-MATCHED=$(awk -v cwd="$ABS_CWD" '
+# Awk pass: read every registry file in order, capture the most recent ### heading as repo name,
+# emit the file and the name when local_path matches.
+FOUND=$(awk -v cwd="$ABS_CWD" '
+  FNR == 1 { repo = "" }
   /^### / {
     repo = $0
     sub(/^### */, "", repo)
@@ -52,12 +56,15 @@ MATCHED=$(awk -v cwd="$ABS_CWD" '
       # Match only on path boundaries: exact repo root, or a subdirectory of it.
       # Bare prefix match would misroute e.g. my-app-api → my-app.
       if (cwd == path || index(cwd, path "/") == 1) {
+        print FILENAME
         print repo
         exit
       }
     }
   }
-' "$REPOS_FILE")
+' "${REPOS_FILES[@]}")
+REPOS_FILE=$(printf '%s\n' "$FOUND" | sed -n 1p)
+MATCHED=$(printf '%s\n' "$FOUND" | sed -n 2p)
 
 if [ -z "$MATCHED" ]; then
   echo "=== Active Repo ==="
@@ -65,12 +72,12 @@ if [ -z "$MATCHED" ]; then
   echo "- cwd: $ABS_CWD"
   # Org overlays can supply their own hint line (~/.review-harness/org/detect-repo-hint.txt).
   HINT=$(head -n 1 "$RH_HOME/org/detect-repo-hint.txt" 2>/dev/null) || true  # set -e: a missing file must not cut the block
-  echo "- hint: ${HINT:-register the repo in $REPOS_FILE}"
+  echo "- hint: ${HINT:-register the repo in ${REPOS_FILES[0]}}"
   echo "=== End Active Repo ==="
   exit 0
 fi
 
-# Emit the matched repo's metadata block (between its ### header and the next ###)
+# Emit the matched repo's metadata block (between its ### header and the next ###) from the file that matched
 # Registry keys to print. Org overlays can add their own keys (one per line).
 KEYS="local_path|role|stack|layout|env|path_alias|doc_routing|tests|test_cmd|check_cmd|port|special|status"
 EXTRA_KEYS=$(grep -E '^[A-Za-z0-9_]+$' "$RH_HOME/org/detect-repo-keys.txt" 2>/dev/null | paste -sd'|' -)

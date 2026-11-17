@@ -1,7 +1,8 @@
 #!/bin/bash
 # find-consumers.sh <term...>
-# Read-only. For a breaking contract change (renamed/removed/now-optional route, socket event or field):
-# searches every repo in the registry detect-repo.sh reads, except the one containing $PWD, for each term
+# Read-only. For a breaking contract change (renamed/removed/retyped/now-optional/now-required route, socket event
+# or field): searches every repo in the registry files detect-repo.sh reads (each local_path once), except the one
+# containing $PWD, for each term
 # (literal; whole-word when the term starts and ends with a word character, so a route still matches
 # inside a URL) and prints one line per hit:
 #   <repo>: <path>:<line>: <trimmed text>
@@ -11,15 +12,16 @@
 
 [ $# -gt 0 ] || { echo "usage: find-consumers.sh <term...>" >&2; exit 2; }
 RH_HOME="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}"
-REPOS_FILE=$(ls "$RH_HOME"/knowledge/*/repos.md 2>/dev/null | head -n 1)
-REPOS_FILE="${REPOS_FILE:-$RH_HOME/knowledge/repos.md}"
-[ -f "$REPOS_FILE" ] || { echo "find-consumers: no repo registry ($REPOS_FILE) — consumers not searched"; exit 0; }
+REPOS_FILES=()   # same files and order as detect-repo.sh
+for f in "$RH_HOME"/knowledge/*/repos.md "$RH_HOME/knowledge/repos.md"; do [ -f "$f" ] && REPOS_FILES+=("$f"); done
+[ ${#REPOS_FILES[@]} -gt 0 ] || { echo "find-consumers: no repo registry ($RH_HOME/knowledge/repos.md) — consumers not searched"; exit 0; }
 CWD=$(pwd)
 MAX=20
 SKIP="node_modules .git dist build .next out coverage storybook-static"
 
 # File-derived text stays on one line with no backticks, control characters or Unicode bidi controls
-# (U+202A–U+202E, U+2066–U+2069 as UTF-8 bytes); same hygiene as scan-repo.sh.
+# (U+202A–U+202E, U+2066–U+2069 as UTF-8 bytes), so a hit pasted into plan.md cannot fake a line, a code span
+# or reordered text.
 BIDI1=$(printf '\342\200[\252-\256]'); BIDI2=$(printf '\342\201[\246-\251]')
 clean() { LC_ALL=C tr -d '\000-\010\013-\037\177`' | LC_ALL=C sed -e "s/$BIDI1//g" -e "s/$BIDI2//g"; }
 
@@ -68,9 +70,10 @@ while IFS="$(printf '\t')" read -r name path; do
       if (NR <= max) print n ": " f ":" ln ": " t }
     END { if (NR == 0) print n ": no match"; else if (NR > max) print n ": +" NR - max " more" }'
 done <<EOF
-$(awk '/^### / { repo = $0; sub(/^### */, "", repo); next }
-  /^- \*\*local_path\*\*:/ { if (match($0, /`[^`]+`/)) print repo "\t" substr($0, RSTART + 1, RLENGTH - 2) }' "$REPOS_FILE")
+$(awk 'FNR == 1 { repo = "" }
+  /^### / { repo = $0; sub(/^### */, "", repo); next }
+  /^- \*\*local_path\*\*:/ { if (match($0, /`[^`]+`/)) { p = substr($0, RSTART + 1, RLENGTH - 2); if (!seen[p]++) print repo "\t" p } }' "${REPOS_FILES[@]}")
 EOF
 
-[ "$FOUND" = 1 ] || echo "find-consumers: no other registered repo in $REPOS_FILE — consumers not searched"
+[ "$FOUND" = 1 ] || echo "find-consumers: no other registered repo in ${REPOS_FILES[*]} — consumers not searched"
 exit 0
