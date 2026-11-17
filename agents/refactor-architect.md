@@ -129,3 +129,4 @@ lib/[utility].ts
 - All existing tests must still pass (or, for repos without tests, manual verification steps remain accurate)
 - Never hand off to developer without updating `plan.md → ## Design Check`
 - Cross-package extractions become shared-package contributions — flag as separate proposal, not in this scope
+- Run `git`, `grep`/`find` and test commands via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`

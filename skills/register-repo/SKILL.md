@@ -14,7 +14,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*)
 ```!
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || true
 K="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/knowledge"
-# The file detect-repo.sh reads (an org repos.md, else the flat one); with no registry at all, the only org folder.
+# The first file detect-repo.sh reads (the first org repos.md, else the flat one); with no registry at all, the only org folder.
 # Globs run in bash: zsh aborts an unmatched glob with "no matches found".
 T=$(K="$K" bash -c 'ls "$K"/*/repos.md' 2>/dev/null | head -n 1)
 [ -z "$T" ] && [ ! -f "$K/repos.md" ] && [ "$(K="$K" bash -c 'ls -d "$K"/*/' 2>/dev/null | wc -l | tr -d ' ')" = 1 ] \

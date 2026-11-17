@@ -10,7 +10,7 @@
 #       hookSpecificOutput.additionalContext                      (Claude sees it, call proceeds)
 #   - We DENY by default and tell Claude how to obtain approval. After the user approves,
 #     Claude records the approval with `bash hooks/pre-tool-use.sh --approve <file>` and retries.
-#     Approvals live in <state dir>/approved/<sha1(path)> (state-dir.sh — outside the repo) and expire after
+#     Approvals live in <state dir>/approved/<hash(path)> (state-dir.sh — outside the repo) and expire after
 #     APPROVAL_TTL_SECONDS so a stale "yes" from an earlier task never leaks into the next one.
 #
 # Manual usage:
@@ -31,10 +31,17 @@ find_project_root() {
   printf '%s' "$(dirname "$1")"
 }
 
+# Same hash tool order as state-dir.sh (shasum: macOS, sha1sum: coreutils, cksum: POSIX), so a key always exists.
+path_hash() {
+  if command -v shasum >/dev/null 2>&1; then shasum
+  elif command -v sha1sum >/dev/null 2>&1; then sha1sum
+  else cksum; fi | awk '{print $1}'
+}
+
 approval_file() {
   local path="$1" root key state
   root=$(find_project_root "$path")
-  key=$(printf '%s' "$path" | shasum | awk '{print $1}')
+  key=$(printf '%s' "$path" | path_hash)
   state=$(bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/state-dir.sh" "$root" 2>/dev/null)
   printf '%s/approved/%s' "${state:-/nonexistent}" "$key"
 }

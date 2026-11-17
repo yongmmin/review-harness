@@ -52,8 +52,7 @@
 ## #review
 
 - No `git-commit` without a reviewer PASS recorded for the current work tree (`run-state.sh check`), or an explicit user override recorded with `run-state.sh override`
-- On FAIL, if mistake is repeatable, append to `#failure-patterns`
-- Do not record one-off mistakes (typos, file-specific edge cases) as patterns
+- Repeatable FAIL rules: `agents/reviewer.md` step 5
 
 Logic correctness — FAIL if any:
 - Property access on nullable without guard

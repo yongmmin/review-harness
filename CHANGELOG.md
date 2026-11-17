@@ -68,10 +68,23 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - Order: the producer run goes first and its final report ends with the `## Contract` block; a `## Contract` block pasted into the consumer repo's run is recorded as `Inputs.API` in any intent (not only when the API Spec Check triggers), without asking for another spec
 - `reviewer` contract gate: a `breaking` contract with no consumer repos and no `none — <reason>`, or a consumer repo listed in that breaking contract with hits that the diff does not change and `Out of Scope` does not name as a follow-up → FAIL `[contract]`
 
+**Gate hardening**
+- `commit-gate.sh` also catches `git` by absolute path (`/usr/bin/git commit`), global options before the subcommand (`-C <dir>`, `-c k=v`, `--git-dir`/`--work-tree` with a separate value, quoted values), and the history-writing `merge` (also `--ff-only` and `--continue`), `cherry-pick`, `revert`, `am` and `rebase --continue` — inside `&&` / `;` / `|` chains, `$( )` and quoted strings too. Their `--abort` / `--quit` / `--skip` pass, as do read-only commands (`log`, `diff`, `show`, `status`, `stash list`, `merge-base`, `commit-tree`) and a plain `rebase`
+- `commit-gate.sh` without `jq`: no longer a silent pass — a history-writing command gets advice (`additionalContext`, not a deny) that the gate is inactive
+- Verdict authorship: `run-state.sh verdict` takes `--by <word>` anywhere after `verdict` (`[a-z-]+`, else ignored with a warning) and records it as `by` (default `unknown`) in the review and each `verdicts` entry, so `status` and `runs.jsonl` show who recorded it. The reviewer's verdict command (`agents/reviewer.md`, `/review-harness`, `/code-review`) ends with `--by reviewer`, keeping the `bash <plugin>/hooks/…` shape that `allowed-tools` matches. Not enforced
+- Org verdict categories: `~/.review-harness/org/categories.txt` (one `[a-z-]+` word per line) adds categories `run-state.sh verdict FAIL` accepts; other words still warn
+- `refactor-architect` and the main session route `git`, `grep`/`find` and test commands through `rtk-wrap.sh`, like the other agents
+- `constraints.md #review`: the two failure-pattern lines are one pointer to `agents/reviewer.md` step 5 (the reviewer's base extract shrinks)
+
 **Fixed**
 - `detect-repo.sh` printed no `hint` line and no `=== End Active Repo ===` marker when the org hint file was missing
 - `/register-repo` printed `no matches found` under zsh when no org registry exists
-- `scan-repo.sh` printed a broken `local_path` for a folder name containing a backtick (backticks are now stripped)
+- `scan-repo.sh` printed a broken `local_path` for a folder name containing a backtick: it now refuses such a repo path (exit 1, with the reason), so `/register-repo` stops at its scan step
+- `detect-repo.sh` read only the first `knowledge/<org>/repos.md`: it now matches against every org registry in sorted order, then the flat `knowledge/repos.md` (first match wins; the block is printed from the file that matched; the not-registered hint names the first file, which is `/register-repo`'s target). `find-consumers.sh` searches the repos of the same files, each `local_path` once
+- `pre-tool-use.sh` / `post-tool-use.sh` needed `shasum`: they now hash with the same fallback as `state-dir.sh` (`shasum` → `sha1sum` → `cksum`), so approvals and the edit debounce work on systems without `shasum`
+- `session-start.sh` showed `~/.review-harness/knowledge/index.md` as the source even when `REVIEW_HARNESS_HOME` points elsewhere; it shows the real path
+- `rtk-wrap.sh`: rtk dropped a `--` separator (`git diff -- <path>` failed), so a command containing `--` now runs raw; `aggressive` mode passed `-u`, which rtk does not accept — it passes `--ultra-compact`
+- `test-runner` description now names `baseline.txt` among the files it writes; `find-consumers.sh` header lists every breaking kind (renamed/removed/retyped/now-optional/now-required)
 
 ### v0.6.0 (2026-11-16)
 

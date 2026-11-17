@@ -31,7 +31,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 |------|----------|
 | `off` | Raw commands. Default |
 | `standard` | `rtk` applied to git/gh/tsc/eslint/test/grep/find/ls |
-| `aggressive` | Same as `standard` plus `-u` (ultra-compact) flag |
+| `aggressive` | Same as `standard` plus the `--ultra-compact` flag |
 | `git-only` | `rtk` applied only to git/gh; everything else raw |
 
 ---

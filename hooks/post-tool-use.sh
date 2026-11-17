@@ -39,6 +39,13 @@ compact_block() {
   printf '%s\n' "$1" | sed '/^$/d' | sed '/^--$/d' | head -n "$2"
 }
 
+# Same hash tool order as state-dir.sh (shasum: macOS, sha1sum: coreutils, cksum: POSIX), so a key always exists.
+path_hash() {
+  if command -v shasum >/dev/null 2>&1; then shasum
+  elif command -v sha1sum >/dev/null 2>&1; then sha1sum
+  else cksum; fi | awk '{print $1}'
+}
+
 # Debounce: skip if same file was validated within DEBOUNCE_SECONDS (exits the hook). Sets CACHE_DIR, DEBOUNCE_KEY.
 DEBOUNCE_SECONDS=3
 debounce_or_exit() {
@@ -47,7 +54,7 @@ debounce_or_exit() {
   [ -n "$STATE_DIR" ] || exit 0
   CACHE_DIR="$STATE_DIR/cache"
   mkdir -p "$CACHE_DIR" 2>/dev/null || exit 0
-  DEBOUNCE_KEY=$(printf '%s' "$FILE_PATH" | shasum | awk '{print $1}')
+  DEBOUNCE_KEY=$(printf '%s' "$FILE_PATH" | path_hash)
   DEBOUNCE_FILE="$CACHE_DIR/$DEBOUNCE_KEY.ts"
   NOW=$(date +%s)
   if [ -f "$DEBOUNCE_FILE" ]; then

@@ -38,7 +38,7 @@ if [ "$LINE_COUNT" -gt 300 ]; then
 fi
 
 echo "=== Project Knowledge Summary ==="
-echo "- Source: ~/.review-harness/knowledge/index.md ($LINE_COUNT lines)"
+echo "- Source: $KNOWLEDGE_INDEX ($(printf '%s' "$LINE_COUNT" | tr -d ' ') lines)"
 grep -E '^- \*\*[^*]+\*\*:' "$KNOWLEDGE_INDEX" | head -n 5
 echo "- Details: load on demand through search-knowledge"
 echo "=== End Project Knowledge Summary ==="
