@@ -186,7 +186,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 - [docs/skills.md](docs/skills.md) — the 11 skills, the `/review-harness` flow, `/git-pr` output, agents
 - [docs/hooks.md](docs/hooks.md) — the 19 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
-- [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
+- [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime; the parts one path needs (plan template, bugfix, retry loop, …) sit in sibling `skills/review-harness/*.md` files it reads only on that path
 - [constraints.md](constraints.md) — agent rules
 - [CLAUDE.md](CLAUDE.md) — maintainer rules for working on this repo (not loaded for plugin users; runtime rules live in `skills/` and `agents/`)
 - [profiles/web-frontend.md](profiles/web-frontend.md) — stack-specific agent rules (TypeScript / React / Next.js), loaded per agent by tag

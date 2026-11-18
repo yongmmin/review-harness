@@ -1,6 +1,6 @@
 # Skills and Agents details
 
-Detailed description moved out of the [README](../README.md). The reference documents at runtime are each `skills/*/SKILL.md` and `agents/*.md`.
+Detailed description moved out of the [README](../README.md). The reference documents at runtime are each `skills/*/SKILL.md`, the situational files next to `skills/review-harness/SKILL.md`, and `agents/*.md`.
 
 ## `/review-harness` flow
 
@@ -11,6 +11,8 @@ Detailed description moved out of the [README](../README.md). The reference docu
 5. **Plan Gate** — writes `plan.md` to `~/.review-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
 6. **Workflow execution** — a different chain per intent (feature/bugfix/refactor/review) or the Small change path. A bugfix reproduces the failure and records its cause before any fix, and never takes the Small change path. UI work is handled as feature
 7. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
+
+The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `web-guidance.md` (step 4), `plan-gate.md` (step 5: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 6: Small change, Bugfix, retries after a failure), `usage-downgrade.md` (5h usage at 80% or more), `git-ops.md` (branch, push or PR requests).
 
 ## 11 Skills
 
