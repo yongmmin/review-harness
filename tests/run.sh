@@ -178,7 +178,7 @@ has "profile: reviewer gets #review" "React performance — FAIL if any" "$OUT"
 lacks "profile: reviewer does not get #implementation" "### TanStack Query" "$OUT"
 OUT=$(bash "$H/extract-constraints.sh" developer web-frontend 2>/dev/null)
 has "profile: developer gets #implementation" "### TanStack Query" "$OUT"
-lacks "profile: developer does not get #review" "React performance" "$OUT"
+lacks "profile: developer does not get the #review section, only its rule lines" "React performance — FAIL if any:" "$OUT"
 has "profile: refactor-architect gets #detection" "Same JSX structure" "$(bash "$H/extract-constraints.sh" refactor-architect web-frontend 2>/dev/null)"
 eq "profile: test-runner has no profile section" "$(bash "$H/extract-constraints.sh" test-runner 2>/dev/null)" \
   "$(bash "$H/extract-constraints.sh" test-runner web-frontend 2>/dev/null)"
@@ -200,7 +200,7 @@ has "web-api: reviewer gets #review (4xx rule)" "500-class exception" "$OUT"
 lacks "web-api: reviewer does not get #implementation" "**Write after read**" "$OUT"
 OUT=$(bash "$H/extract-constraints.sh" developer web-api 2>/dev/null)
 has "web-api: developer gets #implementation" "**Write after read**" "$OUT"
-lacks "web-api: developer does not get #review" "500-class exception" "$OUT"
+lacks "web-api: developer does not get the #review section, only its rule lines" "Static review gates — FAIL if any:" "$OUT"
 has "web-common: reviewer gets the block" "## Profile — web-common" "$(bash "$H/extract-constraints.sh" reviewer web-common 2>/dev/null)"
 eq "web-api: test-runner has no profile section" "$(bash "$H/extract-constraints.sh" test-runner 2>/dev/null)" \
   "$(bash "$H/extract-constraints.sh" test-runner web-api 2>/dev/null)"
@@ -771,10 +771,48 @@ for a in reviewer test-runner; do
   has "ledger: $a gets its entries" "- [2026-11-17] [category:scope] edits outside plan" "$(ec $a 2>/dev/null)"
   lacks "ledger: $a never gets the preamble" "LP-X" "$(ec $a 2>/dev/null)"
 done
-lacks "ledger: developer never gets entries" "edits outside plan" "$(ec developer 2>/dev/null)"
+# Developer review checklist: only the rule lines of #review (constraints, each profile, its org profile) and
+# the ledger entries, as one block at the end of the constraints part — no prose, no `## #` heading, no `ledger:`.
+ckb() { ec developer "$@" 2>/dev/null | awk '/^## Review checklist/ { p = 1; print; next } p && /^## / { exit } p'; }
+CKH="## Review checklist — the reviewer FAILs on these (check your diff before handoff)"
+mkdir -p "$REVIEW_HARNESS_HOME/org/profiles"
+printf '## #implementation\n\n- org fe do CK-IMPL\n\n## #review\n\nOrg prose CK-PROSE\n\n- org fe gate CK-ORG\n' > "$REVIEW_HARNESS_HOME/org/profiles/web-frontend.md"
+CK=$(ckb web-frontend,web-api)
+has "checklist: developer gets the block" "$CKH" "$CK"
+eq "checklist: exactly one block" 1 "$(ec developer web-frontend,web-api 2>/dev/null | grep -c '^## Review checklist')"
+has "checklist: constraints #review rule line" "- Property access on nullable without guard" "$CK"
+has "checklist: profile #review rule line" '- `useEffect` missing dep or unstable ref causing infinite loop' "$CK"
+has "checklist: second profile's #review rule line" "500-class exception" "$CK"
+has "checklist: org profile #review rule line" "- org fe gate CK-ORG" "$CK"
+lacks "checklist: no org profile #implementation" "CK-IMPL" "$CK"
+has "checklist: ledger entries" "- [2026-11-17] [category:scope] edits outside plan" "$CK"
+for x in "## #" "ledger:" "Logic correctness — FAIL if any:" "CK-PROSE" "**React / Next**"; do lacks "checklist: no prose or heading ($x)" "$x" "$CK"; done
+eq "checklist: rule lines only" "" "$(printf '%s\n' "$CK" | sed 1d | grep -v '^- ' | grep -v '^$')"
+lacks "ledger: developer gets no ledger line, even with a ledger" "ledger: " "$(ec developer 2>/dev/null)"
+eq "checklist: ends the constraints part" "$CKH" "$(ec developer web-frontend 2>/dev/null | grep '^## ' | tail -n 1)"
+CK=$(ckb)
+lacks "checklist: no profile → no profile rule lines" '`useEffect` missing dep' "$CK"
+lacks "checklist: no profile → no org profile rule lines" "CK-ORG" "$CK"
+DEV_ERR=$(ec developer web-frontend 2>&1 >/dev/null)
+has "checklist: bytes reported apart on stderr" " + checklist: " "$DEV_ERR"
+MAIN=$(printf '%s' "$DEV_ERR" | sed 's/.*extract-constraints developer: \([0-9]*\) bytes.*/\1/')
+lacks "checklist: bytes outside the warning threshold" "[warn]" "$(REVIEW_HARNESS_BUDGET_WARN_BYTES=$MAIN ec developer 2>&1 >/dev/null)"
+for a in reviewer test-runner refactor-architect; do
+  lacks "checklist: $a gets no block" "## Review checklist" "$(ec $a web-frontend,web-api 2>/dev/null)"
+  lacks "checklist: $a stderr has no checklist note" "checklist" "$(ec $a web-frontend,web-api 2>&1 >/dev/null)"
+done
+rm -f "$REVIEW_HARNESS_HOME/org/profiles/web-frontend.md"
 [ "$(ec reviewer 2>&1 >/dev/null | sed 's/.*: \([0-9]*\) bytes.*/\1/')" -gt "$(printf '%s' "$RV_NO_LEDGER" | sed 's/.*: \([0-9]*\) bytes.*/\1/')" ]
 eq "ledger: entries count in the budget" 0 "$?"
 rm -f "$LEDGER"
+lacks "checklist: absent ledger → no ledger entries" "edits outside plan" "$(ckb)"
+has "checklist: absent ledger → constraints rule lines stay" "- Property access on nullable without guard" "$(ckb)"
+NC="$TMP/plugin-noreview"; mkdir -p "$NC" && cp -R "$ROOT/hooks" "$ROOT/profiles" "$NC/"
+awk '/^## #review/ { skip = 1; next } /^## #/ { skip = 0 } !skip' "$ROOT/constraints.md" > "$NC/constraints.md"
+lacks "checklist: no rule lines → no block" "## Review checklist" "$(bash "$NC/hooks/extract-constraints.sh" developer 2>/dev/null)"
+lacks "checklist: no rule lines → no stderr note" "checklist" "$(bash "$NC/hooks/extract-constraints.sh" developer 2>&1 >/dev/null)"
+has "developer: self-check line in the handoff" '`self-check: <rule hit → fixed>; …` or `self-check: clean`' "$(cat "$ROOT/agents/developer.md")"
+has "developer: Output rule allows self-check:" '`self-check:`' "$(grep -F '**Output**' "$ROOT/agents/developer.md")"
 for f in reviewer test-runner; do
   AG=$(cat "$ROOT/agents/$f.md")
   lacks "$f: no constraints.md ledger" "constraints.md #failure-patterns" "$AG"
@@ -795,6 +833,8 @@ has "skill: retry context carries the Attempts lines" 'the Attempts lines' "$(se
 has "skill: third failure of the same test or issue asks about the plan" 'whether the plan is wrong' "$HL"
 has "skill: orchestrator may write attempts.md" '`attempts.md`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
 has "skill: handoff schema allows root cause:" '- root cause: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
+has "skill: handoff schema has the developer self-check: line" '- self-check: <rule hit → fixed>; … | clean (developer only)' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
+has "skill: handoff Rules line names self-check:" '`root cause:` and `self-check:`' "$(grep '^Rules: omit empty fields' "$SK")"
 has "developer: root cause on the second failure" '`root cause: <file:line' "$(cat "$ROOT/agents/developer.md")"
 README_STATE=$(cat "$ROOT/README.md")
 has "readme: attempts.md in the state table" '| `attempts.md` |' "$README_STATE"
