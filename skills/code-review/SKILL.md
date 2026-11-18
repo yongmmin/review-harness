@@ -23,6 +23,8 @@ echo "--- ahead of main (name-status) ---"; git diff main...HEAD --name-status 2
 
 Usage downgrade (same rule as `review-harness` → Agent Spawning): if the `5h usage` value above is 80% or higher, ask once with `AskUserQuestion` before spawning — state the usage and reset time, options `Keep Fable` | `Opus for this run` (ask in the user's language). On Opus, pass `model: "opus"` to the Agent tool; otherwise pass no `model`. Below 80% or `unknown`: do not ask. If `review-harness` already asked in this run, reuse that answer.
 
+Risk tier (same rule as `review-harness` → Agent Spawning): when the review target is a diff (not an explicit path), run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" [base]` (the `--base` branch, or `main`, when the target is the branch diff) before spawning and pass its output as `risk: <tier>` plus its `reason:` lines; the script fails → `risk: normal`. `low` → pass `model: "opus"` and `effort: "medium"`; `normal` / `high` → no override; `Keep Fable` does not change `low`. An explicit path target gets no `risk:` line.
+
 Scope hint from user (may be empty): `$ARGUMENTS`
 
 Review target precedence: explicit `$ARGUMENTS` path → uncommitted + staged diff → if both empty, the branch diff vs `main` (or `--base`). If all are empty, say so and stop — never review the whole repo.

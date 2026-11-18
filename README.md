@@ -74,6 +74,7 @@ bash hooks/detect-profile.sh src/App.tsx                 # profiles for these pa
 bash hooks/detect-test-cmd.sh /absolute/path/to/my-app    # the test command the test step will run
 bash hooks/find-consumers.sh userName                    # from a repo: the other registered repos that use this name (reads only)
 bash hooks/static-gates.sh                               # from a repo: grep-decidable review rules on the current change (reads only)
+bash hooks/risk-tier.sh                                  # from a repo: low / normal / high for the current change, with reasons (reads only)
 ```
 
 Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules.
@@ -143,6 +144,8 @@ The plan, a stated browser policy, your repo's and design system's components, t
 
 The model is the `model:` value in each `agents/*.md` frontmatter.
 
+The review is matched to the change: before each reviewer spawn, `hooks/risk-tier.sh` scores it `low`, `normal` or `high`. A `low` change (docs or tests only, or at most 2 files with at most 30 added lines, no dependency file such as a lockfile, and no risky path or code word; words in `*.md`/`*.mdx`/`*.rst`/`*.txt` docs do not count) is reviewed with `opus` at `medium` effort; a `high` change (auth, payment, migrations, concurrency, parsers, hooks/CI/gates, or 10+ files) makes the reviewer write and run at least 2 executable probes in a temp dir. The usage-limit answer below still applies.
+
 ## Rules you need to know
 
 1. **You run the git operations.** The plugin commits automatically, but for branches, pushes and PRs it only writes the commands and text.
@@ -184,7 +187,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 11 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 19 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 20 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime; the parts one path needs (plan template, bugfix, retry loop, …) sit in sibling `skills/review-harness/*.md` files it reads only on that path
 - [constraints.md](constraints.md) — agent rules

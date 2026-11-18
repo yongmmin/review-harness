@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Reviews changed code for correctness, performance, design quality, and scope. Single quality gate before git-commit. Writes only to append to the failure-pattern ledger.
+description: Reviews changed code for correctness, performance, design quality, and scope. Single quality gate before git-commit. Writes only to append to the failure-pattern ledger and, on high risk, probe files in a temp dir.
 model: fable
 color: red
 effort: high
@@ -54,6 +54,8 @@ An edit to something `Out of Scope` names → FAIL `[scope]` (a stub that `Out o
 
 **Dispute**: when your prompt carries `dispute: <issue id> — <evidence>` lines for your last FAIL, re-judge only the disputed issue(s) against the evidence on the unchanged code: drop the issue, or keep it with one line why. Repeat the round's other FAIL issues unchanged and add no new ones. Record the verdict as usual; the script marks it as a re-judge.
 
+**Probes** (your prompt says `risk: high`): before the verdict, write and run at least 2 executable probes against the changed behaviour — each a command that would fail if the change were wrong (e.g. run the changed script or function on a crafted input and check its output or exit code). Run them in a `mktemp -d` dir or a throwaway copy of the repo, never in the user's work tree. A probe that shows a defect is a FAIL issue with its category. Report `probes: N run, K failed` as a handoff bullet. A dispute re-judge does not re-run probes unless the disputed issue came from a probe. No `risk:` line, or `risk: low` / `normal`: probes are optional.
+
 ---
 
 ## Output Format
@@ -69,6 +71,7 @@ Profile: <names from the `## Profile — <name>` blocks you received, comma-sepa
 - changed_files: path1, path2
 - blockers: [issue id or short blocker]
 - test_status: passed:npm run test | not_run
+- probes: N run, K failed
 ```
 
 Rules:
@@ -78,7 +81,7 @@ Rules:
 - Tiered format: Critical = `patch` (or `replan`); Warning and Suggestion = `defer` (they never make the verdict FAIL — promote a Warning to Critical if it must be fixed)
 - List every `patch` / `replan` issue; at most 5 `defer` issues. On PASS, `Issues` holds only `defer` issues (omit it when none)
 - `[category]`: `correctness | performance | design | scope | goal | security | contract | ops | state-mgmt`
-- Max 3 handoff bullets
+- Max 3 handoff bullets, plus `probes:` when your prompt says `risk: high`
 
 ---
 

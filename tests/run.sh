@@ -522,14 +522,9 @@ eq "pre-tool-use: bun.lock → deny" deny "$(edit "$P/bun.lock")"
 # --- workflows: intent table, plan template and flows agree -----------------------------
 SK="$ROOT/skills/review-harness/SKILL.md"
 SKD="$ROOT/skills/review-harness"
-# The split of SKILL.md into a core and situational files is a pure move: the next PR that rewords a rule
-# deletes this check and tests/fixtures/review-harness-SKILL.pre-split.md together.
+# SKILL.md is a core plus situational files, each read through one pointer line in the core.
 SKP='→ read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/'
-SKADD='- Files read through a `→ read` pointer below are read raw: replace the `CLAUDE_PLUGIN_ROOT` variable in them with the plugin root named in Session Context.'
-grep -v '^[[:space:]]*$' "$ROOT/tests/fixtures/review-harness-SKILL.pre-split.md" | LC_ALL=C sort > "$TMP/sk-old"
-cat "$SKD"/*.md | grep -v '^[[:space:]]*$' | grep -vF "$SKP" | grep -vxF -- "$SKADD" | LC_ALL=C sort > "$TMP/sk-new"
-eq "skill split: every old line in exactly one file" "" "$(diff "$TMP/sk-old" "$TMP/sk-new")"
-eq "skill split: the added core line is in the core once" 1 "$(grep -cxF -- "$SKADD" "$SK")"
+eq "skill split: the pure-move fixture is gone" no "$([ -e "$ROOT/tests/fixtures/review-harness-SKILL.pre-split.md" ] && echo yes || echo no)"
 lacks "skill split: the added core line names the variable without \${}" '${CLAUDE_PLUGIN_ROOT}' "$(grep -F 'are read raw: replace the' "$SK")"
 eq "skill split: core is at most 20000 bytes" yes "$([ "$(wc -c < "$SK" | tr -d ' ')" -le 20000 ] && echo yes || echo no)"
 SKN=0
@@ -1562,6 +1557,160 @@ has "docs/hooks.md: static-gates row" '| **`static-gates.sh`** |' "$(cat "$ROOT/
 has "docs/hooks.md: torn line skipped and the next append can be lost" \
   'a torn line is skipped, and a writer killed mid-line can also lose the next append' "$(cat "$ROOT/docs/hooks.md")"
 has "readme: static-gates example" 'bash hooks/static-gates.sh' "$(cat "$ROOT/README.md")"
+
+# --- risk-tier ----------------------------------------------------------------------------
+rt() { (cd "$R" && bash "$H/risk-tier.sh" "$@" 2>&1); }
+rtx() { (cd "$R" && bash "$H/risk-tier.sh" "$@" >/dev/null 2>&1); echo $?; }
+RTN=0
+rtrepo() { R="$TMP/rt-$RTN"; RTN=$((RTN + 1)); new_repo "$R"; git -C "$R" checkout -q -- f.txt; }
+# rtin <name> <tier> <path> [line...] — a fresh repo whose only change is the untracked <path> holding the lines
+rtin() {
+  local n=$1 t=$2 p=$3; shift 3; [ $# -eq 0 ] && set -- x
+  rtrepo; mkdir -p "$R/$(dirname "$p")"; printf '%s\n' "$@" > "$R/$p"
+  eq "risk-tier: $n → $t" "$t" "$(rt | head -n 1)"
+}
+lines() { i=0; while [ "$i" -lt "$1" ]; do echo "line $i"; i=$((i + 1)); done; }
+rtin "a one-line file" low src/plain.ts 'const a = 1'
+rtin "auth path segment" high src/auth/index.ts
+rtin "camelCase auth path" high src/AuthService.ts
+rtin "upper-case session path" high src/SESSION/store.ts
+rtin "tokenizer path is not auth" low src/tokenizer.ts
+rtin "author path is not auth" low src/author.ts
+rtin "token on an added line" high src/a.ts 'const t = getToken()'
+rtin "SNAKE_CASE token" high src/a.ts 'const k = env.API_TOKEN'
+rtin "tokenizer on an added line is not auth" low src/a.ts 'const tokenizer = 1'
+for w in session permissions roles ACLs rbac authorization oauth OAuth2 password passwd JWT login logout credentials; do
+  rtin "$w on an added line" high src/a.ts "use $w here"
+done
+rtin "an ARIA role attribute is not auth" low src/a.tsx '<div role="dialog" />'
+rtin "getByRole( is not auth" low src/a.test.tsx 'screen.getByRole("button")'
+rtin "a role check is auth" high src/a.ts 'if (user.role !== "admin") deny()'
+rtin "a role guard path is auth" high src/guards/role.guard.ts
+rtin "payment path" high src/payment/api.ts
+for w in billing invoice stripe refunds; do rtin "$w on an added line" high src/a.ts "go($w)"; done
+rtin "sparse-checkout is not a payment term" low src/a.sh 'git sparse-checkout set src'
+rtin "git checkout is not a payment term" low src/a.sh 'git checkout main'
+rtin "actions/checkout is not a payment term" low src/ci.yml '- uses: actions/checkout@v4'
+rtin "a checkout path is payment" high src/checkout/CheckoutPage.tsx
+rtin "a checkout call is payment" high src/a.ts 'submitCheckout(cart)'
+rtin "migrations/ path" high db/migrations/001.js
+rtin "migration/ path" high db/Migration/001.js
+rtin "*.sql path, any case" high db/Schema.SQL
+for w in lock mutex Semaphore workers queue concurrency; do rtin "$w on an added line" high src/a.ts "a $w b"; done
+for w in clock blocking; do rtin "$w is not a concurrency word" low src/a.ts "a $w b"; done
+rtin "parser path" high src/parser.ts
+rtin "deserialize on an added line" high src/a.ts 'deserializeUser(x)'
+rtin "parseInt is not a parser term" low src/a.ts 'parseInt(x)'
+rtin "root hooks/ path" high hooks/pre-commit
+rtin "a nested hooks/ folder is not the hooks dir" low src/hooks/useThing.ts
+rtin ".github/workflows/ path" high .github/workflows/ci.yml
+rtin "*gate* name" high scripts/commit-gate.sh
+rtin "Gates in camelCase name" high src/ReviewGates.ts
+for f in src/navigate.ts src/aggregate.ts; do rtin "$f is not a gate" low "$f"; done
+RTW='Rotate the token, take the lock, end the session.'
+rtin "high words on added doc lines do not count (.md)" low README.md "$RTW"
+for f in notes.txt guide.rst page.mdx; do rtin "high words on added doc lines do not count ($f)" low "$f" "$RTW"; done
+rtin "the same words in a code file → high" high src/a.ts "$RTW"
+rtin "a doc path still counts" high docs/auth.md
+rtin "a non-doc file under docs/ is word-scanned" high docs/plain.yml "$RTW"
+rtin "code under a docs/ folder is word-scanned" high app/docs/page.tsx 'const t = getToken()'
+rtin "CMakeLists.txt is not a doc" high CMakeLists.txt 'find_package(mutex)'
+rtrepo; mkdir -p "$R/docs/img"; for n in 1 2 3; do printf 'p\n' > "$R/docs/img/$n.svg"; done; printf 'text\n' > "$R/docs/guide.md"
+eq "risk-tier: images under docs/ plus a doc → low (docs only)" low "$(rt | head -n 1)"
+rtrepo; mkdir -p "$R/app/docs"; lines 60 > "$R/app/docs/page.tsx"
+eq "risk-tier: plain code under docs/ is not docs-only → normal" normal "$(rt)"
+rtrepo; printf 'requests==2.0\n' > "$R/requirements.txt"; OUT=$(rt)
+eq "risk-tier: requirements.txt → normal (not docs-only)" normal "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: requirements.txt → dependency reason" "reason: dependency change" "$OUT"
+# lockfiles: never a lock/word hit, but a dependency change is at least normal
+for f in package-lock.json yarn.lock pnpm-lock.yaml bun.lock bun.lockb Cargo.lock poetry.lock Gemfile.lock composer.lock go.sum sub/yarn.lock Pipfile.lock uv.lock any.lock constraints.txt; do
+  rtin "lockfile $f with high words → normal" normal "$f" 'proper-lockfile worker token mutex'
+done
+rtrepo; printf '{"version": "1.0.1"}\n' > "$R/package.json"; printf 'lock\n' > "$R/package-lock.json"; OUT=$(rt)
+eq "risk-tier: manifest + lockfile bump → normal" normal "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: dependency change → reason" "reason: dependency change" "$OUT"
+lacks "risk-tier: lockfile → no concurrency reason" "concurrency" "$OUT"
+rtin "a non-lockfile lock name still counts" high src/lock.ts
+rtrepo; mkdir -p "$R/src"; printf 'x\n' > "$R/src/auth.ts"; printf 'x\n' > "$R/yarn.lock"; OUT=$(rt)
+eq "risk-tier: lockfile plus a high path → high" high "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: high keeps the dependency reason" "reason: dependency change" "$OUT"
+# multi-file changes
+rtrepo; mkdir -p "$R/docs/deep"; lines 40 > "$R/README.md"; lines 40 > "$R/docs/deep/guide.txt"; lines 40 > "$R/notes.MD"
+OUT=$(rt)
+eq "risk-tier: docs only → low" low "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: docs only → reason" "reason: docs or tests only" "$OUT"
+lacks "risk-tier: docs only, 120 lines → no small-change reason" "small change" "$OUT"
+rtrepo; mkdir -p "$R/src/__tests__" "$R/test" "$R/tests/unit"
+for f in src/a.test.ts src/b.spec.tsx src/__tests__/c.js test/d.py tests/unit/e.sh; do lines 40 > "$R/$f"; done
+eq "risk-tier: tests only → low" low "$(rt | head -n 1)"
+rtrepo; mkdir -p "$R/src"; lines 3 > "$R/README.md"; lines 3 > "$R/src/x.ts"; lines 3 > "$R/src/y.ts"
+eq "risk-tier: docs plus 2 code files → normal, no reason lines" normal "$(rt)"
+rtrepo; mkdir -p "$R/src"; lines 3 > "$R/src/x.ts"; lines 3 > "$R/src/y.ts"
+OUT=$(rt)
+eq "risk-tier: 2 files, 6 lines → low" low "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: small change → reason" "reason: small change: 2 files, 6 added lines" "$OUT"
+rtrepo; lines 30 > "$R/x.ts"; eq "risk-tier: 30 added lines → low" low "$(rt | head -n 1)"
+rtrepo; lines 31 > "$R/x.ts"; eq "risk-tier: 31 added lines → normal" normal "$(rt | head -n 1)"
+rtrepo; echo c >> "$R/f.txt"; eq "risk-tier: a tracked edit counts" low "$(rt | head -n 1)"
+rtrepo; for i in 1 2 3 4 5 6 7 8 9; do echo x > "$R/n$i.ts"; done
+eq "risk-tier: 9 files → normal" normal "$(rt | head -n 1)"
+echo x > "$R/n10.ts"; OUT=$(rt)
+eq "risk-tier: 10 files → high" high "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: 10 files → reason" "reason: 10 files changed" "$OUT"
+rtrepo; mkdir -p "$R/hooks"; echo x > "$R/hooks/x.sh"; cm hooks; rm "$R/hooks/x.sh"
+eq "risk-tier: a deleted hooks/ file → high" high "$(rt | head -n 1)"
+rtrepo; mkdir -p "$R/src/auth"; printf 'const t = getToken()\n' > "$R/src/auth/a.ts"; printf 'mutex\n' > "$R/src/b.ts"
+OUT=$(rt)
+has "risk-tier: auth reason names the path" "reason: auth/session term (auth) in src/auth/a.ts" "$OUT"
+has "risk-tier: concurrency reason names the file of the added line" "reason: concurrency term (mutex) in src/b.ts" "$OUT"
+eq "risk-tier: every line after the first is a reason" 0 "$(printf '%s\n' "$OUT" | sed 1d | grep -cv '^reason: ')"
+ST0=$(git -C "$R" status --porcelain); IX0=$(cksum < "$R/.git/index")
+eq "risk-tier: high → exit 0" 0 "$(rtx)"
+eq "risk-tier: real index untouched" "$IX0" "$(cksum < "$R/.git/index")"
+eq "risk-tier: git status unchanged" "$ST0" "$(git -C "$R" status --porcelain)"
+eq "risk-tier: same output from a subdirectory" "$OUT" "$(cd "$R/src" && bash "$H/risk-tier.sh" 2>&1)"
+# committed change: seen only with a base
+rtrepo; RTB=$(git -C "$R" rev-parse HEAD); mkdir -p "$R/src"; echo x > "$R/src/billing.ts"; cm billing
+eq "risk-tier: committed change, no base → normal (an empty change is never low)" normal "$(rt)"
+eq "risk-tier: committed change with a base → high" high "$(rt "$RTB" | head -n 1)"
+rtrepo; mkdir -p "$R/src"; echo x > "$R/src/auth.ts"; cm auth; RTB=$(git -C "$R" rev-parse HEAD)
+git -C "$R" mv src/auth.ts src/plain.ts; cm move
+eq "risk-tier: a committed move keeps its old path (auth.ts → plain.ts) → high" high "$(rt "$RTB" | head -n 1)"
+# A 5 MB minified line: only its first 20,000 characters are scanned, so it stays fast.
+rtrepo; mkdir -p "$R/src"; yes 'var block=aB;' | head -n 400000 | tr -d '\n' > "$R/src/min.js"; printf 'const t = getToken()\n' > "$R/src/b.ts"
+RTS=$SECONDS; OUT=$(rt); RTS=$((SECONDS - RTS))
+eq "risk-tier: a 5 MB one-line file plus getToken() → high" high "$(printf '%s\n' "$OUT" | head -n 1)"
+eq "risk-tier: a 5 MB one-line file is scanned in under 20 s" yes "$([ "$RTS" -lt 20 ] && echo yes || echo "no ($RTS s)")"
+# Racy entry: an edit of the same size whose mtime equals both the index entry and the index file. Git re-reads such
+# an entry only while the copied index keeps the real index's mtime (cp -p); trustctime off makes it deterministic.
+rtrepo; mkdir -p "$R/src"; printf 'const xxxxx = 1\n' > "$R/src/a.ts"; git -C "$R" config core.trustctime false
+touch -t 202001010000 "$R/src/a.ts"; cm racy
+printf 'const token = 1\n' > "$R/src/a.ts"; touch -t 202001010000 "$R/src/a.ts" "$R/.git/index"
+eq "risk-tier: a racily clean same-size edit is still seen" high "$(rt | head -n 1)"
+R="$TMP/rt-nonutf"; new_repo "$R"; printf 'const s = "\377" + token\n' > "$R/n.ts"
+eq "risk-tier: a non-UTF-8 byte does not end the parse" high "$(cd "$R" && LC_ALL=C.UTF-8 bash "$H/risk-tier.sh" 2>/dev/null | head -n 1)"
+eq "risk-tier: two arguments → exit 2" 2 "$(rtx a b)"
+eq "risk-tier: unknown base → exit 2" 2 "$(rtx no-such-ref)"
+eq "risk-tier: option-like base → exit 2" 2 "$(rtx --help)"
+mkdir -p "$TMP/rt-nogit"; eq "risk-tier: outside a git repo → exit 2" 2 "$(cd "$TMP/rt-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/risk-tier.sh" >/dev/null 2>&1; echo $?)"
+eq "risk-tier: umask 077 for its temp files" 1 "$(grep -c '^umask 077' "$H/risk-tier.sh")"
+AS=$(sed -n '/^## Agent Spawning/,/^## Context Budget/p' "$SK")
+has "skill: reviewer spawn runs risk-tier.sh" 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh"' "$AS"
+has "skill: risk line in the reviewer prompt" '`risk: <tier>`' "$AS"
+has "skill: low risk → opus, medium effort" '`low` → spawn `reviewer` with `model: "opus"` and `effort: "medium"`' "$AS"
+has "skill: risk-tier failure → normal" 'fails → `risk: normal`' "$AS"
+has "code-review: risk tier for a diff target" 'hooks/risk-tier.sh' "$(cat "$ROOT/skills/code-review/SKILL.md")"
+PR=$(sed -n '/^\*\*Probes\*\*/p' "$ROOT/agents/reviewer.md")
+has "reviewer: high risk → at least 2 executed probes" 'at least 2 executable probes' "$PR"
+has "reviewer: probes never in the work tree" "never in the user's work tree" "$PR"
+has "reviewer: probes handoff line" '`probes: N run, K failed`' "$PR"
+has "reviewer: a dispute re-judge re-runs probes only for a probe issue" 'does not re-run probes unless the disputed issue came from a probe' "$PR"
+has "skill: Keep Fable does not change low" '`Keep Fable` does not change `low`' "$AS"
+has "code-review: Keep Fable does not change low" '`Keep Fable` does not change `low`' "$(cat "$ROOT/skills/code-review/SKILL.md")"
+has "reviewer: probes line is a 4th handoff bullet" 'plus `probes:` when your prompt says `risk: high`' "$OF"
+has "docs/hooks.md: risk-tier row" '| **`risk-tier.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
+has "readme: risk-tier example" 'bash hooks/risk-tier.sh' "$(cat "$ROOT/README.md")"
+has "CLAUDE.md: model routing names risk tiers" 'risk-tier.sh' "$(sed -n '/^## Model Routing/,$p' "$ROOT/CLAUDE.md")"
 
 # --- small doc items ----------------------------------------------------------------------
 has "refactor-architect: rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$RA"
