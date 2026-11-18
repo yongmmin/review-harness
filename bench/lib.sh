@@ -1,5 +1,5 @@
 #!/bin/bash
-# bench/lib.sh — sourced by bench/cases/*/setup.sh.
+# bench/lib.sh — sourced by bench/cases/*/setup.sh and bench/cases-dev/*/setup.sh.
 # A fixture is a throwaway git repo: the "before" files form the base commit, the "after" files are left as an
 # uncommitted change. The base is recorded with commit-tree + update-ref (never `git commit`), with a fixed
 # identity and date so every fixture has the same base id on every machine. Nothing in the git metadata names the
@@ -157,4 +157,134 @@ EOF
 # bench_done <dir> — mark files added by the change as intent-to-add, so `git diff` shows them
 bench_done() {
   git -C "$1" add -N -A
+}
+
+# bench_node <dir> — zero-dependency Node 20 HTTP skeleton (CommonJS, `node --test`) for the developer-side cases:
+# route table with a per-route query allowlist, JSON errors `{error, message}`, and test helpers. The case writes
+# src/app.js, its routes and its tests, then calls bench_base with no uncommitted change.
+bench_node() {
+  mkdir -p "$1/src/http" "$1/test"
+  cat > "$1/package.json" <<'EOF'
+{
+  "name": "shop",
+  "private": true,
+  "scripts": { "test": "node --test" }
+}
+EOF
+  cat > "$1/src/http/errors.js" <<'EOF'
+'use strict'
+
+class HttpError extends Error {
+  constructor(status, code, message) {
+    super(message)
+    this.status = status
+    this.code = code
+  }
+}
+
+module.exports = { HttpError }
+EOF
+  cat > "$1/src/http/query.js" <<'EOF'
+'use strict'
+const { HttpError } = require('./errors')
+
+// Rejects any query parameter the route does not list.
+function checkQuery(allowed, searchParams) {
+  for (const key of searchParams.keys()) {
+    if (!allowed.includes(key)) {
+      throw new HttpError(400, 'invalid_query', `unknown query parameter: ${key}`)
+    }
+  }
+}
+
+module.exports = { checkQuery }
+EOF
+  cat > "$1/src/http/server.js" <<'EOF'
+'use strict'
+const http = require('node:http')
+const { HttpError } = require('./errors')
+const { checkQuery } = require('./query')
+
+function matchPath(pattern, pathname) {
+  const want = pattern.split('/').filter(Boolean)
+  const got = pathname.split('/').filter(Boolean)
+  if (want.length !== got.length) return null
+  const params = {}
+  for (let i = 0; i < want.length; i++) {
+    if (want[i].startsWith(':')) params[want[i].slice(1)] = decodeURIComponent(got[i])
+    else if (want[i] !== got[i]) return null
+  }
+  return params
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = ''
+    req.on('data', (chunk) => { data += chunk })
+    req.on('error', reject)
+    req.on('end', () => {
+      if (!data) return resolve(undefined)
+      try {
+        resolve(JSON.parse(data))
+      } catch {
+        reject(new HttpError(400, 'invalid_body', 'body must be JSON'))
+      }
+    })
+  })
+}
+
+function send(res, status, body) {
+  res.writeHead(status, { 'content-type': 'application/json' })
+  res.end(JSON.stringify(body))
+}
+
+// routes: [{ method, path ('/orders/:id'), query: [allowed keys], handler(ctx) → { status, body } }]
+function createServer(routes) {
+  return http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url, 'http://localhost')
+      for (const route of routes) {
+        if (route.method !== req.method) continue
+        const params = matchPath(route.path, url.pathname)
+        if (!params) continue
+        checkQuery(route.query || [], url.searchParams)
+        const body = await readBody(req)
+        const result = await route.handler({ params, query: Object.fromEntries(url.searchParams), body })
+        return send(res, result.status, result.body)
+      }
+      throw new HttpError(404, 'not_found', `no route for ${req.method} ${url.pathname}`)
+    } catch (err) {
+      if (err instanceof HttpError) return send(res, err.status, { error: err.code, message: err.message })
+      send(res, 500, { error: 'internal', message: 'internal error' })
+    }
+  })
+}
+
+module.exports = { createServer, HttpError }
+EOF
+  cat > "$1/test/helpers.js" <<'EOF'
+'use strict'
+
+function start(server) {
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address()
+      resolve({
+        url: `http://127.0.0.1:${port}`,
+        close: () => new Promise((done) => {
+          server.closeAllConnections()
+          server.close(done)
+        }),
+      })
+    })
+  })
+}
+
+async function getJson(url) {
+  const res = await fetch(url)
+  return { status: res.status, body: await res.json() }
+}
+
+module.exports = { start, getJson }
+EOF
 }

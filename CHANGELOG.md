@@ -4,6 +4,12 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Developer-side bench**
+- New `bench/dev-run.sh <plain|harness> <case-dir> <out-dir>`: one end-to-end `claude -p` run of a task in a throwaway fixture, in a temp dir with its own config dir and plugin home, rtk off; the harness arm loads a `git archive HEAD` copy of the plugin's runtime files only (`.claude-plugin`, `agents`, `hooks`, `skills`, `profiles`, `constraints.md`). Fixed user-proxy replies (at most 4, through `--resume`), cost cap (`DEV_BENCH_BUDGET_USD`, default 15) and wall-time cap (`DEV_BENCH_TIME_S`, default 2700, kills the call's process group); copies the fixture, driver outputs, transcripts, `runs.jsonl` and `plan.md` to the out-dir with a `run.json`
+- New `bench/dev-score.sh <case-dir> <out-dir>`: one JSON line per run — hidden tests passed, regressions, base tests the run edited, cost, tokens, turns, wall time, user replies, harness attempts / verdicts / end, plan sections present, test runs and a contamination flag; `solved` needs all hidden tests, no regression, no abort, no `limit`/`abandoned` end and a clean transcript
+- First developer-side case on a zero-dependency Node 20 skeleton (new `bench_node` in `bench/lib.sh`), with a correct and a plausible wrong patch that `tests/run.sh` checks against the hidden tests
+- `tests/run.sh`: the case (clean base, base tests pass, hidden tests fail at base, both patches, no revealing words), the scorer, and the driver against a stub `claude`; skipped with one line when node 20+ is missing
+
 **Agent usage**
 - New `hooks/agent-usage.sh` on `SubagentStart` / `SubagentStop` (matcher `^(review-harness:)?(developer|test-runner|reviewer|refactor-architect)$`): records each plugin agent's active time (sum of start→stop spans, resumes included), tokens (input, output, cache read, cache write; one count per `message.id` of its transcript, replaced on every stop) and tool calls of the active run in `<state dir>/agents.json` (never in `run-state.json`: the review gate's file and its stale clock stay untouched; deleted by `start`, `done`, `abandon`), through new `run-state.sh agent-start` / `agent-stop`. Never blocks, prints nothing, always exits 0; no active run, a stale run, no `jq`, an unreadable transcript or an agent the run never started → nothing recorded. Main-session tokens are not measured
 - `runs.jsonl` gains `agents` (per agent type: `n`, `s`, `in`, `out`, `cr`, `cw`, `tools`) and `tokens` (run totals) when agent data exists; `run-state.sh status` adds ` · agents N`

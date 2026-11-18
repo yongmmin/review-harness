@@ -1,0 +1,1 @@
+Support staff need to see only orders in a given status. Add a status filter to `GET /orders` (for example `GET /orders?status=paid`). It must work together with the existing page/limit pagination. A status that does not exist should be rejected with a 400, in the same error format the API already uses for bad query values.

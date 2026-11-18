@@ -1112,6 +1112,146 @@ printf '%s\n' '## Code Review Verdict: FAIL' '### Issues' '1. [design] [src/b.ts
   '2. [correctness] [src/a.service.ts:3] - missing await (route: defer)' > "$TMP/out-defer.md"
 eq "bench score: a defer line is neither caught nor extra" "missed extra=1" "$(bash "$B/score.sh" "$TMP/expect.txt" "$TMP/out-defer.md")"
 
+# --- bench (developer side) ----------------------------------------------------------------
+NM=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null); case "$NM" in ''|*[!0-9]*) NM=0 ;; esac
+if [ "$NM" -lt 20 ]; then
+  echo "skip: bench (developer side) — node 20+ not found"
+else
+FORBID="bench|accept|solution|trap|$(ls "$B/cases-dev" | tr '\n' '|')"; FORBID=${FORBID%|}
+dfx() { # dfx <case> [patch] — fresh opaque fixture of a developer-side case, with cases-dev/<case>/<patch>.patch applied
+  local d; d=$(mktemp -d "$TMP/w.XXXXXX"); bash "$B/cases-dev/$1/setup.sh" "$d" >/dev/null 2>&1 || return 1
+  [ -z "${2:-}" ] || git -C "$d" apply "$B/cases-dev/$1/$2.patch" || return 1
+  echo "$d"
+}
+ntest() { (cd "$1" && node --test >/dev/null 2>&1); echo $?; }   # exit code of the fixture's own tests
+nhidden() { # nhidden <fixture> <case> — exit code of the case's hidden tests, run from test/accept/ as dev-score.sh does
+  mkdir -p "$1/test/accept" && cp "$B/cases-dev/$2"/accept/*.test.js "$1/test/accept/" \
+    && (cd "$1" && node --test test/accept/*.test.js >/dev/null 2>&1); echo $?; rm -rf "$1/test/accept"
+}
+for c in "$B"/cases-dev/*/; do
+  c=$(basename "$c"); FX=$(dfx "$c"); eq "bench-dev $c: setup exits 0" 0 "$?"
+  echo "$FX" > "$TMP/dfx-$c"
+  eq "bench-dev $c: clean tree" "" "$(git -C "$FX" status --porcelain)"
+  eq "bench-dev $c: base not made by git commit" "" "$(git -C "$FX" reflog --format=%gs | grep '^commit')"
+  eq "bench-dev $c: base tests pass" 0 "$(ntest "$FX")"
+  eq "bench-dev $c: hidden tests fail at base" 1 "$(nhidden "$FX" "$c")"
+  META="$FX
+$(git -C "$FX" log --format='%an %ae %cn %ce %B') $(git -C "$FX" reflog --format=%gs)"
+  eq "bench-dev $c: no forbidden word in path / log / reflog" "" "$(printf '%s\n' "$META" | grep -iE "$FORBID")"
+  eq "bench-dev $c: no forbidden word in fixture files or names" "" \
+    "$(grep -rliE --exclude-dir=.git "$FORBID" "$FX"; find "$FX" -path "$FX/.git" -prune -o -print | sed "s|^$FX||" | grep -iE "$FORBID")"
+  eq "bench-dev $c: no forbidden word in task.md" "" "$(grep -iE "$FORBID" "$B/cases-dev/$c/task.md")"
+  for p in solution trap; do
+    PF=$(dfx "$c" $p); eq "bench-dev $c: $p.patch applies" 0 "$?"
+    eq "bench-dev $c: $p passes base tests" 0 "$(ntest "$PF")"
+    echo "$PF" > "$TMP/dfx-$c-$p"
+  done
+  eq "bench-dev $c: solution passes hidden tests" 0 "$(nhidden "$(cat "$TMP/dfx-$c-solution")" "$c")"
+  eq "bench-dev $c: trap fails hidden tests" 1 "$(nhidden "$(cat "$TMP/dfx-$c-trap")" "$c")"
+done
+CD="$B/cases-dev/dev-unwired"
+dout() { # dout <out-dir> <work-dir> <arm> — a finished-run out-dir as dev-run.sh leaves it
+  mkdir -p "$1" && cp -R "$2" "$1/work" && jq -nc --arg a "$3" '{arm: $a, wall_s: 7, user_replies: 1, aborted: null}' > "$1/run.json"
+}
+dscore() { TMPDIR="$TMP" bash "$B/dev-score.sh" "$CD" "$1" 2>/dev/null; }
+dout "$TMP/ds-sol" "$(cat "$TMP/dfx-dev-unwired-solution")" plain
+OUT=$(dscore "$TMP/ds-sol")
+eq "bench dev-score: solution → solved, all hidden pass, no regression" "true 4/4 0 0" \
+  "$(printf '%s' "$OUT" | jq -r '"\(.solved) \(.accept) \(.regressions) \(.tests_touched)"')"
+eq "bench dev-score: run.json fields" "plain 7 1 null" "$(printf '%s' "$OUT" | jq -r '"\(.arm) \(.wall_s) \(.user_replies) \(.aborted)"')"
+dout "$TMP/ds-trap" "$(cat "$TMP/dfx-dev-unwired-trap")" plain
+eq "bench dev-score: trap → not solved, hidden tests fail" "false 2/4 0" \
+  "$(dscore "$TMP/ds-trap" | jq -r '"\(.solved) \(.accept) \(.regressions)"')"
+WK=$(dfx dev-unwired); rm "$WK/test/service.test.js"; sed -i.orig 's/(page - 1) \* limit/page * limit/' "$WK/src/orders/service.js"; rm "$WK/src/orders/service.js.orig"
+dout "$TMP/ds-del" "$WK" plain
+OUT=$(dscore "$TMP/ds-del")
+eq "bench dev-score: deleted test + broken paging → touched and regressions" "1 true false" \
+  "$(printf '%s' "$OUT" | jq -r '"\(.tests_touched) \(.regressions >= 1) \(.solved)"')"
+WK=$(dfx dev-unwired); sed -i.orig '/listOrders returns no items past/,$d' "$WK/test/service.test.js"; rm "$WK/test/service.test.js.orig"
+dout "$TMP/ds-cut" "$WK" plain
+eq "bench dev-score: removed lines in a base test → touched" 1 "$(dscore "$TMP/ds-cut" | jq -r .tests_touched)"
+dout "$TMP/ds-h" "$(cat "$TMP/dfx-dev-unwired-solution")" harness
+mkdir -p "$TMP/ds-h/driver" "$TMP/ds-h/transcripts/p"
+for n in 01 02; do jq -nc '{session_id: "s", total_cost_usd: 1.25, num_turns: 4, usage: {input_tokens: 10, output_tokens: 3, cache_read_input_tokens: 100}}' > "$TMP/ds-h/driver/$n.json"; done
+printf '%s\n' '{"attempts":2,"verdicts":[{"v":"FAIL"},{"v":"PASS"}],"end":"done","override":null}' > "$TMP/ds-h/runs.jsonl"
+printf '%s\n' '## Done When' '- GET works — check: test' '## Design Check' '- Callers/Consumers: src/routes/index.js' '## Bug' '' > "$TMP/ds-h/plan.md"
+jq -nc '{message: {content: [{type: "tool_use", name: "Bash", input: {command: "node --test test/x.test.js"}}, {type: "tool_use", name: "Bash", input: {command: "ls"}}]}}' > "$TMP/ds-h/transcripts/p/s.jsonl"
+OUT=$(dscore "$TMP/ds-h")
+eq "bench dev-score: driver sums" "2.5 20 6 200 8" "$(printf '%s' "$OUT" | jq -r '"\(.cost_usd) \(.input_tokens) \(.output_tokens) \(.cache_read_tokens) \(.turns)"')"
+eq "bench dev-score: harness run log and plan" "2 FAIL,PASS done 1 1 0" \
+  "$(printf '%s' "$OUT" | jq -r '"\(.attempts) \(.verdicts | join(",")) \(.end) \(.plan_done_when) \(.plan_callers) \(.plan_bug)"')"
+eq "bench dev-score: test runs from transcripts, clean → solved" "1 0 true" "$(printf '%s' "$OUT" | jq -r '"\(.test_runs) \(.contaminated) \(.solved)"')"
+printf '%s\n' '{"attempts":3,"end":"limit"}' >> "$TMP/ds-h/runs.jsonl"
+eq "bench dev-score: harness run ended at limit → not solved" "limit false" "$(dscore "$TMP/ds-h" | jq -r '"\(.end) \(.solved)"')"
+sed -i.orig '$d' "$TMP/ds-h/runs.jsonl"; rm "$TMP/ds-h/runs.jsonl.orig"
+echo '{"message":"cat bench/cases-dev/x/solution.patch"}' >> "$TMP/ds-h/transcripts/p/s.jsonl"
+eq "bench dev-score: transcript names hidden files → contaminated, not solved" "1 false" "$(dscore "$TMP/ds-h" | jq -r '"\(.contaminated) \(.solved)"')"
+eq "bench dev-score: no out-dir → usage" 2 "$(bash "$B/dev-score.sh" "$CD" "$TMP/nope" >/dev/null 2>&1; echo $?)"
+# dev-run.sh with a stub claude first on PATH: STUB_ASK = calls 1..N end with "?", STUB_COST per call, STUB_SLEEP seconds
+mkdir -p "$TMP/bin" "$TMP/dr/t"
+cat > "$TMP/bin/claude" <<'EOF'
+#!/bin/bash
+n=$(($(cat "$STUB_DIR/n" 2>/dev/null || echo 0) + 1)); echo "$n" > "$STUB_DIR/n"
+{ echo "call $n"; echo "cwd $PWD"; echo "env $CLAUDE_CONFIG_DIR $REVIEW_HARNESS_HOME $REVIEW_HARNESS_RTK"
+  echo "plugin $(ls -A "$REVIEW_HARNESS_HOME/../plugin" 2>/dev/null | tr '\n' ' ')"
+  echo "declined $(find "$REVIEW_HARNESS_HOME/state" -name register-declined 2>/dev/null | wc -l | tr -d ' ')"
+  printf 'arg %s\n' "$@"; } >> "$STUB_DIR/log"
+sleep "${STUB_SLEEP:-0}"
+mkdir -p "$CLAUDE_CONFIG_DIR/projects/p" "$REVIEW_HARNESS_HOME/state/x"
+echo '{"message":{}}' >> "$CLAUDE_CONFIG_DIR/projects/p/s.jsonl"
+echo '## Done When' > "$REVIEW_HARNESS_HOME/state/x/plan.md"; echo '{"end":"done"}' >> "$REVIEW_HARNESS_HOME/state/runs.jsonl"
+r="Done."; [ "$n" -gt "${STUB_ASK:-0}" ] || r="Shall I go ahead?"
+jq -nc --arg r "$r" --argjson c "${STUB_COST:-0.5}" '{session_id: "sess-1", total_cost_usd: $c, num_turns: 2, result: $r}'
+EOF
+chmod +x "$TMP/bin/claude"
+drun() { # drun <name> <arm> [VAR=value ...] — exit code of dev-run.sh into $TMP/dr/<name>; the stub logs to $TMP/dr/s-<name>/log
+  local n="$1" a="$2"; shift 2; mkdir -p "$TMP/dr/s-$n"
+  env PATH="$TMP/bin:$PATH" STUB_DIR="$TMP/dr/s-$n" TMPDIR="$TMP/dr/t" "$@" bash "$B/dev-run.sh" "$a" "$CD" "$TMP/dr/$n" >/dev/null 2>&1; echo $?
+}
+art() { for f in driver/01.json work/package.json transcripts/p/s.jsonl plan.md runs.jsonl; do [ -e "$1/$f" ] && printf 1 || printf 0; done; }
+rj() { jq -r "$2" "$TMP/dr/$1/run.json"; }
+eq "bench dev-run plain: exit 0" 0 "$(drun p1 plain)"
+L=$(cat "$TMP/dr/s-p1/log"); CWD=$(printf '%s\n' "$L" | sed -n 's/^cwd //p'); W=${CWD%/repo}
+eq "bench dev-run plain: run.json" "plain dev-unwired 0 null 1 null" "$(rj p1 '"\(.arm) \(.case) \(.user_replies) \(.aborted) \(.calls) \(.plugin_rev)"')"
+eq "bench dev-run plain: driver, work, transcripts copied; no harness files" 11100 "$(art "$TMP/dr/p1")"
+eq "bench dev-run plain: claude runs in <work>/repo" "$W/repo" "$CWD"
+eq "bench dev-run: work path names no case or benchmark" "" "$(printf '%s\n' "$CWD" | grep -iE "$FORBID")"
+eq "bench dev-run: own config dir and home, rtk off" "env $W/cfg $W/home off" "$(printf '%s\n' "$L" | grep '^env ')"
+eq "bench dev-run: work dir removed after the run" "" "$(ls -d "$W" 2>/dev/null)"
+has "bench dev-run plain: prompt is task.md" "arg -p"$'\n'"arg $(cat "$CD/task.md")"$'\n' "$L"
+ARGS=$(printf '%s\n' "$L" | sed -n 's/^arg //p' | tr '\n' ' ')
+has "bench dev-run: claude flags" "--model opus --output-format json --permission-mode bypassPermissions --disallowedTools AskUserQuestion --max-budget-usd 15.00 --setting-sources project --strict-mcp-config " "$ARGS"
+lacks "bench dev-run plain: no plugin" "--plugin-dir" "$ARGS"
+lacks "bench dev-run: first call does not resume" "--resume" "$ARGS"
+has "bench dev-run: map.tsv line" "p1	dev-unwired	plain" "$(cat "$TMP/dr/map.tsv")"
+eq "bench dev-run: non-empty out-dir refused" 2 "$(drun p1 plain)"
+mkdir -p "$TMP/dr/bench-t"
+eq "bench dev-run: a work path naming the benchmark is refused" 2 "$(drun x1 plain TMPDIR="$TMP/dr/bench-t")"
+eq "bench dev-run harness: exit 0" 0 "$(drun h1 harness)"
+L=$(cat "$TMP/dr/s-h1/log"); PL=" $(printf '%s\n' "$L" | sed -n 's/^plugin //p')"
+has "bench dev-run harness: prompt runs the skill" "arg /review-harness:review-harness $(head -c 20 "$CD/task.md")" "$L"
+CWD=$(printf '%s\n' "$L" | sed -n 's/^cwd //p')
+has "bench dev-run harness: --plugin-dir is the plugin copy" "arg --plugin-dir"$'\n'"arg ${CWD%/repo}/plugin" "$L"
+for f in hooks .claude-plugin; do has "bench dev-run harness: plugin copy has $f" " $f " "$PL"; done
+for f in bench tests README.md CHANGELOG.md; do lacks "bench dev-run harness: plugin copy has no $f" " $f " "$PL"; done
+has "bench dev-run harness: register-declined pre-created" "declined 1" "$L"
+eq "bench dev-run harness: plugin_rev" "$(git -C "$ROOT" rev-parse --short HEAD)" "$(rj h1 .plugin_rev)"
+eq "bench dev-run harness: runs.jsonl and plan.md copied" 11111 "$(art "$TMP/dr/h1")"
+eq "bench dev-run: '?' → one reply" "2 1 null" "$(drun a1 plain STUB_ASK=1 >/dev/null; rj a1 '"\(.calls) \(.user_replies) \(.aborted)"')"
+L=$(cat "$TMP/dr/s-a1/log")
+has "bench dev-run: the reply resumes the session" "arg --resume"$'\n'"arg sess-1" "$(printf '%s\n' "$L" | sed -n '/^call 2$/,$p')"
+has "bench dev-run: first reply approves" "arg -p"$'\n'"arg Approved. Go ahead." "$L"
+eq "bench dev-run: replies stop at 4" "5 4" "$(drun a2 plain STUB_ASK=9 >/dev/null; rj a2 '"\(.calls) \(.user_replies)"')"
+has "bench dev-run: later replies say no more answers" "arg I can't answer more questions" "$(cat "$TMP/dr/s-a2/log")"
+eq "bench dev-run: cost cap" '2 "cost"' "$(drun c1 plain STUB_ASK=9 STUB_COST=6 DEV_BENCH_BUDGET_USD=10 >/dev/null; rj c1 '"\(.calls) \(.aborted | tojson)"')"
+has "bench dev-run: budget left goes to the next call" "arg --max-budget-usd"$'\n'"arg 4.00" "$(cat "$TMP/dr/s-c1/log")"
+eq "bench dev-run: time cap kills the call" '1 "time" true' \
+  "$(drun t1 plain STUB_SLEEP=5 DEV_BENCH_TIME_S=1 >/dev/null; rj t1 '"\(.calls) \(.aborted | tojson) \(.wall_s < 5)"')"
+drun b1 plain DEV_BENCH_BARE=1 >/dev/null; ARGS=$(sed -n 's/^arg //p' "$TMP/dr/s-b1/log" | tr '\n' ' ')
+has "bench dev-run: DEV_BENCH_BARE=1 → --bare" "--bare" "$ARGS"
+lacks "bench dev-run: --bare replaces the config isolation" "--setting-sources" "$ARGS"
+fi
+
 # --- commit gate: other git forms and history-writing commands ----------------------------
 R="$TMP/gate2"; new_repo "$R"; rs start small-change reviewer >/dev/null
 for c in "/usr/bin/git commit -m x" "/opt/homebrew/bin/git commit" "git -C . commit -m x" "git -C \"/a b/c\" commit" \
