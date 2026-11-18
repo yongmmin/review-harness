@@ -73,6 +73,7 @@ bash hooks/extract-constraints.sh reviewer web-frontend   # #org section, then t
 bash hooks/detect-profile.sh src/App.tsx                 # profiles for these paths (no args: the current changes)
 bash hooks/detect-test-cmd.sh /absolute/path/to/my-app    # the test command the test step will run
 bash hooks/find-consumers.sh userName                    # from a repo: the other registered repos that use this name (reads only)
+bash hooks/static-gates.sh                               # from a repo: grep-decidable review rules on the current change (reads only)
 ```
 
 Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules.
@@ -171,7 +172,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 11 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 18 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 19 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
 - [constraints.md](constraints.md) — agent rules
