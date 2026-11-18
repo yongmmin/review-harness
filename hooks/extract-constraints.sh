@@ -69,7 +69,8 @@ extract_section() {
   [ "$tag" = org ] && file="$ORG_CONSTRAINTS"
   [ "$tag" = failure-patterns ] && { file="$LEDGER"; printf 'ledger: %s\n\n' "$LEDGER"; }
   [ -f "$file" ] || return 0
-  awk -v tag="## #$tag" '
+  # LC_ALL=C: macOS awk in a UTF-8 locale aborts at the first non-UTF-8 byte (towc: multibyte conversion failure).
+  LC_ALL=C awk -v tag="## #$tag" '
     BEGIN { printing = 0 }
     $0 == tag { printing = 1; print; next }
     printing && /^## #/ { exit }
@@ -114,7 +115,7 @@ if [ "$AGENT" = developer ]; then
       extract_section review "$RH_HOME/org/profiles/$PROFILE.md"
     done
     extract_section failure-patterns
-  } | grep '^- ')
+  } | grep -a '^- ')   # -a: a non-UTF-8 byte in the ledger must not turn it into "Binary file matches"
   [ -n "$CHECKLIST" ] && CHECKLIST_OUT="## Review checklist — the reviewer FAILs on these (check your diff before handoff)"$'\n\n'"${CHECKLIST}"$'\n\n'
 fi
 
