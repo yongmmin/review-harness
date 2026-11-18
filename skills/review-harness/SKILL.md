@@ -160,6 +160,8 @@ Spawn specialists with the `Agent` tool. When installed as a plugin, the `subage
 - N is 80 or higher → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/usage-downgrade.md` before the first `reviewer` or `refactor-architect` spawn
 - If N is below 80 or the value is `unknown`, do not ask; pass no `model` so the frontmatter value applies
 
+**Risk tier**: before each `reviewer` spawn, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" [base]` (the base only when the change is committed) and put its output in the reviewer prompt as `risk: <tier>` plus its `reason:` lines; the script fails → `risk: normal`. `low` → spawn `reviewer` with `model: "opus"` and `effort: "medium"`; `normal` and `high` → no override (`high`: the reviewer runs probes). `Opus for this run` still sets `model: "opus"` on every tier; `Keep Fable` does not change `low`.
+
 ## Context Budget
 
 Per agent call, include only:

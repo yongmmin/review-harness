@@ -21,37 +21,12 @@
 # (for example an unreadable untracked file): git's error, then one line naming the command.
 
 umask 077   # the temp index and diff copies hold repo content
+ME=static-gates
 usage() { echo "usage: static-gates.sh [base]${1:+ — $1}" >&2; exit 2; }
-# git's stderr is kept in $IDX.err and shown only on failure (add -N with nothing untracked is chatty).
-gitfail() { cat "$IDX.err" >&2 2>/dev/null; echo "static-gates: git $1 failed (see the git error above)" >&2; exit 2; }
 [ $# -le 1 ] || usage
 case "${1:-}" in -*) usage "unknown option: $1" ;; esac
-ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "static-gates: not a git repository" >&2; exit 2; }
-cd "$ROOT" || exit 2
-g() { git -c core.quotePath=false "$@"; }
-
-if [ -n "${1:-}" ]; then
-  FROM=$(git merge-base "$1" HEAD 2>/dev/null) || usage "no merge base with HEAD: $1"
-elif git rev-parse --verify -q HEAD >/dev/null 2>&1; then
-  FROM=HEAD
-else
-  FROM=$(git hash-object -t tree /dev/null)   # the empty tree: every tracked file is added
-fi
-
-# One diff covers untracked files too: they are added intent-to-add in a copy of the index.
-IDX=$(mktemp "${TMPDIR:-/tmp}/static-gates.XXXXXX") || exit 2
-trap 'rm -f "$IDX" "$IDX.lock" "$IDX.names" "$IDX.diff" "$IDX.err"' EXIT
-REAL_IDX=$(git rev-parse --git-path index)
-if [ -f "$REAL_IDX" ]; then cp "$REAL_IDX" "$IDX"; else rm -f "$IDX"; fi   # an empty file is not a valid index
-export GIT_INDEX_FILE="$IDX"
-# git ≥ 2.34 refuses an untracked path outside a sparse-checkout cone unless --sparse is given (older git has
-# neither the check nor the option). Option names in `-h` are never translated.
-SPARSE=(); git add -h 2>&1 | grep -qE -- '--(\[no-\])?sparse' && SPARSE=(--sparse)
-# entries ending in `/` are nested repos or worktrees
-g ls-files -z --others --exclude-standard | while IFS= read -r -d '' f; do
-  case "$f" in */) ;; *) printf '%s\0' "$f" ;; esac
-done | git --literal-pathspecs add -N ${SPARSE[@]+"${SPARSE[@]}"} --pathspec-from-file=- --pathspec-file-nul 2> "$IDX.err" \
-  || gitfail "add -N"
+. "$(dirname "${BASH_SOURCE[0]}")/lib/collect-change.sh" || exit 2
+collect_change "${1:-}"
 # Both diffs go to files first: a failure inside a process substitution would look like an empty, clean change.
 g diff -z --name-only --diff-filter=d "$FROM" -- > "$IDX.names" 2> "$IDX.err" || gitfail diff
 g diff -U0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ "$FROM" -- > "$IDX.diff" 2> "$IDX.err" \
