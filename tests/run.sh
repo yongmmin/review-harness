@@ -1310,6 +1310,118 @@ lacks "rtk-wrap: '--' runs raw" "RTK-RAN" "$OUT"
 has "rtk-wrap: no '--' → still through rtk" "RTK-RAN" "$(rw standard git status --short)"
 eq "rtk-wrap: aggressive → --ultra-compact" "RTK-RAN --ultra-compact" "$(rw aggressive git status --short | head -n 1)"
 
+# --- static-gates -------------------------------------------------------------------------
+# Fixture lines that would trip the gates are split in this file (TO''DO, `%s` for `||`), so the script run on this
+# repo's own diff stays quiet.
+sg() { (cd "$R" && bash "$H/static-gates.sh" "$@" 2>&1); }
+sgx() { (cd "$R" && bash "$H/static-gates.sh" "$@" >/dev/null 2>&1); echo $?; }
+cm() { git -C "$R" add -A && git -C "$R" -c user.name=t -c user.email=t@t.t commit -qm "$1"; }
+R="$TMP/sg"; new_repo "$R"
+eq "static-gates: a plain text edit → no output" "" "$(sg)"
+eq "static-gates: no hit → exit 0" 0 "$(sgx)"
+mkdir -p "$R/src/__tests__" "$R/tests" "$R/test" "$R/config" "$R/sp ace"
+printf 'console.log("old")\nconst a = 1\n' > "$R/src/a.ts"
+printf 'x\n' > "$R/sp ace/f s.ts"
+printf 'console.log(1)\n' > "$R/src/gone.ts"
+printf 'console.log("kept")\n' > "$R/src/kept.ts"
+printf 'a\nb\nc\nd\ne\n' > "$R/src/ctx.ts"
+printf 'K=1\n' > "$R/.env.prod"
+printf '\000console.log(\n' > "$R/tracked.bin.js"
+git -C "$R" config diff.interHunkContext 10
+cm base; SGBASE=$(git -C "$R" rev-parse HEAD)
+printf 'console.log("late")\n' > "$R/src/late.ts"; cm late
+# the change: staged, unstaged, untracked and deleted files
+printf 'const a = 1\nconst b = 2\nconsole.log(b)\n' > "$R/src/a.ts"
+rm "$R/src/gone.ts" "$R/.env.prod"
+printf 'console.log(2)\n' >> "$R/sp ace/f s.ts"
+printf 'console.log(3)\n' > "$R/sp ace/new one.ts"
+for f in src/__tests__/t.ts src/b.test.ts src/b.spec.tsx tests/x.js test/y.js notes.md; do printf 'console.log(4)\n' > "$R/$f"; done
+printf '\000console.log(\n' > "$R/bin.js"; printf '\001\000console.log(5)\n' >> "$R/tracked.bin.js"
+: > "$R/.env.local"; : > "$R/config/.env"; : > "$R/.env.example"; : > "$R/.env.sample"; : > "$R/.env.template"
+: > "$R/.env.test.development.example"
+OR='||'; NN='??'
+printf 'const k = process.env.API_KEY %s "sk-1"\nconst e = process.env.EMPTY %s %s\nconst t = process.env.TOKEN %s %s\n' \
+  "$OR" "$OR" "''" "$NN" "'abc'" > "$R/src/c.ts"
+printf 'const n = process.env.NODE_ENV %s %s\nconst m = process.env.apiKey %s %s\n' "$OR" "'local'" "$OR" "'x'" >> "$R/src/c.ts"
+printf 'Flag `process.env.X %s %s`\n' "$OR" "'<value>'" > "$R/doc.md"
+printf 'A\nb\nc\nd\nconsole.log(e)\n' > "$R/src/ctx.ts"
+printf 'x\n' > "$R/-"
+mkdir -p "$R/nested"; git -C "$R/nested" init -q; printf 'console.log(9)\n' > "$R/nested/n.ts"
+git -C "$R" add src/c.ts
+printf '// %s later\nconst %s = 1\n' 'TO''DO' 'TO''DOS' > "$R/src/d.ts"
+printf 'export function lonelyFn() {}\nexport const usedThing = 1\nexport default function Page() {}\nexport class Tested {}\nexport async function asyncLone() {}\n' > "$R/src/e.ts"
+printf "import { usedThing } from './e'\n" > "$R/src/use.ts"
+printf 'new Tested()\n' > "$R/src/e.test.ts"
+printf 'let i = 0\n++i; console.log(i)\n' > "$R/src/plus.ts"
+ST0=$(git -C "$R" status --porcelain); IX0=$(cksum < "$R/.git/index")
+OUT=$(sg); RC=$(sgx)
+eq "static-gates: real index untouched" "$IX0" "$(cksum < "$R/.git/index")"
+eq "static-gates: git status unchanged" "$ST0" "$(git -C "$R" status --porcelain)"
+eq "static-gates: hard hit → exit 1" 1 "$RC"
+has "static-gates: console.log on its new line number" "hard [ops] src/a.ts:3 — no console.log in production code" "$OUT"
+eq "static-gates: removed line not reported (one hit in src/a.ts, on its new line)" \
+  "hard [ops] src/a.ts:3 — no console.log in production code" "$(printf '%s\n' "$OUT" | grep ' src/a.ts:')"
+lacks "static-gates: unchanged file not reported" "kept.ts" "$OUT"
+has "static-gates: context lines from diff.interHunkContext count" "hard [ops] src/ctx.ts:5 — no console.log" "$OUT"
+has "static-gates: a file named - does not swallow the untracked files after it" "hard [ops] src/plus.ts:2" "$OUT"
+lacks "static-gates: a nested repo is skipped" "nested" "$OUT"
+lacks "static-gates: deleted file not reported" "gone.ts" "$OUT"
+lacks "static-gates: deleted .env not reported" ".env.prod" "$OUT"
+has "static-gates: tracked path with spaces" "hard [ops] sp ace/f s.ts:2 — no console.log" "$OUT"
+has "static-gates: untracked path with spaces" "hard [ops] sp ace/new one.ts:1 — no console.log" "$OUT"
+for f in src/__tests__/t.ts src/b.test.ts src/b.spec.tsx tests/x.js test/y.js notes.md bin.js tracked.bin.js; do
+  lacks "static-gates: no console.log hit in $f" "$f:" "$OUT"
+done
+has "static-gates: an added line starting with ++ is still an added line" "hard [ops] src/plus.ts:2 — no console.log" "$OUT"
+has "static-gates: untracked .env.local" "hard [security] .env.local:1 — .env file in the change" "$OUT"
+has "static-gates: .env by basename" "hard [security] config/.env:1 — .env file in the change" "$OUT"
+for f in .env.example .env.sample .env.template .env.test.development.example; do lacks "static-gates: $f passes" "$f" "$OUT"; done
+has "static-gates: || fallback literal (staged)" "hard [security] src/c.ts:1 — secret fallback literal" "$OUT"
+lacks "static-gates: empty fallback passes" "src/c.ts:2 " "$OUT"
+has "static-gates: ?? fallback literal" "hard [security] src/c.ts:3 — secret fallback literal" "$OUT"
+has "static-gates: a non-secret name is a note" "note [security] src/c.ts:4 — literal fallback for an env var" "$OUT"
+has "static-gates: secret name is case-insensitive" "hard [security] src/c.ts:5 — secret fallback literal" "$OUT"
+has "static-gates: a doc quoting the rule is a note" "note [security] doc.md:1 — literal fallback" "$OUT"
+lacks "static-gates: a doc quoting the rule is not hard" "hard [security] doc.md" "$OUT"
+has "static-gates: TO""DO note" "note [goal] src/d.ts:1 — " "$OUT"
+lacks "static-gates: TO""DO is matched as a whole word" "src/d.ts:2 " "$OUT"
+has "static-gates: export with no caller" "note [goal] src/e.ts:1 — new export with no caller: lonelyFn" "$OUT"
+lacks "static-gates: export used in another file" "usedThing" "$OUT"
+has "static-gates: export default function" "note [goal] src/e.ts:3 — new export with no caller: Page" "$OUT"
+lacks "static-gates: a test file is a caller" "Tested" "$OUT"
+has "static-gates: export async function" "note [goal] src/e.ts:5 — new export with no caller: asyncLone" "$OUT"
+lacks "static-gates: commits before the base are not reported without a base" "late.ts" "$OUT"
+eq "static-gates: every line is a hit line" 0 \
+  "$(printf '%s\n' "$OUT" | grep -cvE '^(hard|note) \[[a-z]+\] .+:[0-9]+ — ')"
+eq "static-gates: same output from a subdirectory" "$OUT" "$(cd "$R/src" && bash "$H/static-gates.sh" 2>&1)"
+OUTB=$(sg "$SGBASE")
+has "static-gates: base → commits since the base" "hard [ops] src/late.ts:1 — no console.log" "$OUTB"
+has "static-gates: base → plus the working tree" "hard [ops] src/a.ts:3 — no console.log" "$OUTB"
+has "static-gates: base → plus untracked" "hard [security] .env.local:1" "$OUTB"
+lacks "static-gates: base → nothing before the base" "kept.ts" "$OUTB"
+R="$TMP/sg-notes"; new_repo "$R"; printf 'const %s = 1\n' 'TO''DO' > "$R/notes-only.ts"
+OUT=$(sg)
+has "static-gates: notes only → still reported" "note [goal] notes-only.ts:1" "$OUT"
+eq "static-gates: notes only → exit 0" 0 "$(sgx)"
+eq "static-gates: two arguments → exit 2" 2 "$(sgx a b)"
+eq "static-gates: unknown base → exit 2" 2 "$(sgx no-such-ref)"
+eq "static-gates: option-like base → exit 2" 2 "$(sgx --help)"
+mkdir -p "$TMP/sg-nogit"; eq "static-gates: outside a git repo → exit 2" 2 "$(cd "$TMP/sg-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/static-gates.sh" >/dev/null 2>&1; echo $?)"
+R="$TMP/sg-nohead"; mkdir -p "$R"; git -C "$R" init -q
+printf 'console.log(1)\n' > "$R/staged.ts"; git -C "$R" add staged.ts
+printf 'x\nconsole.log(2)\n' > "$R/loose file.ts"
+OUT=$(sg)
+has "static-gates: no HEAD → tracked file counts as added" "hard [ops] staged.ts:1 — no console.log" "$OUT"
+has "static-gates: no HEAD → untracked file counts as added" "hard [ops] loose file.ts:2 — no console.log" "$OUT"
+eq "static-gates: no HEAD → exit 1" 1 "$(sgx)"
+eq "static-gates: no HEAD with a base → exit 2" 2 "$(sgx main)"
+lacks "static-gates: never runs npx" "npx" "$(grep -v '^#' "$H/static-gates.sh")"
+has "developer: self-check runs static-gates.sh" 'run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"`' "$(cat "$ROOT/agents/developer.md")"
+has "reviewer: static gates run the script first" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"`' "$(sed -n '/^## Static Review Gates/,/^## Constraints/p' "$ROOT/agents/reviewer.md")"
+has "reviewer: note hits are never an automatic FAIL" '`note` hits feed the Goal gate' "$(cat "$ROOT/agents/reviewer.md")"
+has "docs/hooks.md: static-gates row" '| **`static-gates.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
+has "readme: static-gates example" 'bash hooks/static-gates.sh' "$(cat "$ROOT/README.md")"
+
 # --- small doc items ----------------------------------------------------------------------
 has "refactor-architect: rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$RA"
 has "skill: main session rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
