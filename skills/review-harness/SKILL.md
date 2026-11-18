@@ -271,9 +271,10 @@ Never inline full `constraints.md`. Never pass unrelated files or raw verbose lo
 - red: <regression test's failing output line before the fix> (bugfix only)
 - assumptions: <what developer assumed where the plan was silent> (developer only)
 - root cause: <file:line — why the last change did not fix it> (developer, when the same test or issue fails again)
+- self-check: <rule hit → fixed>; … | clean (developer only)
 ```
 
-Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:` and `root cause:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
+Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:`, `root cause:` and `self-check:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
 
 ---
 

@@ -163,7 +163,7 @@ One file sits directly in `~/.review-harness/`, also shared by all repos:
 
 | File | Content |
 |---|---|
-| `failure-patterns.md` | The failure-pattern ledger: repeatable AI mistakes that no other rule catches, under a `## #failure-patterns` heading. Appended by `reviewer` / `test-runner` (and at the attempt limit); `extract-constraints.sh` gives it to both with its path. Yours alone — a plugin update never touches it |
+| `failure-patterns.md` | The failure-pattern ledger: repeatable AI mistakes that no other rule catches, under a `## #failure-patterns` heading. Appended by `reviewer` / `test-runner` (and at the attempt limit); `extract-constraints.sh` gives it to both with its path, and its entries (no path) to `developer` in the review checklist. Yours alone — a plugin update never touches it |
 
 If a run is interrupted, the next `/review-harness` asks whether to resume it or start new.
 

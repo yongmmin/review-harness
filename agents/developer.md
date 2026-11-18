@@ -32,9 +32,10 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 3. Use what the `Reuse` line names. If you find 3+ similar local patterns while searching, report it in the handoff (candidate for `refactor-scan`)
 4. Write tests (RED), run them and confirm they fail for the intended reason before implementing (a missing behaviour, not a syntax or import error). Bugfix (`plan.md → ## Bug`): write the `Regression test` first (or run the existing test named there) and run it before touching the fix — it must fail for the `Cause`'s reason. Put its failing output line in the handoff as `red: <line>`. If it passes before the fix, stop and report: the `Cause` is wrong. On a retry, keep the `red:` line given in your prompt
 5. Implement to pass tests (GREEN)
-6. Hand off to test-runner
-7. Retry with a reviewer fix list: patch each issue. If you have evidence an issue is wrong (file:line, test output, plan line), reply `dispute: <issue id> — <evidence>` for it instead and change no code in that reply; once per issue
-8. Retry whose `Attempts` lines show the same test or reviewer issue failed before: first write `root cause: <file:line — why the last change did not fix it>` in the handoff, then edit for that cause — not another variant of the last change
+6. Self-check before handoff: hold your diff against each line of the `## Review checklist` block in your prompt (the rules the reviewer FAILs on) and these reviewer gates — each `Done When` item met; each `Callers/Consumers` file updated or marked `no change needed`; no TODO/stub/placeholder return; every new export has a caller; no edit outside the plan. Fix each hit, then write `self-check: <rule hit → fixed>; …` or `self-check: clean` in the handoff. A hit you cannot fix goes to `blockers`
+7. Hand off to test-runner
+8. Retry with a reviewer fix list: patch each issue. If you have evidence an issue is wrong (file:line, test output, plan line), reply `dispute: <issue id> — <evidence>` for it instead and change no code in that reply; once per issue
+9. Retry whose `Attempts` lines show the same test or reviewer issue failed before: first write `root cause: <file:line — why the last change did not fix it>` in the handoff, then edit for that cause — not another variant of the last change
 
 ---
 
@@ -97,7 +98,7 @@ When the change touches data fetching/mutation, developer owns the full slice: r
 - Do not over-mock to fake pass
 - Do not modify existing working code outside scope
 - Do not declare completion without test-runner sign-off
-- **Output**: end with the handoff block only; it may add one `assumptions:` line (what you assumed where the plan was silent)
+- **Output**: end with the handoff block only; it carries the `self-check:` line (Workflow step 6) and may add one `assumptions:` line (what you assumed where the plan was silent)
 - **Completion gate**: include test-runner results
 - Comments only where logic is non-obvious
 - Run `git`, `grep`/`find` and test commands via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`

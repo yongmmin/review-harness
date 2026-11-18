@@ -5,7 +5,8 @@
 # ~/.review-harness/failure-patterns.md, with its path on a `ledger:` line), then — for each profile named —
 # the agent's sections of profiles/<profile>.md (stack-specific rules), followed by the same sections of the
 # org file ~/.review-harness/org/profiles/<profile>.md when present. There is no default profile;
-# an empty list (e.g. empty detect-profile.sh output) means none.
+# an empty list (e.g. empty detect-profile.sh output) means none. The developer also gets a
+# `## Review checklist` block: the rule lines of every #review section and of the ledger.
 # review-harness MUST call this before spawning an agent instead of passing the whole file.
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -101,6 +102,22 @@ for PROFILE in $PROFILE_LIST; do
   [ -n "$ONE_OUT" ] && PROFILE_OUT="${PROFILE_OUT}## Profile — ${PROFILE} (part of this agent's instructions)"$'\n\n'"${ONE_OUT}"
 done
 
+# Developer only: what the reviewer FAILs on — the rule lines of #review (constraints, each profile, its org
+# profile) and the ledger entries — as one checklist. Rule lines only: no prose, no headings and no `ledger:`
+# line, so the developer never gets a path to append to. Its bytes are reported apart from the threshold.
+CHECKLIST_OUT=""
+if [ "$AGENT" = developer ]; then
+  CHECKLIST=$( {
+    extract_section review
+    for PROFILE in $PROFILE_LIST; do
+      extract_section review "$PLUGIN_DIR/profiles/$PROFILE.md"
+      extract_section review "$RH_HOME/org/profiles/$PROFILE.md"
+    done
+    extract_section failure-patterns
+  } | grep '^- ')
+  [ -n "$CHECKLIST" ] && CHECKLIST_OUT="## Review checklist — the reviewer FAILs on these (check your diff before handoff)"$'\n\n'"${CHECKLIST}"$'\n\n'
+fi
+
 # Org overlay for this agent (~/.review-harness/org/agents/<agent>.md) — the organisation-specific part of
 # the agent's instructions. Absent when no overlay is installed.
 AGENT_OVERLAY=$(bash "$PLUGIN_DIR/hooks/org-overlay.sh" agents "$AGENT" 2>/dev/null)
@@ -111,13 +128,13 @@ fi
 
 # `${CLAUDE_PLUGIN_ROOT}` in the text → the plugin path (same substitution as org-overlay.sh): this is
 # command output, so skill substitution never reaches it.
-printf '%s%s%s' "$OUTPUT" "$PROFILE_OUT" "$OVERLAY_OUT" \
+printf '%s%s%s%s' "$OUTPUT" "$PROFILE_OUT" "$CHECKLIST_OUT" "$OVERLAY_OUT" \
   | awk -v root="$PLUGIN_DIR" '{ out=""; s=$0; while ((i = index(s, "${CLAUDE_PLUGIN_ROOT}")) > 0) { out = out substr(s, 1, i-1) root; s = substr(s, i + 21) } print out s }'
 
 # Token budget instrumentation. 8KB ≈ 2K tokens at ~4 chars/token.
 # Emits to stderr only — never pollutes stdout consumed by the agent.
-# The threshold measures the non-profile part; profile bytes are reported separately (moving rules into a
-# profile does not change total agent context, so it must not trip the warning).
+# The threshold measures the non-profile part; profile and checklist bytes are reported separately (moving
+# rules into a profile does not change total agent context, so it must not trip the warning).
 BUDGET_WARN_BYTES="${REVIEW_HARNESS_BUDGET_WARN_BYTES:-8192}"
 BYTES=$(printf '%s%s' "$OUTPUT" "$OVERLAY_OUT" | wc -c | tr -d ' ')
 APPROX_TOKENS=$((BYTES / 4))
@@ -125,6 +142,10 @@ PROFILE_NOTE=""
 if [ -n "$PROFILE_LIST" ]; then
   PROFILE_BYTES=$(printf '%s' "$PROFILE_OUT" | wc -c | tr -d ' ')
   PROFILE_NOTE=$(printf ' + profile %s: %s bytes (~%s tokens)' "$PROFILES" "$PROFILE_BYTES" "$((PROFILE_BYTES / 4))")
+fi
+if [ -n "$CHECKLIST_OUT" ]; then
+  CHECKLIST_BYTES=$(printf '%s' "$CHECKLIST_OUT" | wc -c | tr -d ' ')
+  PROFILE_NOTE=$(printf '%s + checklist: %s bytes (~%s tokens)' "$PROFILE_NOTE" "$CHECKLIST_BYTES" "$((CHECKLIST_BYTES / 4))")
 fi
 if [ "$BYTES" -gt "$BUDGET_WARN_BYTES" ]; then
   printf '[token-budget][warn] extract-constraints %s: %s bytes (~%s tokens) exceeds %s%s\n' \

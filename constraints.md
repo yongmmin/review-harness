@@ -9,8 +9,8 @@
 > | `#code-rules` | developer, refactor-architect |
 > | `#filesystem` | developer |
 > | `#completion` | developer, test-runner |
-> | `#review` | reviewer |
-> | `#failure-patterns` | reviewer, test-runner — the per-user ledger `~/.review-harness/failure-patterns.md` (honours `REVIEW_HARNESS_HOME`), not this file; its path reaches those agents as a `ledger: <path>` line |
+> | `#review` | reviewer; developer as a checklist (rule lines only, in its `## Review checklist` block) |
+> | `#failure-patterns` | reviewer, test-runner — the per-user ledger `~/.review-harness/failure-patterns.md` (honours `REVIEW_HARNESS_HOME`), not this file; its path reaches those agents as a `ledger: <path>` line. Developer gets its entries in the checklist, without the path |
 > | `#org` | developer, reviewer, refactor-architect — organisation-specific rules, read from `~/.review-harness/org/constraints.md` (absent when no organisation overlay is installed) |
 >
 > **Ledger** (`failure-patterns.md`): reviewer, test-runner and the orchestrator's LIMIT step append repeatable AI mistakes under its `## #failure-patterns` heading (a new file starts with that heading). Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]`. It holds ONLY patterns not caught anywhere else.
