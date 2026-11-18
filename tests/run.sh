@@ -521,9 +521,30 @@ eq "pre-tool-use: bun.lock → deny" deny "$(edit "$P/bun.lock")"
 
 # --- workflows: intent table, plan template and flows agree -----------------------------
 SK="$ROOT/skills/review-harness/SKILL.md"
+SKD="$ROOT/skills/review-harness"
+# The split of SKILL.md into a core and situational files is a pure move: the next PR that rewords a rule
+# deletes this check and tests/fixtures/review-harness-SKILL.pre-split.md together.
+SKP='→ read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/'
+SKADD='- Files read through a `→ read` pointer below are read raw: replace the `CLAUDE_PLUGIN_ROOT` variable in them with the plugin root named in Session Context.'
+grep -v '^[[:space:]]*$' "$ROOT/tests/fixtures/review-harness-SKILL.pre-split.md" | LC_ALL=C sort > "$TMP/sk-old"
+cat "$SKD"/*.md | grep -v '^[[:space:]]*$' | grep -vF "$SKP" | grep -vxF -- "$SKADD" | LC_ALL=C sort > "$TMP/sk-new"
+eq "skill split: every old line in exactly one file" "" "$(diff "$TMP/sk-old" "$TMP/sk-new")"
+eq "skill split: the added core line is in the core once" 1 "$(grep -cxF -- "$SKADD" "$SK")"
+lacks "skill split: the added core line names the variable without \${}" '${CLAUDE_PLUGIN_ROOT}' "$(grep -F 'are read raw: replace the' "$SK")"
+eq "skill split: core is at most 20000 bytes" yes "$([ "$(wc -c < "$SK" | tr -d ' ')" -le 20000 ] && echo yes || echo no)"
+SKN=0
+for f in "$SKD"/*.md; do
+  b=$(basename "$f"); [ "$b" = SKILL.md ] && continue
+  SKN=$((SKN + 1))
+  eq "skill split: one pointer to $b" 1 "$(grep -cF "$SKP$b\` before " "$SK")"
+done
+eq "skill split: one pointer line per situational file" "$SKN" "$(grep -cF "$SKP" "$SK")"
+SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT')
+eq "skill split: hook calls stay in the core but the one Contract rules line" 1 "$(printf '%s' "$SKX" | grep -c .)"
+has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
 INTENTS=$(sed -n 's/^| `\([a-z-]*\)` | .*| .* |$/\1/p' "$SK" | tr '\n' ' ')
 eq "skill: intent table rows" "feature refactor bugfix review " "$INTENTS"
-WFLIST=$(grep -o '`<workflow>` = `[^`]*`' "$SK"); TMPL=$(grep '^\[feature' "$SK")
+WFLIST=$(grep -o '`<workflow>` = `[^`]*`' "$SK"); TMPL=$(grep '^\[feature' "$SKD/plan-gate.md")
 for i in $INTENTS; do
   has "skill: run-state workflow list names $i" "$i" "$WFLIST"
   has "skill: plan template Intent names $i" "$i" "$TMPL"
@@ -533,9 +554,9 @@ has "skill: description names bug fix" "bug fix" "$(sed -n 's/^description: //p'
 has "skill: review needs a diff and no symptom" "no failure symptom is described" "$(grep '^| `review`' "$SK")"
 has "skill: Small change excludes bugfix" 'not a `refactor` or `bugfix` intent' "$(cat "$SK")"
 for l in Symptom Repro Cause 'Regression test'; do
-  eq "skill: plan template ## Bug has $l" 1 "$(sed -n '/^## Bug (bugfix only)/,/^$/p' "$SK" | grep -c "^- $l: ")"
+  eq "skill: plan template ## Bug has $l" 1 "$(sed -n '/^## Bug (bugfix only)/,/^$/p' "$SKD/plan-gate.md" | grep -c "^- $l: ")"
 done
-BF=$(sed -n '/^### Bugfix/,/^### Refactor/p' "$SK")
+BF=$(cat "$SKD/bugfix.md")
 has "skill: bugfix flow order" "reproduce -> plan.md (## Bug) -> user approval
 -> test-runner (baseline) -> developer (regression test RED, then fix) -> test-runner -> reviewer" "$BF"
 has "skill: bugfix never fixes by guess" "Never fix by guess" "$BF"
@@ -564,14 +585,14 @@ rs step reproduce >/dev/null; rs verdict PASS >/dev/null
 eq "run-state: bugfix PASS passes check" 0 "$( (cd "$R" && bash "$H/run-state.sh" check >/dev/null 2>&1); echo $?)"
 
 # --- definition of done: plan sections, goal gate, one category list --------------------
-PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SK")
+PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SKD/plan-gate.md")
 for s in 'Done When' 'Out of Scope'; do
   eq "skill: plan template has ## $s" 1 "$(printf '%s\n' "$PLAN" | grep -c "^## $s\$")"
   eq "refactor-architect: plan format has ## $s" 1 "$(grep -c "^## $s\$" "$ROOT/agents/refactor-architect.md")"
 done
 has "skill: Done When item names its check" '- [observable outcome] — check: [test name, command, or manual step]' "$PLAN"
 has "skill: Done When / Out of Scope required for feature, bugfix, refactor" \
-  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes' "$(cat "$SK")"
+  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes' "$(cat "$SKD/plan-gate.md")"
 cats() { tr -d ' ' | tr '|' '\n'; }
 C1=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/agents/reviewer.md" | cats)
 C2=$(sed -n 's/^- `\[category\]`: `\([a-z |-]*\)`$/\1/p' "$ROOT/agents/reviewer.md" | cats)
@@ -604,12 +625,12 @@ has "reviewer: Out of Scope edit is [scope]" 'An edit to something `Out of Scope
 has "reviewer: Out of Scope [scope] rule excepts named stubs" 'a stub that `Out of Scope` names' "$(sed -n '/^An edit to something `Out of Scope` names/p' "$ROOT/agents/reviewer.md")"
 eq "refactor-architect: plan format has ## Intent refactor" "refactor" "$(sed -n '/^## Intent$/{n;p;}' "$ROOT/agents/refactor-architect.md")"
 has "skill: test-runner gets the Done When checks" 'for `test-runner`, include the `Done When` test/command checks (or the Small change `Done when:` check) so it runs them' "$(cat "$SK")"
-SC=$(sed -n '/^### Small change/,/^### Feature/p' "$SK")
+SC=$(cat "$SKD/small-change.md")
 has "skill: Small change states a done-when line" '`Done when: <observable outcome> — check: <test, command, or manual step>`' "$SC"
 has "skill: Small change passes it to reviewer" 'Put that `Done when:` line in the `reviewer` prompt.' "$SC"
 has "skill: handoff max bullets allows red:" 'max 6 bullets plus `red:` for bugfix' "$(cat "$SK")"
 has "skill: retries carry the first red: line" "bugfix: the first developer run's \`red:\` line — carry it through every retry" \
-  "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SK")"
+  "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SKD/retry.md")"
 has "developer: retry keeps the given red: line" 'On a retry, keep the `red:` line given in your prompt' "$(cat "$ROOT/agents/developer.md")"
 
 # --- verification: test results in the commit gate --------------------------------------
@@ -690,18 +711,18 @@ lacks "tdd: RED wording not duplicated" "Confirm they fail for the intended reas
 has "git-commit: tests reasons named" "manual confirmation" "$(cat "$ROOT/skills/git-commit/SKILL.md")"
 
 # --- planning discovery and task decomposition --------------------------------------------
-PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SK")
+PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SKD/plan-gate.md")
 DC=$(printf '%s\n' "$PLAN" | sed -n '/^## Design Check$/,/^$/p')
 for l in Callers/Consumers Pattern Tests; do
   eq "skill: Design Check has $l" 1 "$(printf '%s\n' "$DC" | grep -c "^- $l: ")"
 done
-has "skill: discovery lines filled from grep before approval" '`Callers/Consumers`, `Pattern`, `Tests` are also filled by the main session before approval, from grep' "$(cat "$SK")"
+has "skill: discovery lines filled from grep before approval" '`Callers/Consumers`, `Pattern`, `Tests` are also filled by the main session before approval, from grep' "$(cat "$SKD/plan-gate.md")"
 OR=$(printf '%s\n' "$PLAN" | sed -n '/^## Only When Relevant/,/^$/p')
 for l in Migration 'Dependency upgrade' Performance; do
   eq "skill: Only When Relevant has $l" 1 "$(printf '%s\n' "$OR" | grep -c "^- $l: ")"
 done
 has "skill: Execution Steps tasks over 6 files" '(more than 6 Affected Files) Task 1: [file group] — tests:' "$PLAN"
-has "skill: task rule" 'More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines' "$(cat "$SK")"
+has "skill: task rule" 'More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines' "$(cat "$SKD/plan-gate.md")"
 has "developer: works task by task" 'With `Task N` steps, work task by task' "$DV"
 has "developer: updates or marks callers" 'Update every file in `Callers/Consumers`, or append `no change needed: <reason>`' "$DV"
 has "reviewer: contract gate" 'neither in the diff nor marked there `no change needed: <reason>` → FAIL `[contract]`' "$RV"
@@ -713,13 +734,13 @@ for l in Producer Consumers Compatibility 'Deploy order'; do
 done
 has "skill: Contract is additive or breaking" '- Compatibility: [additive | breaking]' "$CT"
 has "skill: Contract consumers may be none with a reason" '"none — <reason>"' "$CT"
-CR=$(grep '^\*\*Contract rules\*\*' "$SK")
+CR=$(grep '^\*\*Contract rules\*\*' "$SKD/plan-gate.md")
 has "skill: breaking contract runs find-consumers.sh from the plugin root" 'run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/find-consumers.sh" <term...>`' "$CR"
 has "skill: unchanged consumer repo needs an Out of Scope follow-up" 'gets its follow-up named in `Out of Scope`' "$CR"
 has "skill: producer run first" 'The producer run goes first' "$CR"
 has "skill: a pasted Contract block is Inputs.API in any intent" '**Pasted Contract (any intent, trigger or not)**: a `## Contract` block from the producer repo'"'"'s run is always the spec — record it as-is in `plan.md → Inputs.API`' \
-  "$(sed -n '/^### 4. API Spec Check/,/^### 5/p' "$SK")"
-lacks "skill: pasted Contract is not a trigger-only table row" '| `## Contract` block pasted' "$(cat "$SK")"
+  "$(cat "$SKD/api-spec.md")"
+lacks "skill: pasted Contract is not a trigger-only table row" '| `## Contract` block pasted' "$(cat "$SKD"/*.md)"
 for x in 'type changed' 'an existing optional request field made required' '(a request field made optional is not breaking)'; do
   has "skill: breaking definition — $x" "$x" "$CR"
 done
@@ -747,7 +768,7 @@ has "reviewer: defer is not a FAIL reason" '`defer` issues never make a FAIL' "$
 has "reviewer: every FAIL issue listed" 'List every `patch` / `replan` issue' "$OF"
 lacks "reviewer: no 5-issue cap" "Max 5 issues" "$OF"
 has "reviewer: dispute re-judges one issue" 're-judge only the disputed issue(s)' "$RV"
-HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK")
+HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK"; cat "$SKD/retry.md")
 for r in 'patch  ->' 'replan ->' 'defer  ->'; do has "skill: harness loop routes $r" "$r" "$HL"; done
 has "skill: replan needs re-approval" 'get the user'"'"'s re-approval' "$HL"
 has "skill: dispute command in the loop" 'run-state.sh dispute <issue id...>' "$HL"
@@ -831,16 +852,16 @@ for f in reviewer test-runner; do
   has "$f: ledger scope clause" 'only rules that no static gate, profile, `#review`/`#org` rule or ESLint/tsc already enforces; one-off mistakes do not belong' "$AG"
   lacks "$f: no Edit tool left" "Bash, Edit" "$(sed -n 's/^tools: //p' "$ROOT/agents/$f.md")"
 done
-HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK")
+HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK"; cat "$SKD/retry.md")
 lacks "skill: LIMIT no longer writes constraints.md" "constraints.md #failure-patterns" "$HL"
 has "skill: LIMIT appends to the ledger path" 'the `ledger:` path' "$HL"
 has "skill: LIMIT names the ledger format" 'entry format and scope of agents/reviewer.md step 5; a new file starts with `## #failure-patterns`' "$HL"
-has "skill: LIMIT replan on the Small change path" '(Small change: no plan — ask the user, or switch to the Feature path)' "$(sed -n '/prints "LIMIT REACHED"/,/^```$/p' "$SK")"
+has "skill: LIMIT replan on the Small change path" '(Small change: no plan — ask the user, or switch to the Feature path)' "$(sed -n '/prints "LIMIT REACHED"/,/^```$/p' "$SKD/retry.md")"
 has "skill: dispute re-judge is no attempt line" 'not a dispute re-judge' "$HL"
 has "skill: attempts line per retry" 'N. hypothesis → change → result' "$HL"
 has "skill: attempts in plan.md or attempts.md" '`## Attempts` in plan.md' "$HL"
 has "skill: attempts.md without a plan" '<state dir>/attempts.md' "$HL"
-has "skill: retry context carries the Attempts lines" 'the Attempts lines' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SK")"
+has "skill: retry context carries the Attempts lines" 'the Attempts lines' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SKD/retry.md")"
 has "skill: third failure of the same test or issue asks about the plan" 'whether the plan is wrong' "$HL"
 has "skill: orchestrator may write attempts.md" '`attempts.md`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
 has "skill: handoff schema allows root cause:" '- root cause: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
@@ -862,8 +883,8 @@ case "$PINS" in modern-web-guidance@[0-9]*.[0-9]*.[0-9]*) PASS=$((PASS + 1)) ;; 
 PIN=${PINS#modern-web-guidance@}
 eq "web guidance: no @latest" "" "$(grep -rl 'modern-web-guidance@latest' "$ROOT/skills" "$ROOT/agents" "$ROOT/profiles" "$ROOT/README.md" "$ROOT/docs")"
 eq "web guidance: no hook runs it" "" "$(grep -rl 'modern-web-guidance' "$H")"
-has "skill: plan Inputs has Web guidance" '- Web guidance: [guide ids, none, or unavailable]' "$(sed -n '/^## Inputs/,/^$/p' "$SK")"
-WG=$(sed -n '/^### 4\.5\. Web Guidance Search/,/^### 5\./p' "$SK")
+has "skill: plan Inputs has Web guidance" '- Web guidance: [guide ids, none, or unavailable]' "$(sed -n '/^## Inputs/,/^$/p' "$SKD/plan-gate.md")"
+WG=$(sed -n '/^### 4\.5\. Web Guidance Search/,/^### 5\./p' "$SK"; cat "$SKD/web-guidance.md")
 has "skill: search step sits after the API Spec Check" "### 4.5. Web Guidance Search" "$(sed -n '/^### 4\. API Spec Check/,/^### 5\./p' "$SK")"
 has "skill: search trigger is the web-frontend profile" '`detect-profile.sh` on the planned Affected Files includes `web-frontend`' "$WG"
 has "skill: search only when a plan.md is written" 'a `plan.md` will be written (never on the Small change path or for `review`)' "$WG"
@@ -871,7 +892,7 @@ has "skill: search trigger skips non-UI work" 'not 3D/canvas-only, styling-token
 has "skill: search command pinned" "npx -y modern-web-guidance@$PIN search \"<2–5 word action query>\"" "$WG"
 has "skill: at most 3 searches" 'at most 3' "$WG"
 has "skill: search unavailable never blocks" 'or any other CLI error or timeout → stop searching at that first one, write `unavailable` and continue. Never ask the user, never retry in a loop' "$WG"
-has "skill: retries and reviewer carry guidance:" 'the same for the developer'"'"'s `guidance:` line whenever `Inputs.Web guidance` lists ids' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SK")"
+has "skill: retries and reviewer carry guidance:" 'the same for the developer'"'"'s `guidance:` line whenever `Inputs.Web guidance` lists ids' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SKD/retry.md")"
 has "skill: handoff schema has guidance:" '- guidance: <id> applied | <id> not applied — <reason> (developer only, when Inputs.Web guidance lists ids)' \
   "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 DEVO=$(ec developer web-frontend 2>/dev/null); REVO=$(ec reviewer web-frontend 2>/dev/null)
