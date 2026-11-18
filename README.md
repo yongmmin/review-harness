@@ -145,6 +145,7 @@ The plugin never creates files inside the repo you are working in. Run state liv
 | File | Content |
 |---|---|
 | `run-state.json` | Current workflow, completed steps, retry count, reviewer verdict, test result |
+| `agents.json` | Per-subagent active time, tokens and tool calls for the current run (`agent-usage.sh`); moved into `runs.jsonl` by `done` |
 | `baseline.txt` | Tests that already failed before the current run's change |
 | `attempts.md` | One line per failed attempt (`N. hypothesis → change → result`) on a path without `plan.md` (Small change); with a plan the lines go to its `## Attempts`. Cleared by `run-state.sh start` |
 | `plan.md` | The plan awaiting approval. Its full path is reported every time it is written |

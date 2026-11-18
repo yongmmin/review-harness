@@ -94,11 +94,16 @@ new_file() { # $1 workflow, $2 status, $3 steps json
 agents_json() { local a; a=$(jq -c 'objects' "$AGENTS" 2>/dev/null); echo "${a:-"{}"}"; }
 
 # agents_update [jq opts...] <filter> — apply the filter to agents.json (temp + mv) under a mkdir lock; gives up
-# silently after ~1s.
+# silently after ~3s (well inside the hook's 10s timeout; a busy CI runner needed more than 1s for 6 parallel starts).
 agents_update() {
   local filter="${*: -1}" i=0
   set -- "${@:1:$#-1}"
-  until mkdir "$AGENTS.lock" 2>/dev/null; do i=$((i + 1)); [ "$i" -ge 20 ] && return 0; sleep 0.05; done
+  until mkdir "$AGENTS.lock" 2>/dev/null; do
+    # A lock older than a minute was left by a killed call (a live one holds it well under a second): break it.
+    # shortcut: two waiters breaking the same stale lock at once can both write; one entry may be lost (telemetry only).
+    if [ -n "$(find "$AGENTS.lock" -maxdepth 0 -mmin +1 2>/dev/null)" ] && rmdir "$AGENTS.lock" 2>/dev/null; then continue; fi
+    i=$((i + 1)); [ "$i" -ge 60 ] && return 0; sleep 0.05
+  done
   agents_json | jq --argjson now "$(now)" "$@" "$filter" > "$AGENTS.$$.tmp" && mv -f "$AGENTS.$$.tmp" "$AGENTS"
   rm -f "$AGENTS.$$.tmp"; rmdir "$AGENTS.lock"
 }
@@ -281,9 +286,9 @@ case "${1:-}" in
   hash) tree_hash ;;
   # Agent usage lives in agents.json, never in run-state.json: the hook fires asynchronously, so writing the gate's
   # file could drop a verdict or test result recorded at the same moment, and would reset the stale clock
-  # (updated_at). Parallel agent-start/stop calls serialise on a mkdir lock; a call that cannot take it within ~1s
-  # records nothing, and a lock left by a killed call drops all agent data until the next start/done/abandon — telemetry
-  # only, never the gate. Tokens are replaced on every stop, so a later stop of the same agent (resume) corrects a
+  # (updated_at). Parallel agent-start/stop calls serialise on a mkdir lock; a call that cannot take it within ~3s
+  # records nothing, and a lock left by a killed call is broken once it is over a minute old — telemetry only, never
+  # the gate. Tokens are replaced on every stop, so a later stop of the same agent (resume) corrects a
   # transcript that was still being written.
   agent-start)
     [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: run-state.sh agent-start <id> <type>" >&2; exit 2; }
