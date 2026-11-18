@@ -143,6 +143,12 @@ If triggered, ask once in user's language:
 - Pass API spec only to `developer` — never to others (reviewer sees resulting code, not the spec)
 - If URL provided, `developer` fetches only relevant endpoint(s) on demand
 
+### 4.5. Web Guidance Search
+
+**Trigger**: a `plan.md` will be written (never on the Small change path or for `review`) AND `detect-profile.sh` on the planned Affected Files includes `web-frontend` AND the change adds or changes UI or client behaviour (markup, CSS/layout, forms, dialogs, tables, a11y, client-side JS such as dates or sanitization) — not 3D/canvas-only, styling-token-only or tooling.
+
+If triggered, before writing `plan.md`, run one visible Bash call per capability, at most 3: `npx -y modern-web-guidance@1.0.1 search "<2–5 word action query>"` (prints `[{id, description}]`). Record the ids that match the change in `plan.md → Inputs.Web guidance`; no match or not triggered → `none`. `npx` missing, the network blocked, permission denied, or any other CLI error or timeout → stop searching at that first one, write `unavailable` and continue. Never ask the user, never retry in a loop. Only `developer` reads guides (`retrieve`); `reviewer` runs `legacy-scan` (`profiles/web-frontend.md`).
+
 ### 5. Review Fast-Path
 
 If intent is `review`, **skip Plan Gate entirely**. Spawn `reviewer` directly on current changes. No `plan.md`, no approval wait. Reviewer verdict (PASS/FAIL) is final output; no commit/push follows.
@@ -171,6 +177,7 @@ Create `plan.md`, then wait for explicit user approval before execution (Bugfix 
 ## Inputs
 - Design: [reference URL or none]
 - API: [spec, endpoint, or none]
+- Web guidance: [guide ids, none, or unavailable]
 
 ## Affected Files
 - path/to/file.tsx - [change]
@@ -272,9 +279,10 @@ Never inline full `constraints.md`. Never pass unrelated files or raw verbose lo
 - assumptions: <what developer assumed where the plan was silent> (developer only)
 - root cause: <file:line — why the last change did not fix it> (developer, when the same test or issue fails again)
 - self-check: <rule hit → fixed>; … | clean (developer only)
+- guidance: <id> applied | <id> not applied — <reason> (developer only, when Inputs.Web guidance lists ids)
 ```
 
-Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:`, `root cause:` and `self-check:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
+Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:`, `root cause:`, `self-check:` and `guidance:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
 
 ---
 
@@ -456,7 +464,7 @@ Retry context must contain only:
 - failing file/test identifier
 - shortest useful error excerpt, or the reviewer's `patch` / `replan` issues
 - the Attempts lines so far, so the retry does not repeat an idea that already failed; on the second failure of the same test or issue the developer gives `root cause:` before editing
-- bugfix: the first developer run's `red:` line — carry it through every retry so a re-spawned developer's handoff, and the `reviewer` prompt, never drop it
+- bugfix: the first developer run's `red:` line — carry it through every retry so a re-spawned developer's handoff, and the `reviewer` prompt, never drop it; the same for the developer's `guidance:` line whenever `Inputs.Web guidance` lists ids (any intent)
 
 Never resend full previous transcript.
 

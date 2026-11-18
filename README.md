@@ -120,6 +120,18 @@ Review         reviewer
 - **Changes across repos**: when a change adds, changes or removes a route, socket event or request/response field another repo may use, the plan gets a `## Contract` (producer, consumer repos, `additive` or `breaking`, deploy order). For a breaking one, `find-consumers.sh` searches the other registered repos for each renamed or removed name and the hits go into the plan; the reviewer FAILs a breaking contract with no consumers listed, or a consumer repo with hits that is neither changed nor named as a follow-up in `Out of Scope`. Run the producer repo first: its final report ends with the `## Contract` block, which you paste into the consumer repo's run as its API spec.
 - Everything after `DONE` (branch, push, PR) is yours to do.
 
+## Modern web guidance
+
+For web UI work (the `web-frontend` profile, a change to markup, CSS/layout, forms, dialogs, tables, a11y or client-side JS), the flow uses GoogleChrome's [modern-web-guidance](https://github.com/GoogleChrome/modern-web-guidance) CLI, pinned to `modern-web-guidance@1.0.1`. Each use is a visible Bash call:
+
+| When | Who | Command | Token cost (estimate, not measured) |
+|---|---|---|---|
+| Planning (only when a `plan.md` is written) | main session | `search "<2–5 word query>"`, at most 3, stopping at the first failure; the matching guide ids go to `plan.md → Inputs.Web guidance` | a few hundred tokens per UI plan |
+| Implementation | developer | `retrieve` of exactly the ids the plan names (again on a retry only when the fix list names a guide or finding); reports `guidance: <id> applied \| not applied — <reason>`. Its self-check runs the same `legacy-scan` as the reviewer | about 3–15K per guide, plus the scan output |
+| Review | reviewer | `legacy-scan` on each changed UI file on its own (at most 5, the ones with the most added lines); a surviving finding on an added line is a FAIL `[design]`, on unchanged lines a deferred note | the scan output; each retry repeats the reviewer's scan |
+
+The plan, a stated browser policy, your repo's and design system's components, the profile's rules and the organisation rules win over a guide; a guide's CSS is written in the repo's styling system and tokens, and a guide never adds a dependency or polyfill unless the plan says so. Guides assume Baseline Widely Available; to state another browser policy, add a line such as `- Browser support: <policy>` to your organisation overlay (`~/.review-harness/org/`). When `npx`, the network or the permission is missing, or the CLI errors or times out, the step records `unavailable` and the run continues — never a FAIL and never a question. To run it without permission prompts, allowlist `Bash(npx -y modern-web-guidance@1.0.1 *)` in your Claude Code settings. Hooks never run it: they stay offline.
+
 ## Agents and models
 
 | Agent | Role | model | effort |

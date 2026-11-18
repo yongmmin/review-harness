@@ -133,7 +133,7 @@ Profile tags:
 | `#review` | reviewer; developer as a checklist | yes | yes | yes |
 | `#detection` | refactor-architect | yes | — | — |
 
-`web-api` covers API servers and their data layer (error mapping, validation, write-after-read, transactions, unawaited promises, owner and soft-delete filters, CORS and cookies, contract changes, socket targeting, migrations, boot-time env checks); `web-common` covers a change that spans both sides (consumers updated, CORS vs. client headers, env config, status codes). Every gate comes from a real bug fix.
+`web-api` covers API servers and their data layer (error mapping, validation, write-after-read, transactions, unawaited promises, owner and soft-delete filters, CORS and cookies, contract changes, socket targeting, migrations, boot-time env checks); `web-common` covers a change that spans both sides (consumers updated, CORS vs. client headers, env config, status codes). Every gate comes from a real bug fix. `web-frontend` also tells the developer to `retrieve` the modern-web-guidance ids the plan names, and the developer's self-check and the reviewer to run its `legacy-scan` on each changed UI file (at most 5) ([README](../README.md#modern-web-guidance)); no hook runs it.
 
 ### Token budget measurement
 
