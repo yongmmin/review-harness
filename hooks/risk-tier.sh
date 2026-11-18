@@ -16,7 +16,7 @@
 # Docs: *.md, *.mdx, *.rst, *.txt (not requirements*/constraints*.txt or CMakeLists.txt) — their path counts, the
 # words of their lines never do. Dependency files (*.lock, bun.lockb, package-lock.json, pnpm-lock.yaml, go.sum,
 # requirements*.txt, constraints*.txt): neither their name nor their lines are scanned for words.
-# Before the scan, ARIA role=, getByRole(, git checkout, sparse-checkout and actions/checkout are blanked, and a line is
+# Before the scan, ARIA role=, getByRole(, git checkout, sparse-checkout and actions/checkout@ are blanked, and a line is
 # cut to its first 20,000 characters.
 # Words are case-insensitive whole runs of letters and digits, also split at camelCase (getToken → get, token), so
 # tokenizer, author, clock and parseInt are no hits. Paths match case-insensitively.
@@ -53,12 +53,12 @@ LC_ALL=C awk '
     return lp ~ /\.lock$/ || lp ~ /^(bun\.lockb|package-lock\.json|pnpm-lock\.yaml|go\.sum)$/ || lp ~ /^(requirements|constraints).*\.txt$/
   }
   # scan(t, where) — keeps the first hit of each word rule. Only the letter/digit runs that hold a candidate are split
-  # at camelCase. Measured noise is blanked first: ARIA role=, getByRole(, git checkout, sparse-checkout, actions/checkout.
+  # at camelCase. Measured noise is blanked first: ARIA role=, getByRole(, git checkout, sparse-checkout, actions/checkout@.
   # shortcut: only the first 20,000 characters of a line are scanned (macOS awk split() slows down sharply on longer
   # lines), and runs over 80 characters (minified or encoded data) are skipped; raise the caps if a real hit is missed.
   function scan(t, where,   p, m, j, w, n, k, r) {
     if (length(t) > 20000) t = substr(t, 1, 20000)
-    gsub(/role=["\047{]|ByRole\(|(git[ \t]+|sparse-|actions\/)checkout/, " ", t)
+    gsub(/role=["\047{]|ByRole\(|(git[ \t]+|sparse-)checkout|actions\/checkout@/, " ", t)
     if (tolower(t) !~ pre) return
     m = split(t, p, /[^A-Za-z0-9]+/)
     for (j = 1; j <= m; j++) {

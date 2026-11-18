@@ -75,6 +75,7 @@ bash hooks/detect-test-cmd.sh /absolute/path/to/my-app    # the test command the
 bash hooks/find-consumers.sh userName                    # from a repo: the other registered repos that use this name (reads only)
 bash hooks/static-gates.sh                               # from a repo: grep-decidable review rules on the current change (reads only)
 bash hooks/risk-tier.sh                                  # from a repo: low / normal / high for the current change, with reasons (reads only)
+bash hooks/review-context.sh                             # from a repo: changed files, changed symbols, their callers, changed tests (reads only)
 ```
 
 Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules.
@@ -187,7 +188,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 11 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 20 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 21 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime; the parts one path needs (plan template, bugfix, retry loop, …) sit in sibling `skills/review-harness/*.md` files it reads only on that path
 - [constraints.md](constraints.md) — agent rules

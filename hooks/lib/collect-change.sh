@@ -1,4 +1,4 @@
-# Sourced by static-gates.sh and risk-tier.sh. The caller sets ME (its name) and usage(), then runs
+# Sourced by static-gates.sh, risk-tier.sh and review-context.sh. The caller sets ME (its name) and usage(), then runs
 # `collect_change [base]`, which collects the current change:
 #   With base: everything since the merge base of <base> and HEAD (commits, staged, unstaged) plus untracked files.
 #   Without: staged, unstaged and untracked against HEAD; with no HEAD, every tracked or untracked file is added.
@@ -24,9 +24,10 @@ collect_change() {
   IDX=$(mktemp "${TMPDIR:-/tmp}/$ME.XXXXXX") || exit 2
   trap 'rm -f "$IDX" "$IDX.lock" "$IDX.names" "$IDX.diff" "$IDX.err"' EXIT
   local real_idx; real_idx=$(git rev-parse --git-path index)
-  # -p keeps the index mtime, which git's racy-entry check compares with each entry (a same-second, same-size edit).
-  # An empty file is not a valid index.
-  if [ -f "$real_idx" ]; then cp -p "$real_idx" "$IDX"; else rm -f "$IDX"; fi
+  # touch -r keeps the index mtime, which git's racy-entry check compares with each entry (a same-second, same-size
+  # edit); cp onto the mktemp file keeps its 0600 mode (cp -p would copy the real index's mode). An empty file is not
+  # a valid index.
+  if [ -f "$real_idx" ]; then cp "$real_idx" "$IDX" && touch -r "$real_idx" "$IDX"; else rm -f "$IDX"; fi
   export GIT_INDEX_FILE="$IDX"
   # git ≥ 2.34 refuses an untracked path outside a sparse-checkout cone unless --sparse is given (older git has
   # neither the check nor the option). Option names in `-h` are never translated.
