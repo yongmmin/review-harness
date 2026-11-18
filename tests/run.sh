@@ -1052,6 +1052,10 @@ eq "agent-usage: bare agent type kept" '"test-runner"' "$(aj '.a3.type')"
 for i in 1 2 3 4 5 6; do au SubagentStart "p$i" & done; wait
 eq "agent-usage: parallel starts all recorded" 6 "$(aj '[keys[] | select(startswith("p"))] | length')"
 jq 'with_entries(select(.key | startswith("p") | not))' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
+mkdir "$AG.lock"; touch -t 202001010000 "$AG.lock"; au SubagentStart s1
+eq "agent-usage: lock over a minute old is broken" '"s1:false"' "$(aj '"s1:" + (.s1 == null | tostring)')"
+eq "agent-usage: broken lock released" false "$(exists "$AG.lock")"
+jq 'del(.s1)' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
 OUT=$(printf '{"hook_event_name":"SubagentStart"}' | PATH="$TMP/nojq" "$BASH" "$H/agent-usage.sh" 2>&1); RC=$?
 eq "agent-usage: no jq → silent, exit 0" "0:" "$RC:$OUT"
 OUT=$(printf 'not json' | bash "$H/agent-usage.sh" 2>&1); RC=$?
