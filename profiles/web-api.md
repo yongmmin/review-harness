@@ -6,7 +6,7 @@
 > | Section tag | Target agents |
 > |-------------|---------------|
 > | `#implementation` | developer |
-> | `#review` | reviewer |
+> | `#review` | reviewer; developer (as its review checklist) |
 
 ## #implementation
 

@@ -6,15 +6,24 @@
 # One line per hit, `<hard|note> [category] path:line — rule`, nothing else (a path hit uses line 1):
 #   hard [ops]      console.log( in a JS/TS/Vue/Svelte file that is not a test
 #   hard [security] a .env / .env.* file (names ending in .example/.sample/.template pass)
-#   hard [security] process.env.NAME || or ?? followed by a non-empty string literal, NAME secret-like
-#                   (SECRET, TOKEN, PASSWORD, PASSWD, KEY, WEBHOOK, CREDENTIAL, PRIVATE; any case); other names → note
+#   hard [security] process.env.NAME || or ?? followed by a non-empty string literal, NAME secret-like: a segment
+#                   (split on `_`, and on camelCase when NAME has lower case) is [API]KEY, or ends in SECRET, TOKEN,
+#                   PASSWORD, PASSWD, WEBHOOK, CREDENTIAL or PRIVATE, each with an optional plural S and trailing
+#                   digits (any case: APIKEY, API_KEYS, X_API_KEY2, AUTH_TOKENS hard; HOTKEY, KEYCLOAK, TOKENIZER
+#                   not); other names → note. Every fallback on a line counts; one hit per line, hard when any is
+#                   secret-like
 #   note [goal]     TODO, FIXME or XXX (whole word)
 #   note [goal]     a new export whose name no other tracked or untracked file mentions (whole word)
 # Deleted files, removed lines, binary files and nested repos are never reported. Reads only; no network;
 # the real index is never written (untracked files are added intent-to-add in a temporary copy).
-# Exit: 1 when any hard hit, else 0; 2 on a usage error or outside a git repo.
+# Needs git ≥ 2.25 (--pathspec-from-file).
+# Exit: 1 when any hard hit, else 0; 2 on a usage error, outside a git repo, or when an internal git command fails
+# (for example an unreadable untracked file): git's error, then one line naming the command.
 
+umask 077   # the temp index and diff copies hold repo content
 usage() { echo "usage: static-gates.sh [base]${1:+ — $1}" >&2; exit 2; }
+# git's stderr is kept in $IDX.err and shown only on failure (add -N with nothing untracked is chatty).
+gitfail() { cat "$IDX.err" >&2 2>/dev/null; echo "static-gates: git $1 failed (see the git error above)" >&2; exit 2; }
 [ $# -le 1 ] || usage
 case "${1:-}" in -*) usage "unknown option: $1" ;; esac
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "static-gates: not a git repository" >&2; exit 2; }
@@ -31,14 +40,22 @@ fi
 
 # One diff covers untracked files too: they are added intent-to-add in a copy of the index.
 IDX=$(mktemp "${TMPDIR:-/tmp}/static-gates.XXXXXX") || exit 2
-trap 'rm -f "$IDX" "$IDX.lock"' EXIT
+trap 'rm -f "$IDX" "$IDX.lock" "$IDX.names" "$IDX.diff" "$IDX.err"' EXIT
 REAL_IDX=$(git rev-parse --git-path index)
 if [ -f "$REAL_IDX" ]; then cp "$REAL_IDX" "$IDX"; else rm -f "$IDX"; fi   # an empty file is not a valid index
 export GIT_INDEX_FILE="$IDX"
+# git ≥ 2.34 refuses an untracked path outside a sparse-checkout cone unless --sparse is given (older git has
+# neither the check nor the option). Option names in `-h` are never translated.
+SPARSE=(); git add -h 2>&1 | grep -qE -- '--(\[no-\])?sparse' && SPARSE=(--sparse)
 # entries ending in `/` are nested repos or worktrees
 g ls-files -z --others --exclude-standard | while IFS= read -r -d '' f; do
   case "$f" in */) ;; *) printf '%s\0' "$f" ;; esac
-done | git --literal-pathspecs add -N --pathspec-from-file=- --pathspec-file-nul 2>/dev/null
+done | git --literal-pathspecs add -N ${SPARSE[@]+"${SPARSE[@]}"} --pathspec-from-file=- --pathspec-file-nul 2> "$IDX.err" \
+  || gitfail "add -N"
+# Both diffs go to files first: a failure inside a process substitution would look like an empty, clean change.
+g diff -z --name-only --diff-filter=d "$FROM" -- > "$IDX.names" 2> "$IDX.err" || gitfail diff
+g diff -U0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ "$FROM" -- > "$IDX.diff" 2> "$IDX.err" \
+  || gitfail diff
 
 HARD=0
 while IFS= read -r -d '' p; do
@@ -46,7 +63,7 @@ while IFS= read -r -d '' p; do
     *.example|*.sample|*.template) ;;
     .env|.env.*) echo "hard [security] $p:1 — .env file in the change"; HARD=1 ;;
   esac
-done < <(g diff -z --name-only --diff-filter=d "$FROM" --)
+done < "$IDX.names"
 
 # awk prints hit lines, and `E<TAB>path<TAB>line<TAB>name` for each new export; the caller check is a git grep below.
 # Header lines run from `diff ` to the first `@@`, so an added line whose text starts with `++` is never a header.
@@ -62,7 +79,24 @@ while IFS= read -r line; do
     hard\ *) echo "$line"; HARD=1 ;;
     *) echo "$line" ;;
   esac
-done < <(g diff -U0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ "$FROM" -- | awk -v sq="'" '
+# LC_ALL=C: macOS awk in a UTF-8 locale aborts at a non-UTF-8 byte, which would end the parse with exit 0.
+done < <(LC_ALL=C awk -v sq="'" '
+  # secret(name) — 1 when a segment of name is [API]KEY or ends in a secret word, each with an optional S and digits
+  # (KEY only as the whole segment: HOTKEY, MONKEY, KEYCLOAK are notes)
+  function secret(nm,   s, i, c, segs, k) {
+    s = nm
+    if (nm ~ /[a-z]/) {   # camelCase: split before an upper-case letter after a lower-case letter or digit, or
+      s = ""              # before the last capital of an acronym (APIKey → API_Key)
+      for (i = 1; i <= length(nm); i++) {
+        c = substr(nm, i, 1)
+        if (i > 1 && c ~ /[A-Z]/ && (substr(nm, i - 1, 1) ~ /[a-z0-9]/ || (substr(nm, i - 1, 1) ~ /[A-Z]/ && substr(nm, i + 1, 1) ~ /[a-z]/))) s = s "_"
+        s = s c
+      }
+    }
+    for (k = split(toupper(s), segs, "_"); k > 0; k--)
+      if (segs[k] ~ /^(API)?KEYS?[0-9]*$/ || segs[k] ~ /(SECRET|TOKEN|PASSWORD|PASSWD|WEBHOOK|CREDENTIAL|PRIVATE)S?[0-9]*$/) return 1
+    return 0
+  }
   BEGIN {
     fallback = "process\\.env\\.[A-Za-z_][A-Za-z0-9_]*[ \t]*(\\|\\||\\?\\?)[ \t]*(" sq "[^" sq "]|\"[^\"]|`[^`])"
     sep = " — "
@@ -81,11 +115,13 @@ done < <(g diff -U0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst
     js = f ~ /\.(js|jsx|ts|tsx|mjs|cjs|vue|svelte)$/
     test = f ~ /\.(test|spec)\./ || f ~ /(^|\/)(__tests__|test|tests)\//
     if (js && !test && index(t, "console.log(")) print "hard [ops] " f ":" n sep "no console.log in production code"
-    if (match(t, fallback)) {
-      name = substr(t, RSTART + 12); match(name, /^[A-Za-z0-9_]+/); name = toupper(substr(name, 1, RLENGTH))
-      if (name ~ /SECRET|TOKEN|PASSWORD|PASSWD|KEY|WEBHOOK|CREDENTIAL|PRIVATE/) print "hard [security] " f ":" n sep "secret fallback literal"
-      else print "note [security] " f ":" n sep "literal fallback for an env var"
+    found = hard = 0; r = t
+    while (match(r, fallback)) {
+      found = 1; name = substr(r, RSTART + 12); r = substr(r, RSTART + RLENGTH)
+      match(name, /^[A-Za-z0-9_]+/); if (secret(substr(name, 1, RLENGTH))) hard = 1
     }
+    if (hard) print "hard [security] " f ":" n sep "secret fallback literal"
+    else if (found) print "note [security] " f ":" n sep "literal fallback for an env var"
     if (t ~ /(^|[^A-Za-z0-9_])(TODO|FIXME|XXX)([^A-Za-z0-9_]|$)/) print "note [goal] " f ":" n sep "TODO/FIXME/XXX left in the change"
     if (js && t ~ /^[ \t]*export[ \t]/) {
       s = t; sub(/^[ \t]*export[ \t]+/, "", s)
@@ -95,6 +131,6 @@ done < <(g diff -U0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst
       if (match(s, /^[A-Za-z_$][A-Za-z0-9_$]*/)) print "E\t" f "\t" n "\t" substr(s, 1, RLENGTH)
     }
     n++
-  }')
+  }' "$IDX.diff")
 
 exit $HARD

@@ -547,6 +547,8 @@ has "reviewer: bugfix gate keys on ## Intent" 'plan `## Intent` is `bugfix`' "$R
 has "developer: bugfix may run an existing test" 'or run the existing test named there' "$(cat "$ROOT/agents/developer.md")"
 has "skill: handoff schema has optional red:" '- red: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: bugfix passes red: to reviewer" 'red:` line to `reviewer`' "$BF"
+has "skill: first pass passes guidance: to reviewer (any intent)" 'Pass the developer'"'"'s `guidance:` line to `reviewer` when `Inputs.Web guidance` lists ids' \
+  "$(sed -n '/^### Shared Skip Rules/,/^### Small change/p' "$SK")"
 has "skill: cause loop-back counts an attempt" 'run `run-state.sh attempt` (stop and report at `LIMIT REACHED`), then redo reproduce' "$BF"
 has "skill: plain review keyword unchanged" '| Keywords: `review`; `check`, `verify` only when a diff exists' "$(grep '^| `review`' "$SK")"
 has "skill: no intent match → one question" 'If no intent matches, ask one clarifying question.' "$(cat "$SK")"
@@ -807,6 +809,15 @@ eq "ledger: entries count in the budget" 0 "$?"
 rm -f "$LEDGER"
 lacks "checklist: absent ledger → no ledger entries" "edits outside plan" "$(ckb)"
 has "checklist: absent ledger → constraints rule lines stay" "- Property access on nullable without guard" "$(ckb)"
+# A non-UTF-8 byte in the ledger: GNU grep in a UTF-8 locale would print "Binary file matches" instead of the lines.
+printf '## #failure-patterns\n\n- [2026-11-18] [category:scope] bad \377 byte NB-1\n- [2026-11-18] [category:goal] after it NB-2\n' > "$LEDGER"
+CK=$(LC_ALL=C.UTF-8 ec developer 2>/dev/null | LC_ALL=C sed -n '/^## Review checklist/,$p')   # the helper awk would trip on the byte too
+has "checklist: line with a non-UTF-8 byte kept" "NB-1" "$CK"
+has "checklist: line after a non-UTF-8 byte kept" "- [2026-11-18] [category:goal] after it NB-2" "$CK"
+has "checklist: non-UTF-8 ledger → constraints rule lines stay" "- Property access on nullable without guard" "$CK"
+lacks "checklist: non-UTF-8 ledger → no binary-file message" "Binary file" "$CK"
+has "checklist: filter reads bytes as text (BSD grep only flags NUL)" "grep -a '^- '" "$(cat "$H/extract-constraints.sh")"
+rm -f "$LEDGER"
 NC="$TMP/plugin-noreview"; mkdir -p "$NC" && cp -R "$ROOT/hooks" "$ROOT/profiles" "$NC/"
 awk '/^## #review/ { skip = 1; next } /^## #/ { skip = 0 } !skip' "$ROOT/constraints.md" > "$NC/constraints.md"
 lacks "checklist: no rule lines → no block" "## Review checklist" "$(bash "$NC/hooks/extract-constraints.sh" developer 2>/dev/null)"
@@ -873,11 +884,16 @@ has "web guidance: retry keeps guidance:" 'On a retry, keep the `guidance:` line
 has "web guidance: no dependency or polyfill" 'never adds a dependency or a polyfill unless the plan says so' "$DEVO"
 has "web guidance: Baseline default" 'Baseline Widely Available unless the org overlay or the repo states a browser policy' "$DEVO"
 has "web guidance: developer reports guidance:" '`guidance: <id> applied | <id> not applied — <reason>`' "$DEVO"
-has "web guidance: developer self-check scans each file, bounded" "run \`npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each on its own (at most 5: the 5 with the most added lines)" "$DEVO"
+has "web guidance: developer self-check scans each file, bounded" "run \`npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each added or modified UI file on its own (at most 5: the 5 with the most added lines)" "$DEVO"
 has "web guidance: developer scan unavailable goes to self-check" '`legacy-scan: unavailable` in the `self-check:` line, not `blockers`' "$DEVO"
 has "web guidance: developer checklist has the legacy-scan gate" '- `legacy-scan` finding on an ADDED line' "$DEVO"
+lacks "web guidance: reviewer's unavailable → blockers rule stays out of the developer checklist" \
+  '`legacy-scan: unavailable` in handoff `blockers`' "$(ckb web-frontend)"
+for f in web-frontend web-api web-common; do
+  has "$f: header table — #review reaches the developer checklist" '| `#review` | reviewer; developer (as its review checklist) |' "$(cat "$ROOT/profiles/$f.md")"
+done
 lacks "web guidance: reviewer never retrieves" "retrieve" "$REVO"
-has "web guidance: reviewer scans each UI file, never a directory" "npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each changed UI file on its own, never on a directory" "$REVO"
+has "web guidance: reviewer scans each UI file, never a directory" "npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each added or modified UI file on its own, never on a directory" "$REVO"
 has "web guidance: reviewer scans at most 5 files" 'at most 5 files — with more, scan the 5 with the most added lines and put `legacy-scan: 5 of N files` in handoff `blockers`' "$REVO"
 has "web guidance: reviewer UI file types" '`.tsx .jsx .vue .svelte .html .css .scss`' "$REVO"
 has "web guidance: added-line finding → FAIL [design]" "rubric → FAIL \`[design]\`, unless $EXEMPT requires that pattern; on unchanged lines → a \`defer\` issue" "$REVO"
@@ -1092,8 +1108,9 @@ eq "agent-usage: stop → active seconds" true "$(aj '.a1.s >= 5 and .a1.s < 60'
 au SubagentStart a1; agent_age a1 3; au SubagentStop a1
 eq "agent-usage: resume → tokens replaced, not added" '{"in":11,"out":7,"tools":2}' "$(aj '.a1 | {in, out, tools}')"
 eq "agent-usage: resume → second span added" true "$(aj '.a1.s >= 8 and .a1.s < 60')"
-OUT=$(au SubagentStop a9); RC=$?
+N0=$(wc -l < "$AG"); OUT=$(au SubagentStop a9); RC=$?
 eq "agent-usage: unknown agent_id → silent, exit 0" "0:" "$RC:$OUT"
+eq "agent-stop: unknown id exits early, nothing appended to agents.jsonl" "$N0" "$(wc -l < "$AG")"
 eq "agent-usage: unknown agent_id → no entry" null "$(aj '.a9')"
 au SubagentStart a2 review-harness:reviewer; agent_age a2 2
 OUT=$(au SubagentStop a2 review-harness:reviewer "$TMP/missing.jsonl"); RC=$?
@@ -1399,6 +1416,11 @@ OR='||'; NN='??'
 printf 'const k = process.env.API_KEY %s "sk-1"\nconst e = process.env.EMPTY %s %s\nconst t = process.env.TOKEN %s %s\n' \
   "$OR" "$OR" "''" "$NN" "'abc'" > "$R/src/c.ts"
 printf 'const n = process.env.NODE_ENV %s %s\nconst m = process.env.apiKey %s %s\n' "$OR" "'local'" "$OR" "'x'" >> "$R/src/c.ts"
+printf 'const a = process.env.NODE_ENV %s %s, b = process.env.API_KEY %s %s\n' "$OR" "'a'" "$NN" "'b'" >> "$R/src/c.ts"   # :6
+SG_NOTES='HOTKEY_LAYOUT KEYBOARD_MODE MONKEY KEYCLOAK_URL TOKENIZER'; SG_HARDS='JWT_SECRET GITHUB_TOKEN PRIVATE_KEY SENDGRID_APIKEY APIKEY API_KEYS TOKENS AUTH_TOKENS JWT_SECRETS PASSWORDS X_API_KEY2'
+for v in $SG_NOTES $SG_HARDS; do   # :7 …
+  printf 'const v = process.env.%s %s %s\n' "$v" "$OR" "'v'" >> "$R/src/c.ts"
+done
 printf 'Flag `process.env.X %s %s`\n' "$OR" "'<value>'" > "$R/doc.md"
 printf 'A\nb\nc\nd\nconsole.log(e)\n' > "$R/src/ctx.ts"
 printf 'x\n' > "$R/-"
@@ -1436,7 +1458,16 @@ has "static-gates: || fallback literal (staged)" "hard [security] src/c.ts:1 —
 lacks "static-gates: empty fallback passes" "src/c.ts:2 " "$OUT"
 has "static-gates: ?? fallback literal" "hard [security] src/c.ts:3 — secret fallback literal" "$OUT"
 has "static-gates: a non-secret name is a note" "note [security] src/c.ts:4 — literal fallback for an env var" "$OUT"
-has "static-gates: secret name is case-insensitive" "hard [security] src/c.ts:5 — secret fallback literal" "$OUT"
+has "static-gates: camelCase secret name (apiKey)" "hard [security] src/c.ts:5 — secret fallback literal" "$OUT"
+has "static-gates: every fallback on a line is classified, not only the first" "hard [security] src/c.ts:6 — secret fallback literal" "$OUT"
+eq "static-gates: one hit per fallback line" 1 "$(printf '%s\n' "$OUT" | grep -c ' src/c.ts:6 ')"
+L=7; for v in $SG_NOTES; do
+  has "static-gates: $v is a note (KEY only as a whole segment)" "note [security] src/c.ts:$L — literal fallback for an env var" "$OUT"; L=$((L + 1))
+done
+for v in $SG_HARDS; do
+  has "static-gates: $v is hard" "hard [security] src/c.ts:$L — secret fallback literal" "$OUT"; L=$((L + 1))
+done
+has "static-gates: header names the git version" 'git ≥ 2.25' "$(sed -n '2,20p' "$H/static-gates.sh")"
 has "static-gates: a doc quoting the rule is a note" "note [security] doc.md:1 — literal fallback" "$OUT"
 lacks "static-gates: a doc quoting the rule is not hard" "hard [security] doc.md" "$OUT"
 has "static-gates: TO""DO note" "note [goal] src/d.ts:1 — " "$OUT"
@@ -1463,6 +1494,37 @@ eq "static-gates: two arguments → exit 2" 2 "$(sgx a b)"
 eq "static-gates: unknown base → exit 2" 2 "$(sgx no-such-ref)"
 eq "static-gates: option-like base → exit 2" 2 "$(sgx --help)"
 mkdir -p "$TMP/sg-nogit"; eq "static-gates: outside a git repo → exit 2" 2 "$(cd "$TMP/sg-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/static-gates.sh" >/dev/null 2>&1; echo $?)"
+R="$TMP/sg-nonutf"; new_repo "$R"; printf 'const s = "\377"\nconsole.log(1)\n' > "$R/n.ts"
+OUT=$(cd "$R" && LC_ALL=C.UTF-8 bash "$H/static-gates.sh" 2>&1); RC=$?
+has "static-gates: a non-UTF-8 byte does not end the parse" "hard [ops] n.ts:2 — no console.log" "$OUT"
+eq "static-gates: a non-UTF-8 byte → still exit 1" 1 "$RC"
+R="$TMP/sg-clean"; new_repo "$R"; cm clean
+eq "static-gates: success → nothing on stderr (git's add -N chatter is kept back)" "" "$(cd "$R" && bash "$H/static-gates.sh" 2>&1 >/dev/null)"
+eq "static-gates: clean tree, nothing untracked → exit 0, no output" "0:" "$(sgx):$(sg)"
+# An internal git failure is exit 2 with one stderr line, never a silent clean 0.
+printf 'console.log(1)\n' > "$R/u.ts"
+mkdir -p "$TMP/sg-gitfail"; REALGIT=$(command -v git)
+printf '#!/bin/sh\ncase " $* " in *" add -N "*) exit 128 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$TMP/sg-gitfail/git"; chmod +x "$TMP/sg-gitfail/git"
+OUT=$(cd "$R" && PATH="$TMP/sg-gitfail:$PATH" bash "$H/static-gates.sh" 2>&1 >/dev/null); RC=$?
+eq "static-gates: git add -N fails → exit 2" 2 "$RC"
+eq "static-gates: git add -N fails → last stderr line names the command" "static-gates: git add -N failed (see the git error above)" "$(printf '%s\n' "$OUT" | tail -n 1)"
+chmod 000 "$R/u.ts"
+if [ -r "$R/u.ts" ]; then PASS=$((PASS + 3))   # root reads it anyway: nothing to test
+else
+  OUT=$(cd "$R" && bash "$H/static-gates.sh" 2>&1 >/dev/null); RC=$?
+  eq "static-gates: unreadable untracked file → exit 2" 2 "$RC"
+  has "static-gates: unreadable untracked file → git's own error shown" "Permission denied" "$OUT"
+  eq "static-gates: unreadable untracked file → last line names the command" "static-gates: git diff failed (see the git error above)" "$(printf '%s\n' "$OUT" | tail -n 1)"
+fi
+chmod 644 "$R/u.ts"
+R="$TMP/sg-sparse"; mkdir -p "$R/in" "$R/out"; git -C "$R" init -q; echo a > "$R/in/a.txt"; echo b > "$R/out/b.txt"; cm init
+git -C "$R" sparse-checkout set --cone in
+mkdir -p "$R/out"; printf 'x\n' > "$R/out/new.txt"; printf 'console.log(1)\n' > "$R/in/x.ts"
+OUT=$(sg); RC=$(sgx)
+eq "static-gates: sparse checkout, untracked file outside the cone → no exit 2" 1 "$RC"
+has "static-gates: sparse checkout → in-cone hard hit reported" "hard [ops] in/x.ts:1 — no console.log" "$OUT"
+eq "static-gates: umask 077 for its temp files" 1 "$(grep -c '^umask 077' "$H/static-gates.sh")"
+for f in README.md profiles/web-frontend.md; do lacks "$f: no 'each changed UI file'" "each changed UI file" "$(cat "$ROOT/$f")"; done
 R="$TMP/sg-nohead"; mkdir -p "$R"; git -C "$R" init -q
 printf 'console.log(1)\n' > "$R/staged.ts"; git -C "$R" add staged.ts
 printf 'x\nconsole.log(2)\n' > "$R/loose file.ts"
@@ -1476,6 +1538,8 @@ has "developer: self-check runs static-gates.sh" 'run `bash "${CLAUDE_PLUGIN_ROO
 has "reviewer: static gates run the script first" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"`' "$(sed -n '/^## Static Review Gates/,/^## Constraints/p' "$ROOT/agents/reviewer.md")"
 has "reviewer: note hits are never an automatic FAIL" '`note` hits feed the Goal gate' "$(cat "$ROOT/agents/reviewer.md")"
 has "docs/hooks.md: static-gates row" '| **`static-gates.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
+has "docs/hooks.md: torn line skipped and the next append can be lost" \
+  'a torn line is skipped, and a writer killed mid-line can also lose the next append' "$(cat "$ROOT/docs/hooks.md")"
 has "readme: static-gates example" 'bash hooks/static-gates.sh' "$(cat "$ROOT/README.md")"
 
 # --- small doc items ----------------------------------------------------------------------

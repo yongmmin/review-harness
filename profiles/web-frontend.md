@@ -7,7 +7,7 @@
 > |-------------|---------------|
 > | `#code-rules` | developer, refactor-architect |
 > | `#implementation` | developer |
-> | `#review` | reviewer |
+> | `#review` | reviewer; developer (as its review checklist) |
 > | `#detection` | refactor-architect |
 
 ## #code-rules
@@ -102,7 +102,7 @@ export function useOrderListQuery(userId: number) {
 - Precedence: the plan, a stated browser policy, an existing repo or design-system component, this profile's rules, or an org rule win over a guide; write a guide's CSS in the repo's styling system and tokens (this profile's rules win); a guide never adds a dependency or a polyfill unless the plan says so
 - Browser support: Baseline Widely Available unless the org overlay or the repo states a browser policy
 - Report one `guidance: <id> applied | <id> not applied — <reason>` handoff line covering every listed id (`retrieve` unavailable → `not applied — unavailable`)
-- Self-check: when you changed UI files (`.tsx .jsx .vue .svelte .html .css .scss`), run `npx -y modern-web-guidance@1.0.1 legacy-scan <file> --json` on each on its own (at most 5: the 5 with the most added lines) and fix every finding the `#review` legacy-scan rule would FAIL; unavailable (or any other CLI error or timeout) → `legacy-scan: unavailable` in the `self-check:` line, not `blockers`
+- Self-check: when you added or modified UI files (`.tsx .jsx .vue .svelte .html .css .scss`), run `npx -y modern-web-guidance@1.0.1 legacy-scan <file> --json` on each added or modified UI file on its own (at most 5: the 5 with the most added lines) and fix every finding the `#review` legacy-scan rule would FAIL; unavailable (or any other CLI error or timeout) → `legacy-scan: unavailable` in the `self-check:` line, not `blockers`
 
 ## #review
 
@@ -140,9 +140,8 @@ Static review gates — FAIL if any:
 - Icon-only button without an accessible name (`aria-label` or visible text) → FAIL `[correctness]`
 - Clickable element that cannot be operated by keyboard (e.g. `onClick` on a non-interactive element with no key handler, role and `tabIndex`) → FAIL `[correctness]`
 
-**Modern web guidance** — when the diff changes UI files (`.tsx .jsx .vue .svelte .html .css .scss`), run `npx -y modern-web-guidance@1.0.1 legacy-scan <file> --json` on each changed UI file on its own, never on a directory; at most 5 files — with more, scan the 5 with the most added lines and put `legacy-scan: 5 of N files` in handoff `blockers`.
+**Modern web guidance** — when the diff adds or modifies UI files (`.tsx .jsx .vue .svelte .html .css .scss`), run `npx -y modern-web-guidance@1.0.1 legacy-scan <file> --json` on each added or modified UI file on its own, never on a directory; at most 5 files — with more, scan the 5 with the most added lines and put `legacy-scan: 5 of N files` in handoff `blockers`. `legacy-scan` unavailable (no `npx`, network blocked, permission denied, or any other CLI error or timeout) → `legacy-scan: unavailable` in handoff `blockers`, never a FAIL.
 - `legacy-scan` finding on an ADDED line that survives its `keepWhen`/`dropWhen` rubric → FAIL `[design]`, unless the plan, a stated browser policy, an existing repo or design-system component, this profile's rules, or an org rule requires that pattern; on unchanged lines → a `defer` issue
-- `legacy-scan` unavailable (no `npx`, network blocked, permission denied, or any other CLI error or timeout) → `legacy-scan: unavailable` in handoff `blockers`, never a FAIL
 - Plan `Inputs.Web guidance` lists ids and the developer handoff has no `guidance:` line → FAIL `[goal]` (patch)
 
 ## #detection

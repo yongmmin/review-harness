@@ -314,6 +314,7 @@ with `<workflow>` = `small-change | feature | bugfix | refactor | review` and th
 
 - Skip `search-knowledge` if knowledge is empty/irrelevant. Use the injected `knowledge:` line (exit != 0 of `knowledge-has-content.sh`) means placeholder-only — skip agent spawn entirely
 - Pass `plan.md → Inputs.API` to `developer` only when the change touches data fetching/mutation
+- Pass the developer's `guidance:` line to `reviewer` when `Inputs.Web guidance` lists ids (any intent, like a bugfix's `red:`)
 - Skip `save-knowledge` if no durable learning
 
 ### Small change
