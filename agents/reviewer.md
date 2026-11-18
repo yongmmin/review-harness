@@ -91,6 +91,8 @@ Add these checks beyond the 4 generic categories (FAIL if any):
 
 **Script first** — from the repo root, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"` before reading the diff (pass the base branch as its argument when the change is already committed). Each `hard` line is a FAIL with its `[category]`, unless the plan's `Out of Scope` or `Design Check` names it as intended. Exit 2 means it could not run: put its stderr line in handoff `blockers` and check those rules by reading the diff. `note` hits feed the Goal gate judgement (TODO left, export with no caller), and a `note [security]` literal fallback for an env var whose name does not look like a secret is judged against the `#review` secret rule; notes are never an automatic FAIL.
 
+**Change context** — then run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/review-context.sh"` (same base argument) and start from its block: changed files, the symbols defined on added or removed lines, each symbol's callers, the changed tests. For each `removed` or `changed` symbol, every listed caller is either in the diff or checked; a caller of a removed symbol left unchanged → FAIL `[contract]` unless the plan's `Callers/Consumers` marks it `no change needed`. `+N more` or `… truncated` → grep the rest yourself. Exit 2 → its stderr line in `blockers`.
+
 **Code conventions**
 - `--no-verify` in any commit message → FAIL
 - `.npmrc` staged → FAIL (registry auth token leak)

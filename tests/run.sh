@@ -1591,6 +1591,8 @@ for w in billing invoice stripe refunds; do rtin "$w on an added line" high src/
 rtin "sparse-checkout is not a payment term" low src/a.sh 'git sparse-checkout set src'
 rtin "git checkout is not a payment term" low src/a.sh 'git checkout main'
 rtin "actions/checkout is not a payment term" low src/ci.yml '- uses: actions/checkout@v4'
+rtin "an actions/checkout.ts path is payment" high app/actions/checkout.ts
+rtin "an import from @/actions/checkout is payment" high src/a.ts 'import { go } from "@/actions/checkout"'
 rtin "a checkout path is payment" high src/checkout/CheckoutPage.tsx
 rtin "a checkout call is payment" high src/a.ts 'submitCheckout(cart)'
 rtin "migrations/ path" high db/migrations/001.js
@@ -1682,11 +1684,17 @@ RTS=$SECONDS; OUT=$(rt); RTS=$((SECONDS - RTS))
 eq "risk-tier: a 5 MB one-line file plus getToken() → high" high "$(printf '%s\n' "$OUT" | head -n 1)"
 eq "risk-tier: a 5 MB one-line file is scanned in under 20 s" yes "$([ "$RTS" -lt 20 ] && echo yes || echo "no ($RTS s)")"
 # Racy entry: an edit of the same size whose mtime equals both the index entry and the index file. Git re-reads such
-# an entry only while the copied index keeps the real index's mtime (cp -p); trustctime off makes it deterministic.
+# an entry only while the copied index keeps the real index's mtime (touch -r); trustctime off makes it deterministic.
 rtrepo; mkdir -p "$R/src"; printf 'const xxxxx = 1\n' > "$R/src/a.ts"; git -C "$R" config core.trustctime false
 touch -t 202001010000 "$R/src/a.ts"; cm racy
 printf 'const token = 1\n' > "$R/src/a.ts"; touch -t 202001010000 "$R/src/a.ts" "$R/.git/index"
 eq "risk-tier: a racily clean same-size edit is still seen" high "$(rt | head -n 1)"
+# The temp index copy holds repo content: it stays 0600 even when the real index is 0644 (a git wrapper reads its mode).
+chmod 644 "$R/.git/index"; mkdir -p "$TMP/rt-mode"
+printf '#!/bin/sh\ncase " $* " in *" add -N "*) ls -l "$GIT_INDEX_FILE" | cut -c1-10 > "%s" ;; esac\nexec "%s" "$@"\n' \
+  "$TMP/rt-mode/seen" "$REALGIT" > "$TMP/rt-mode/git"; chmod +x "$TMP/rt-mode/git"
+(cd "$R" && PATH="$TMP/rt-mode:$PATH" bash "$H/risk-tier.sh" >/dev/null 2>&1)
+eq "risk-tier: the temp index is not group- or world-readable" "-rw-------" "$(cat "$TMP/rt-mode/seen" 2>/dev/null)"
 R="$TMP/rt-nonutf"; new_repo "$R"; printf 'const s = "\377" + token\n' > "$R/n.ts"
 eq "risk-tier: a non-UTF-8 byte does not end the parse" high "$(cd "$R" && LC_ALL=C.UTF-8 bash "$H/risk-tier.sh" 2>/dev/null | head -n 1)"
 eq "risk-tier: two arguments → exit 2" 2 "$(rtx a b)"
@@ -1711,6 +1719,118 @@ has "reviewer: probes line is a 4th handoff bullet" 'plus `probes:` when your pr
 has "docs/hooks.md: risk-tier row" '| **`risk-tier.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
 has "readme: risk-tier example" 'bash hooks/risk-tier.sh' "$(cat "$ROOT/README.md")"
 has "CLAUDE.md: model routing names risk tiers" 'risk-tier.sh' "$(sed -n '/^## Model Routing/,$p' "$ROOT/CLAUDE.md")"
+
+# --- review-context -----------------------------------------------------------------------
+rc() { (cd "$R" && bash "$H/review-context.sh" "$@" 2>&1); }
+rcx() { (cd "$R" && bash "$H/review-context.sh" "$@" >/dev/null 2>&1); echo $?; }
+R="$TMP/rc"; mkdir -p "$R/src" "$R/tools" "$R/py"; git -C "$R" init -q
+printf 'export function keepFn() {}\nexport function goneFn() {}\nexport const oldName = 1\n' > "$R/src/lib.ts"
+printf "import { goneFn, keepFn } from './lib'\ngoneFn()\nkeepFn()\n" > "$R/src/use.ts"
+printf 'goneFn()\n' > "$R/src/lib.test.ts"
+printf 'oldName\n' > "$R/src/other.ts"
+printf 'Call newName to start.\n' > "$R/README.md"; printf 'newName\n' > "$R/docs.TXT"; printf 'Shape\n' > "$R/CMakeLists.txt"
+printf 'export function deadFn() {}\n' > "$R/src/dead.ts"; printf 'deadFn()\n' > "$R/src/zombie.ts"
+printf 'export function fetchUser() {}\n' > "$R/src/api.ts"; printf 'fetchUser()\n' > "$R/src/real.ts"
+printf 'myfetchUser()\nfetchUserList()\n' > "$R/src/super.ts"
+printf 'export const stay = 1\n' > "$R/src/moved.ts"
+printf 'helper() { :; }\n' > "$R/tools/run.sh"; printf '. ./run.sh; helper\n' > "$R/tools/call.sh"
+printf 'def pyfn():\n    pass\nclass Old:\n    pass\n' > "$R/py/m.py"; printf 'from m import pyfn, Old\n' > "$R/py/user.py"
+cm base; RCB=$(git -C "$R" rev-parse HEAD)
+printf 'export function keepFn(a) {}\nexport const newName = 1\nconst arrowFn = (x) => x\n' > "$R/src/lib.ts"
+printf 'export default async function Page() {}\nexport interface Shape {}\nexport type Tp = 1\nexport enum En {}\nexport class Cl {}\nexport let lv = 1\nfunction plainFn(a) {}\n  function nestedFn() {}\n' >> "$R/src/lib.ts"
+rm "$R/src/dead.ts"; git -C "$R" mv src/moved.ts src/renamed.ts; : > "$R/src/api.ts"
+printf 'function newhelp {\n  :\n}\n' > "$R/tools/run.sh"
+printf 'def pyfn(x):\n    pass\nclass New:\n    pass\n' > "$R/py/m.py"
+printf 'keepFn()\n' > "$R/src/new.test.ts"
+IX0=$(cksum < "$R/.git/index"); ST0=$(git -C "$R" status --porcelain)
+OUT=$(rc)
+eq "review-context: exit 0" 0 "$(rcx)"
+eq "review-context: real index untouched" "$IX0" "$(cksum < "$R/.git/index")"
+eq "review-context: git status unchanged" "$ST0" "$(git -C "$R" status --porcelain)"
+eq "review-context: sections in order" "files: symbols: callers: tests: " "$(printf '%s\n' "$OUT" | grep -E '^(files|symbols|callers|tests):$' | tr '\n' ' ')"
+has "review-context: modified file with counts" "M src/lib.ts +11 -3" "$OUT"
+has "review-context: deleted file" "D src/dead.ts +0 -1" "$OUT"
+has "review-context: rename keeps both paths" "R src/moved.ts -> src/renamed.ts +0 -0" "$OUT"
+has "review-context: untracked file is added" "A src/new.test.ts +1 -0" "$OUT"
+lacks "review-context: unchanged file not listed as changed" "M src/use.ts" "$OUT"
+has "review-context: removed export" "goneFn (removed) in src/lib.ts" "$OUT"
+has "review-context: removed const" "oldName (removed) in src/lib.ts" "$OUT"
+has "review-context: changed export (both sides)" "keepFn (changed) in src/lib.ts" "$OUT"
+has "review-context: added export" "newName (added) in src/lib.ts" "$OUT"
+has "review-context: symbol in a deleted file" "deadFn (removed) in src/dead.ts" "$OUT"
+for s in arrowFn Page Shape Tp En Cl lv plainFn; do has "review-context: JS/TS form $s" "$s (added) in src/lib.ts" "$OUT"; done
+lacks "review-context: a nested function is not a symbol" "nestedFn" "$OUT"
+has "review-context: shell name() removed" "helper (removed) in tools/run.sh" "$OUT"
+has "review-context: shell function name added" "newhelp (added) in tools/run.sh" "$OUT"
+has "review-context: python def changed" "pyfn (changed) in py/m.py" "$OUT"
+has "review-context: python class removed" "Old (removed) in py/m.py" "$OUT"
+has "review-context: python class added" "New (added) in py/m.py" "$OUT"
+lacks "review-context: a pure rename has no symbols" "stay (" "$OUT"
+eq "review-context: removed symbols come first" "removed" "$(printf '%s\n' "$OUT" | sed -n '/^symbols:/{n;p;}' | sed 's/.*(\([a-z]*\)).*/\1/')"
+has "review-context: callers of a removed name, test marked, defining file excluded" "goneFn: src/lib.test.ts (test), src/use.ts" "$OUT"
+has "review-context: caller of a removed const" "oldName: src/other.ts" "$OUT"
+eq "review-context: callers match whole words (not myfetchUser, fetchUserList)" "fetchUser: src/real.ts" "$(printf '%s\n' "$OUT" | grep '^fetchUser: ')"
+has "review-context: caller of a symbol in a deleted file" "deadFn: src/zombie.ts" "$OUT"
+has "review-context: untracked caller found" "keepFn: src/new.test.ts (test), src/use.ts" "$OUT"
+has "review-context: a name mentioned only in a README and a .TXT doc → none" "newName: none" "$OUT"
+has "review-context: CMakeLists.txt is not a doc, so it stays a caller" "Shape: CMakeLists.txt" "$OUT"
+has "review-context: shell caller" "helper: tools/call.sh" "$OUT"
+has "review-context: python caller" "Old: py/user.py" "$OUT"
+eq "review-context: tests section lists the changed test files" "src/new.test.ts" "$(printf '%s\n' "$OUT" | sed -n '/^tests:/,$p' | sed 1d)"
+eq "review-context: same output from a subdirectory" "$OUT" "$(cd "$R/src" && bash "$H/review-context.sh" 2>&1)"
+cm change
+eq "review-context: committed change, no base → empty" "files: none
+symbols: none
+callers: none
+tests: none" "$(rc)"
+OUTB=$(rc "$RCB")
+has "review-context: base → committed removals" "goneFn (removed) in src/lib.ts" "$OUTB"
+has "review-context: base → committed rename" "R src/moved.ts -> src/renamed.ts +0 -0" "$OUTB"
+eq "review-context: two arguments → exit 2" 2 "$(rcx a b)"
+eq "review-context: unknown base → exit 2" 2 "$(rcx no-such-ref)"
+eq "review-context: option-like base → exit 2" 2 "$(rcx --help)"
+mkdir -p "$TMP/rc-nogit"; eq "review-context: outside a git repo → exit 2" 2 "$(cd "$TMP/rc-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/review-context.sh" >/dev/null 2>&1; echo $?)"
+(cd "$R" && PATH="$TMP/sg-gitfail:$PATH" bash "$H/review-context.sh" >/dev/null 2>&1); RC=$?
+eq "review-context: shared collection fails → exit 2" 2 "$RC"
+eq "review-context: umask 077 for its temp files" 1 "$(grep -c '^umask 077' "$H/review-context.sh")"
+R="$TMP/rc-nonutf"; new_repo "$R"; printf 'const s = "\377"\nexport function afterByte() {}\n' > "$R/n.ts"
+has "review-context: a non-UTF-8 byte does not end the parse" "afterByte (added) in n.ts" "$(cd "$R" && LC_ALL=C.UTF-8 bash "$H/review-context.sh" 2>/dev/null)"
+# caps: 30 symbols, 10 callers each → 25 symbols, 8 callers per symbol, then the 4 KB cut
+R="$TMP/rc-caps"; mkdir -p "$R/callers"; git -C "$R" init -q
+RCN=$(i=10; while [ "$i" -lt 40 ]; do printf 'sym%s ' "$i"; i=$((i + 1)); done)
+for c in 0 1 2 3 4 5 6 7 8 9; do echo "$RCN" > "$R/callers/a-rather-long-caller-file-name-to-fill-the-block-$c.ts"; done
+cm base
+for s in $RCN; do echo "export function $s() {}"; done > "$R/defs.ts"
+OUT=$(rc)
+eq "review-context: at most 25 symbol lines" 25 "$(printf '%s\n' "$OUT" | grep -c ' (added) in defs.ts$')"
+has "review-context: symbols over the cap are counted" "symbols: +5 more" "$OUT"
+has "review-context: at most 8 callers, then +N more" "sym10: callers/a-rather-long-caller-file-name-to-fill-the-block-0.ts" "$OUT"
+has "review-context: callers over the cap are counted" "-7.ts, +2 more" "$(printf '%s\n' "$OUT" | grep '^sym10: ')"
+lacks "review-context: the 9th caller is not listed" "-8.ts" "$(printf '%s\n' "$OUT" | grep '^sym10: ')"
+eq "review-context: over the byte cap → last line says truncated" "… truncated" "$(printf '%s\n' "$OUT" | tail -n 1)"
+eq "review-context: output stays within 4 KB" yes "$([ "$(printf '%s\n' "$OUT" | LC_ALL=C wc -c | tr -d ' ')" -le 4096 ] && echo yes || echo no)"
+# 120 touched files with long paths: the files section is capped, so a removed export and its caller stay in the block
+R="$TMP/rc-wide"; mkdir -p "$R/src" "$R/a-rather-long-directory-name-for-many-files"; git -C "$R" init -q
+printf 'export function dropped() {}\n' > "$R/src/lib.ts"; printf 'dropped()\n' > "$R/src/keep.ts"; cm base
+: > "$R/src/lib.ts"
+i=100; while [ "$i" -lt 220 ]; do echo x > "$R/a-rather-long-directory-name-for-many-files/file-$i.ts"; i=$((i + 1)); done
+OUT=$(rc)
+eq "review-context: at most 30 file lines" 30 "$(printf '%s\n' "$OUT" | grep -cE '^[AMDR] ')"
+has "review-context: files over the cap are counted" "files: +91 more" "$OUT"
+has "review-context: 120 files → the removed export is kept" "dropped (removed) in src/lib.ts" "$OUT"
+has "review-context: 120 files → its untouched caller is kept" "dropped: src/keep.ts" "$OUT"
+# short lines (many changed tests): the cut lands within one 12-byte line of the cap, the marker included
+R="$TMP/rc-short"; mkdir -p "$R/tests"; git -C "$R" init -q
+i=1000; while [ "$i" -lt 1500 ]; do echo x > "$R/tests/t$i"; i=$((i + 1)); done
+RCW=$(rc | LC_ALL=C wc -c | tr -d ' ')
+eq "review-context: short lines → cut between 4080 and 4096 bytes" yes "$([ "$RCW" -ge 4080 ] && [ "$RCW" -le 4096 ] && echo yes || echo "no ($RCW)")"
+RVG=$(sed -n '/^## Static Review Gates/,/^## Constraints/p' "$ROOT/agents/reviewer.md")
+has "reviewer: runs review-context.sh after static-gates" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/review-context.sh"`' "$RVG"
+has "reviewer: unchanged caller of a removed symbol → contract FAIL" 'FAIL `[contract]` unless the plan' "$RVG"
+has "developer: self-check runs review-context.sh" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/review-context.sh"`' "$(sed -n '/^6\. Self-check/p' "$ROOT/agents/developer.md")"
+has "docs/hooks.md: review-context row" '| **`review-context.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
+has "readme: review-context example" 'bash hooks/review-context.sh' "$(cat "$ROOT/README.md")"
+has "changelog: review-context entry" 'hooks/review-context.sh' "$(sed -n '/^### Unreleased/,/^### /p' "$ROOT/CHANGELOG.md")"
 
 # --- small doc items ----------------------------------------------------------------------
 has "refactor-architect: rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$RA"
