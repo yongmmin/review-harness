@@ -1002,7 +1002,7 @@ has "run-stats: per-agent share and median seconds" "per agent (subagents only):
 has "run-stats: old lines unchanged with agent data" "limit reached: 0" "$OUT"
 
 # --- agent usage (SubagentStart / SubagentStop) --------------------------------------------
-R="$TMP/agentrepo"; new_repo "$R"; SD=$(bash "$H/state-dir.sh" "$R"); AF="$SD/run-state.json"; AG="$SD/agents.json"; ALOG="$REVIEW_HARNESS_HOME/state/runs.jsonl"
+R="$TMP/agentrepo"; new_repo "$R"; SD=$(bash "$H/state-dir.sh" "$R"); AF="$SD/run-state.json"; AG="$SD/agents.jsonl"; ALOG="$REVIEW_HARNESS_HOME/state/runs.jsonl"
 TR="$TMP/agent.jsonl"   # m1 repeats on two lines (one per content block); a <synthetic> model line; the last line is torn
 cat > "$TR" <<'EOF'
 {"type":"user","message":{"role":"user","content":"go"}}
@@ -1018,7 +1018,11 @@ au() { # au <event> <agent_id> [agent_type] [transcript] — run agent-usage.sh 
     '{session_id:"s", transcript_path:"/x", cwd:$d, hook_event_name:$e, agent_id:$id, agent_type:$t}
      + (if $e == "SubagentStop" then {stop_hook_active:false, agent_transcript_path:$tp, last_assistant_message:"done"} else {} end)' \
     | bash "$H/agent-usage.sh"; }
-aj() { jq -c "$1" "$AG"; }
+aj() { rs agents | jq -c "$1"; }
+agent_age() { # agent_age <id> <seconds> — move the id's last start line back by <seconds>
+  jq -Rrs --arg id "$1" --argjson by "$2" '[split("\n")[] | select(length > 0)] as $l
+    | ([range($l | length) | select($l[.] | fromjson? | .e == "start" and .id == $id)] | last) as $i
+    | $l | .[$i] |= (fromjson | .ts -= $by | tojson) | .[]' "$AG" > "$AG.x" && mv "$AG.x" "$AG"; }
 age() { jq --argjson by "$2" "$1 -= \$by" "$3" > "$3.x" && mv "$3.x" "$3"; }   # age <path> <seconds> <file>
 gatefields() { jq -c '{review, verdicts, tests, attempts, updated_at}' "$AF"; }
 exists() { [ -e "$1" ] && echo true || echo false; }
@@ -1029,52 +1033,56 @@ rs start feature developer reviewer >/dev/null
 age .updated_at 100 "$AF"; G0=$(gatefields)
 OUT=$(au SubagentStart a1); RC=$?
 eq "agent-usage: start → silent, exit 0" "0:" "$RC:$OUT"
-eq "agent-usage: start opens a span in agents.json, type without plugin prefix" '{"type":"developer","open":true,"s":0}' "$(aj '.a1 | {type, open: (.open | type == "number"), s}')"
-age .a1.open 5 "$AG"; OUT=$(au SubagentStop a1); RC=$?
+eq "agent-usage: start opens a span in agents.jsonl, type without plugin prefix" '{"type":"developer","open":true,"s":0}' "$(aj '.a1 | {type, open: (.open | type == "number"), s}')"
+agent_age a1 5; OUT=$(au SubagentStop a1); RC=$?
 eq "agent-usage: stop → silent, exit 0" "0:" "$RC:$OUT"
 eq "agent-usage: run-state.json (gate fields, updated_at) untouched by start/stop" "$G0" "$(gatefields)"
 eq "agent-usage: run-state.json holds no agent data" false "$(jq 'has("agents")' "$AF")"
 eq "agent-usage: stop → deduplicated tokens, tools, model (not <synthetic>), span closed" '{"model":"claude-x","in":11,"out":7,"cr":103,"cw":24,"tools":2,"open":null}' \
   "$(aj '.a1 | {model, in, out, cr, cw, tools, open}')"
 eq "agent-usage: stop → active seconds" true "$(aj '.a1.s >= 5 and .a1.s < 60')"
-au SubagentStart a1; age .a1.open 3 "$AG"; au SubagentStop a1
+au SubagentStart a1; agent_age a1 3; au SubagentStop a1
 eq "agent-usage: resume → tokens replaced, not added" '{"in":11,"out":7,"tools":2}' "$(aj '.a1 | {in, out, tools}')"
 eq "agent-usage: resume → second span added" true "$(aj '.a1.s >= 8 and .a1.s < 60')"
 OUT=$(au SubagentStop a9); RC=$?
 eq "agent-usage: unknown agent_id → silent, exit 0" "0:" "$RC:$OUT"
 eq "agent-usage: unknown agent_id → no entry" null "$(aj '.a9')"
-au SubagentStart a2 review-harness:reviewer; age .a2.open 2 "$AG"
+au SubagentStart a2 review-harness:reviewer; agent_age a2 2
 OUT=$(au SubagentStop a2 review-harness:reviewer "$TMP/missing.jsonl"); RC=$?
 eq "agent-usage: missing transcript → silent, exit 0" "0:" "$RC:$OUT"
 eq "agent-usage: missing transcript → span kept, no tokens" '{"type":"reviewer","in":0,"time":true}' "$(aj '.a2 | {type, in, time: (.s >= 2)}')"
 au SubagentStart a3 test-runner   # bare agent type (matcher allows it)
 eq "agent-usage: bare agent type kept" '"test-runner"' "$(aj '.a3.type')"
-for i in 1 2 3 4 5 6; do au SubagentStart "p$i" & done; wait
-eq "agent-usage: parallel starts all recorded" 6 "$(aj '[keys[] | select(startswith("p"))] | length')"
-jq 'with_entries(select(.key | startswith("p") | not))' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
-mkdir "$AG.lock"; touch -t 202001010000 "$AG.lock"; au SubagentStart s1
-eq "agent-usage: lock over a minute old is broken" '"s1:false"' "$(aj '"s1:" + (.s1 == null | tostring)')"
-eq "agent-usage: broken lock released" false "$(exists "$AG.lock")"
-jq 'del(.s1)' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do { au SubagentStart "p$i"; au SubagentStop "p$i"; } & done; wait
+eq "agent-usage: 12 parallel starts + interleaved stops all recorded and closed" 12 \
+  "$(aj '[to_entries[] | select(.key | startswith("p")) | select(.value.open == null and .value.in == 11)] | length')"
+grep -v '"id":"p' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
+printf '{"e":"start","id":"t\n' >> "$AG"   # a torn line (killed writer)
+au SubagentStart t1; au SubagentStop t1
+eq "agent-usage: torn line skipped, next line still read" '{"open":null,"in":11}' "$(aj '.t1 | {open, in}')"
+printf '{"e":"stop","id":"z9","ts":1,"u":{"in":5}}\n' >> "$AG"
+eq "agent-usage: stop with no earlier start ignored by the fold" null "$(aj '.z9')"
+grep -v -e '"id":"t' -e '"id":"z9"' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
 OUT=$(printf '{"hook_event_name":"SubagentStart"}' | PATH="$TMP/nojq" "$BASH" "$H/agent-usage.sh" 2>&1); RC=$?
 eq "agent-usage: no jq → silent, exit 0" "0:" "$RC:$OUT"
 OUT=$(printf 'not json' | bash "$H/agent-usage.sh" 2>&1); RC=$?
 eq "agent-usage: bad input → silent, exit 0" "0:" "$RC:$OUT"
 has "status: agent count" " · agents 3" "$(rs status)"
 rs done >/dev/null
-eq "agents.json: removed by done" false "$(exists "$AG")"
+eq "agents.jsonl: removed by done" false "$(exists "$AG")"
 eq "run log: agents grouped by type" '[{"type":"developer","n":1,"in":11,"out":7,"cr":103,"cw":24,"tools":2},{"type":"reviewer","n":1,"in":0,"out":0,"cr":0,"cw":0,"tools":0},{"type":"test-runner","n":1,"in":0,"out":0,"cr":0,"cw":0,"tools":0}]' \
   "$(tail -n 1 "$ALOG" | jq -c '[.agents[] | del(.s)]')"
 eq "run log: agent seconds summed" true "$(tail -n 1 "$ALOG" | jq '(.agents[0].s >= 8) and (.agents[1].s >= 2)')"
 eq "run log: run token totals" '{"in":11,"out":7,"cr":103,"cw":24}' "$(tail -n 1 "$ALOG" | jq -c .tokens)"
-echo '{"x":{"type":"developer","s":1,"in":1,"out":1,"cr":0,"cw":0,"tools":0}}' > "$AG"   # left over from a closed run
+echo '{"e":"start","id":"x","t":"developer","ts":1}' > "$AG"   # left over from a closed run
+echo '{}' > "$SD/agents.json"; mkdir "$SD/agents.json.lock"   # left over from an older version
 rs start feature >/dev/null
-eq "agents.json: removed by start" false "$(exists "$AG")"
+eq "agents.jsonl + old agents.json/lock: removed by start" "false false false" "$(exists "$AG") $(exists "$SD/agents.json") $(exists "$SD/agents.json.lock")"
 rs done >/dev/null
 eq "run log: no agent data → no agents/tokens keys" false "$(tail -n 1 "$ALOG" | jq 'has("agents") or has("tokens")')"
 lacks "status: no agent data → no agent count" "agents" "$(rs start feature >/dev/null; rs status)"
-au SubagentStart b1; rs abandon >/dev/null
-eq "agents.json: removed by abandon" false "$(exists "$AG")"
+au SubagentStart b1; echo '{}' > "$SD/agents.json"; mkdir "$SD/agents.json.lock"; rs abandon >/dev/null
+eq "agents.jsonl + old agents.json/lock: removed by abandon" "false false false" "$(exists "$AG") $(exists "$SD/agents.json") $(exists "$SD/agents.json.lock")"
 rs start feature >/dev/null; age .updated_at 200000 "$AF"; G0=$(gatefields)
 eq "agent-usage: stale run → check --active-only exit 4 (before)" 4 "$(rc rs check --active-only)"
 OUT=$(au SubagentStart s1); RC=$?
