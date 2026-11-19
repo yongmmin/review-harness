@@ -4,6 +4,9 @@
 ## Goal
 [what and why]
 
+## Why
+[one line: the strategy goal or metric this moves, or `no strategy file`]
+
 ## Done When
 - [observable outcome] — check: [test name, command, or manual step]
 
@@ -20,6 +23,7 @@
 
 ## Affected Files
 - path/to/file.tsx - [change]
+Risk tier: [first line of `risk-tier.sh --paths <these files>`]
 
 ## Bug (bugfix only)
 - Symptom: [observed vs expected]

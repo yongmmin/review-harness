@@ -4,6 +4,13 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Strategy skeleton**
+- New `hooks/strategy-file.sh [--status]`: the absolute path of the repo's strategy file, `~/.review-harness/strategy/<repo-name>-<hash>.md`, keyed on the git common dir so all worktrees of a repo share it. `--status` prints `none` or `present · Goal: <at most 80 bytes, whole characters>`; outside a git repo `none` with `--status`, else exit 2. Never creates the file
+- New `/strategy` skill (`show`, `set` with at most 3 questions, `update <what>`): edits that file only on the user's yes, keeps it at about 1,000 bytes, never touches the repo or runs git
+- `/review-harness`: a `strategy` Session Context line and, when it is present and a `plan.md` will be written, the new sibling `strategy-gate.md`: one judgement of the request against the goal, metrics, hypotheses, non-goals and kill criteria; at most one alternative and one question (`Proceed as asked` / `Do the alternative`); never blocks. The core was trimmed by 260 bytes of wording first, so it stays under 20,000 bytes
+- Plan template: `## Why` (the goal or metric the plan moves, or `no strategy file`) after `## Goal`, and a `Risk tier:` line under `## Affected Files`
+- `run-state.sh strategy aligned|suggested-followed|suggested-declined` stores the outcome in the run state (shown at the end of `status`, so a resumed session does not ask again) and the `runs.jsonl` line (`check` never reads it); `run-stats.sh` adds `strategy check: N runs · suggested K · followed F` when any run has it. Kill criterion: across 5 runs that write a plan, if the check never changes one, the feature is removed
+
 **Rule audit**
 - New `hooks/audit-rules.sh`: read-only facts about rule drift, one `<kind> <location> — <reason>` line each — `stale-version` (a registry `stack` major that differs from the repo's `package.json`), `missing-path`, `version-rule` (an org overlay or profile line naming a framework version some registered repo does not run), `duplicate` (the same bullet in two or more rule files), `budget` (an agent's non-profile constraints over the warn threshold), `ledger-size` (over 3,072 bytes), `ledger-old` (older than 90 days) and `ledger-unloaded` (entries with no `## #failure-patterns` heading, which no agent receives). Writes nothing, not even a temp file; findings print as found. Exit 0 / 1 findings / 2 usage error or internal failure; `jq` optional
 - New `/audit-rules` skill: runs it, judges the version-bound and duplicate findings plus contradictions a script cannot see, proposes at most 10 numbered edits and applies only the approved ones, inside `~/.review-harness/` only
