@@ -1,0 +1,65 @@
+diff --git a/src/orders/handlers.js b/src/orders/handlers.js
+index 6e55ac2..0d0d323 100644
+--- a/src/orders/handlers.js
++++ b/src/orders/handlers.js
+@@ -1,6 +1,7 @@
+ 'use strict'
+ const { HttpError } = require('../http/server')
+ const service = require('./service')
++const { ORDER_STATUSES } = require('./model')
+ 
+ const DEFAULT_LIMIT = 20
+ const MAX_LIMIT = 50
+@@ -14,10 +15,19 @@ function intParam(query, name, fallback, max) {
+   return value
+ }
+ 
++function statusParam(query) {
++  if (query.status === undefined) return undefined
++  if (!ORDER_STATUSES.includes(query.status)) {
++    throw new HttpError(400, 'invalid_query', `status must be one of: ${ORDER_STATUSES.join(', ')}`)
++  }
++  return query.status
++}
++
+ async function list({ query }) {
+   const page = intParam(query, 'page', 1, Number.MAX_SAFE_INTEGER)
+   const limit = intParam(query, 'limit', DEFAULT_LIMIT, MAX_LIMIT)
+-  return { status: 200, body: service.listOrders({ page, limit }) }
++  const status = statusParam(query)
++  return { status: 200, body: service.listOrders({ page, limit, status }) }
+ }
+ 
+ async function get({ params }) {
+diff --git a/src/orders/service.js b/src/orders/service.js
+index 8194289..ef68a8b 100644
+--- a/src/orders/service.js
++++ b/src/orders/service.js
+@@ -1,9 +1,10 @@
+ 'use strict'
+ const { orders } = require('./store')
+ 
+-function listOrders({ page, limit }) {
++function listOrders({ page, limit, status }) {
++  const matching = status ? orders.filter((order) => order.status === status) : orders
+   const start = (page - 1) * limit
+-  return { items: orders.slice(start, start + limit), page, limit, total: orders.length }
++  return { items: matching.slice(start, start + limit), page, limit, total: matching.length }
+ }
+ 
+ function getOrder(id) {
+diff --git a/test/service.test.js b/test/service.test.js
+index b557917..cb486c7 100644
+--- a/test/service.test.js
++++ b/test/service.test.js
+@@ -12,3 +12,10 @@ test('listOrders returns the requested page', () => {
+ test('listOrders returns no items past the last page', () => {
+   assert.deepEqual(listOrders({ page: 4, limit: 5 }).items, [])
+ })
++
++test('listOrders filters by status before paging', () => {
++  const result = listOrders({ page: 1, limit: 20, status: 'paid' })
++  assert.ok(result.items.every((o) => o.status === 'paid'))
++  assert.equal(result.total, 5)
++  assert.deepEqual(listOrders({ page: 2, limit: 2, status: 'paid' }).items.map((o) => o.id), [5, 8])
++})

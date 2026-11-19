@@ -144,18 +144,74 @@ Reading:
 - **What the plan and the new gates change is the footing of the FAIL, not detection.** With the plan, the reviewer cites Done When / Callers and uses the intended category 3 of 3 (`current`) against 1 of 3 (`pre-stage4`). Without the plan, the unwired-feature FAIL rests on a design judgement ("no production caller"), and the review offers "or drop the files from this change" as an equal fix; in its reply outside the review block, that reviewer added that the verdict would flip to PASS if the wiring were deliberately a later change — a FAIL a developer could argue away.
 - The larger effect — whether the plan makes the developer wire it in the first place — needs the developer-side bench below.
 
-## Developer-side bench (deferred — design only)
+## Developer-side bench
 
-The cases above measure only the reviewer. A developer-side case would measure the whole loop on a small task:
+The cases above measure only the reviewer. A developer-side case measures the whole loop: `claude -p` gets an issue
+text in a throwaway fixture and works it end to end; hidden tests it never sees decide whether it solved it. No
+model is called by the scripts' tests (`tests/run.sh` puts a stub `claude` on `PATH`).
 
-- `cases-dev/<id>/setup.sh` builds a fixture repo at the base commit (same `lib.sh` helpers, same opacity rules),
-  `task.md` is the issue text the developer gets, and `accept/` holds acceptance tests the agent never sees.
-- An arm runs the task end to end (plain Claude Code, or `/review-harness` at a given revision) in the fixture.
-- Scoring copies `accept/` into the finished fixture and runs the repo's test command: hidden tests passing,
-  previously passing tests now failing (regressions), plus attempts, tokens and wall time from the transcript and
-  `runs.jsonl`.
-- Deferred: the fixtures need installable dependencies, so this bench is slower and needs network or a package
-  cache. It is not built yet; this section is the design to build it from.
+### Cases
+
+`cases-dev/<id>/`: `setup.sh` builds the fixture at its base commit (no uncommitted change; `bench_node` in `lib.sh`
+is a zero-dependency Node 20 skeleton, so no install or network), `task.md` is the issue text, `accept/*.test.js`
+are the hidden tests, `solution.patch` / `trap.patch` are a correct answer and a plausible wrong one (`git apply` on a
+fresh fixture), and `trap.md` says which plan line should prevent the trap. The fixture, its git metadata, its path
+and `task.md` never contain the case id, `bench`, `accept`, `solution` or `trap`.
+
+| Case | Task | Trap |
+|------|------|------|
+| `dev-unwired` | a status filter on `GET /orders`, with paging and a 400 for an unknown status | validation, filter and a unit test, but the route's query allowlist still rejects `status`: every real request is a 400 |
+
+### Arms
+
+| Arm | What runs |
+|-----|-----------|
+| `plain` | `claude -p "<task.md>"`, no plugin |
+| `harness` | `claude -p "/review-harness:review-harness <task.md>" --plugin-dir <copy>`, the copy being a `git archive HEAD` copy of the plugin's runtime files only (`.claude-plugin`, `agents`, `hooks`, `skills`, `profiles`, `constraints.md`) |
+
+### Run
+
+```bash
+export TMPDIR=<scratch dir>/w        # a neutral path: dev-run.sh refuses one naming the benchmark or the case
+bash bench/dev-run.sh <plain|harness> bench/cases-dev/<id> <results>/<opaque name>
+```
+
+Every call is `--model opus --output-format json --permission-mode bypassPermissions --disallowedTools
+AskUserQuestion --max-budget-usd <budget left>`. A reply whose last 400 characters hold a `?` gets a user-proxy
+answer through `--resume` ("Approved. Go ahead.", then "use your best judgement"), at most 4 replies.
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `DEV_BENCH_BUDGET_USD` | `15` | cost cap over all calls; reached → `aborted: "cost"` |
+| `DEV_BENCH_TIME_S` | `2700` | wall-time cap; the call's process group is killed → `aborted: "time"` |
+| `DEV_BENCH_BARE` | unset | `1` → `--bare` instead of `--setting-sources project --strict-mcp-config` |
+
+Isolation: the fixture, `CLAUDE_CONFIG_DIR` and `REVIEW_HARNESS_HOME` live in one temp dir removed after the run,
+`REVIEW_HARNESS_RTK=off`, a neutral git identity, and the harness arm starts with `register-declined` so it does not
+offer `/register-repo`. `claude` is taken from `PATH`. The out-dir gets `work/` (the finished fixture),
+`driver/NN.json` (each call's output), `transcripts/`, and for the harness `runs.jsonl` and `plan.md`; `run.json`
+holds `arm`, `case`, `plugin_rev`, `wall_s`, `user_replies`, `aborted`, `calls`. `<results>/map.tsv` maps the
+opaque name to the case and arm.
+
+### Score
+
+```bash
+bash bench/dev-score.sh bench/cases-dev/<id> <results>/<opaque name>    # one JSON line
+```
+
+Base test files changed (deleted, or lines removed) count as `tests_touched` and are put back before the tests run.
+Then `accept` (`pass/tests` of the hidden tests, copied to `test/accept/`), `regressions` (failing base tests),
+`cost_usd`, tokens and `turns` (driver outputs), `wall_s`, `user_replies`, `aborted`, the harness run log
+(`attempts`, `verdicts`, `end`, `override`) and plan (`plan_callers`, `plan_done_when`, `plan_bug`), `test_runs`
+(test commands in the transcripts) and `contaminated` (a transcript names this repo or the case's hidden files).
+**Solved** = every hidden test passes, no regression, not aborted, a harness run not ended at `limit` or
+`abandoned`, not contaminated.
+
+### Spike
+
+Pending — needs a model run. It will answer: does `--bare` keep `--plugin-dir` hooks; do `--max-budget-usd` and
+`total_cost_usd` include subagents; does `/review-harness:review-harness` run under `-p`; how the harness behaves with
+`AskUserQuestion` disallowed; whether anything calls `npx`.
 
 ## A/B on real tasks
 

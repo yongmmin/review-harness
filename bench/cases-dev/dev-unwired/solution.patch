@@ -1,0 +1,90 @@
+diff --git a/src/orders/handlers.js b/src/orders/handlers.js
+index 6e55ac2..0d0d323 100644
+--- a/src/orders/handlers.js
++++ b/src/orders/handlers.js
+@@ -1,6 +1,7 @@
+ 'use strict'
+ const { HttpError } = require('../http/server')
+ const service = require('./service')
++const { ORDER_STATUSES } = require('./model')
+ 
+ const DEFAULT_LIMIT = 20
+ const MAX_LIMIT = 50
+@@ -14,10 +15,19 @@ function intParam(query, name, fallback, max) {
+   return value
+ }
+ 
++function statusParam(query) {
++  if (query.status === undefined) return undefined
++  if (!ORDER_STATUSES.includes(query.status)) {
++    throw new HttpError(400, 'invalid_query', `status must be one of: ${ORDER_STATUSES.join(', ')}`)
++  }
++  return query.status
++}
++
+ async function list({ query }) {
+   const page = intParam(query, 'page', 1, Number.MAX_SAFE_INTEGER)
+   const limit = intParam(query, 'limit', DEFAULT_LIMIT, MAX_LIMIT)
+-  return { status: 200, body: service.listOrders({ page, limit }) }
++  const status = statusParam(query)
++  return { status: 200, body: service.listOrders({ page, limit, status }) }
+ }
+ 
+ async function get({ params }) {
+diff --git a/src/orders/service.js b/src/orders/service.js
+index 8194289..ef68a8b 100644
+--- a/src/orders/service.js
++++ b/src/orders/service.js
+@@ -1,9 +1,10 @@
+ 'use strict'
+ const { orders } = require('./store')
+ 
+-function listOrders({ page, limit }) {
++function listOrders({ page, limit, status }) {
++  const matching = status ? orders.filter((order) => order.status === status) : orders
+   const start = (page - 1) * limit
+-  return { items: orders.slice(start, start + limit), page, limit, total: orders.length }
++  return { items: matching.slice(start, start + limit), page, limit, total: matching.length }
+ }
+ 
+ function getOrder(id) {
+diff --git a/src/routes/index.js b/src/routes/index.js
+index ade3366..6b1e8c7 100644
+--- a/src/routes/index.js
++++ b/src/routes/index.js
+@@ -3,6 +3,6 @@ const orders = require('../orders/handlers')
+ 
+ // `query` lists the query parameters each route allows; any other key is a 400.
+ module.exports = [
+-  { method: 'GET', path: '/orders', query: ['page', 'limit'], handler: orders.list },
++  { method: 'GET', path: '/orders', query: ['page', 'limit', 'status'], handler: orders.list },
+   { method: 'GET', path: '/orders/:id', query: [], handler: orders.get },
+ ]
+diff --git a/test/orders.test.js b/test/orders.test.js
+index 0abddb7..24199f0 100644
+--- a/test/orders.test.js
++++ b/test/orders.test.js
+@@ -45,3 +45,23 @@ test('GET /orders/:id returns 404 for a missing order', async () => {
+   assert.equal(status, 404)
+   assert.equal(body.error, 'not_found')
+ })
++
++test('GET /orders filters by status', async () => {
++  const { status, body } = await getJson(`${api.url}/orders?status=paid`)
++  assert.equal(status, 200)
++  assert.deepEqual(body.items.map((o) => o.id), [2, 3, 5, 8, 11])
++  assert.equal(body.total, 5)
++})
++
++test('GET /orders filters by status before paging', async () => {
++  const { status, body } = await getJson(`${api.url}/orders?status=paid&page=2&limit=2`)
++  assert.equal(status, 200)
++  assert.deepEqual(body.items.map((o) => o.id), [5, 8])
++})
++
++test('GET /orders rejects an unknown status with 400', async () => {
++  const { status, body } = await getJson(`${api.url}/orders?status=bogus`)
++  assert.equal(status, 400)
++  assert.equal(body.error, 'invalid_query')
++  assert.equal(typeof body.message, 'string')
++})
