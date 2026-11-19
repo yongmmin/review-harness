@@ -922,7 +922,7 @@ has "readme: hooks never run it" 'Hooks never run it' "$README_WG"
 has "readme: token costs are estimates" 'Token cost (estimate, not measured)' "$README_WG"
 has "readme: each retry repeats the reviewer scan" "each retry repeats the reviewer's scan" "$README_WG"
 has "docs: flow names Web Guidance Search" 'Web Guidance Search' "$(cat "$ROOT/docs/skills.md")"
-has "changelog: Unreleased names modern-web-guidance" 'modern-web-guidance' "$(sed -n '/^### Unreleased/,/^### [0-9v]/p' "$ROOT/CHANGELOG.md")"
+has "changelog: names modern-web-guidance" 'modern-web-guidance' "$(sed -n '/^### v0\.7\.0/,/^### v0\.6/p' "$ROOT/CHANGELOG.md")"
 
 # --- post-tool-use: tsc count of errors in other files -------------------------------
 TP="$TMP/tsproj"; mkdir -p "$TP/src" "$TMP/fakebin"; echo '{}' > "$TP/package.json"; echo '{}' > "$TP/tsconfig.json"
@@ -1830,7 +1830,7 @@ has "reviewer: unchanged caller of a removed symbol → contract FAIL" 'FAIL `[c
 has "developer: self-check runs review-context.sh" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/review-context.sh"`' "$(sed -n '/^6\. Self-check/p' "$ROOT/agents/developer.md")"
 has "docs/hooks.md: review-context row" '| **`review-context.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
 has "readme: review-context example" 'bash hooks/review-context.sh' "$(cat "$ROOT/README.md")"
-has "changelog: review-context entry" 'hooks/review-context.sh' "$(sed -n '/^### Unreleased/,/^### /p' "$ROOT/CHANGELOG.md")"
+has "changelog: review-context entry" 'hooks/review-context.sh' "$(sed -n '/^### v0\.7\.0/,/^### v0\.6/p' "$ROOT/CHANGELOG.md")"
 
 # --- small doc items ----------------------------------------------------------------------
 has "refactor-architect: rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$RA"
