@@ -62,17 +62,12 @@ Resolve rtk token-filter mode before any agent spawn. Plugin-scoped — no globa
 
 **Resolution order:**
 
-1. **Inline arg** — if user message contains `--rtk=<mode>` or `--no-rtk`, persist with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>` (use `off` for `--no-rtk`). Skip UI
+1. **Inline arg** — if user message contains `--rtk=<mode>` or `--no-rtk`, persist with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>` (use `off` for `--no-rtk`)
 2. **Env var** — if `REVIEW_HARNESS_RTK` is set, do nothing. Hard override
 3. **Session flag** — if the injected `session flag: present` line says present, reuse the injected mode
-4. **Otherwise** (flag absent, no env, no inline arg) — launch `AskUserQuestion`:
-   - Q: `Compress command output with rtk for this work?`
-   - Options: `Off — raw commands (default)` | `On — standard (Recommended)` | `On — aggressive (+ ultra-compact)` | `On — git-only`
-   - After answer, call `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>`
+4. **Otherwise** — no question: the default applies (`standard` when the `rtk` binary is installed, else `off`); `/rtk-toggle` changes it
 
 Valid modes: `off | standard | aggressive | git-only`. Reject others with one-line error.
-
-User can run `/rtk-toggle` to change mode mid-session.
 
 ### 0.5. Unfinished Run Gate
 
@@ -160,6 +155,8 @@ Spawn specialists with the `Agent` tool. When installed as a plugin, the `subage
 - N is 80 or higher → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/usage-downgrade.md` before the first `reviewer` or `refactor-architect` spawn
 - If N is below 80 or the value is `unknown`, do not ask; pass no `model` so the frontmatter value applies
 
+**Developer effort**: before each `developer` spawn, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" --paths <plan Affected Files>`. `low` → spawn `developer` with `effort: "medium"`; `normal`, `high` or a script failure → no override. A `bugfix` plan never gets this override (root-cause work).
+
 **Risk tier**: before each `reviewer` spawn, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" [base]` (the base only when the change is committed) and put its output in the reviewer prompt as `risk: <tier>` plus its `reason:` lines; the script fails → `risk: normal`. `low` → spawn `reviewer` with `model: "opus"` and `effort: "medium"`; `normal` and `high` → no override (`high`: the reviewer runs probes). `Opus for this run` still sets `model: "opus"` on every tier; `Keep Fable` does not change `low`.
 
 ## Context Budget
@@ -229,7 +226,7 @@ with `<workflow>` = `small-change | feature | bugfix | refactor | review` and th
 ### Small change
 
 Use this path when ALL hold:
-- the change touches at most 2 existing files and creates no new file
+- the change touches at most 3 files, of which at most 1 is a new test file and the rest already exist
 - it adds no new component, hook, store, endpoint, or socket event
 - it is not a `refactor` or `bugfix` intent
 

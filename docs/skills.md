@@ -4,7 +4,7 @@ Detailed description moved out of the [README](../README.md). The reference docu
 
 ## `/review-harness` flow
 
-1. **RTK Mode Gate** — choose the output compression mode in the first session (off/standard/aggressive/git-only)
+1. **RTK Mode Gate** — no question: `standard` when the `rtk` binary is installed, else `off`; an inline `--rtk=<mode>`, `REVIEW_HARNESS_RTK` or `/rtk-toggle` overrides it (off/standard/aggressive/git-only)
 2. **Active Repo Gate** — `hooks/detect-repo.sh` matches cwd → repo. If there is no registry (`~/.review-harness/knowledge/<org>/repos.md`) it proceeds with the generic rules; for code work in a repo that is not registered (or with no registry at all) it offers `/register-repo` once per work tree; choosing to continue records `register-declined` in the state dir so it is not asked again
 3. **Ambiguity Check** — up to 2 questions when ambiguous. Detects requests whose target is unclear, such as demonstratives ("that", "this"), and asks for clarification. The organisation overlay can add detection items
 4. **Web Guidance Search** — when a `plan.md` will be written for UI or client-behaviour work under the `web-frontend` profile, up to 3 `npx -y modern-web-guidance@1.0.1 search` calls (stopping at the first failure); the matching guide ids go to `plan.md → Inputs.Web guidance` (`none` or `unavailable` otherwise, never a question). The developer `retrieve`s those ids; the developer's self-check and the reviewer run `legacy-scan` on each changed UI file (at most 5) ([README](../README.md#modern-web-guidance))

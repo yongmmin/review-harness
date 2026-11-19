@@ -4,6 +4,12 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Token cost**
+- rtk is on by default: `hooks/rtk-wrap.sh` resolves inline arg/flag → `REVIEW_HARNESS_RTK` → session flag → `standard` when an `rtk` binary is on PATH, else `off`. `/review-harness` no longer asks for a mode on first use; `/rtk-toggle` changes it. The bench driver keeps `REVIEW_HARNESS_RTK=off`
+- New `risk-tier.sh --paths <path...>`: scores a planned change from its paths alone, without reading a diff (`high` on the existing path rules or 10+ paths, `normal` on a dependency file, `low` with at most 3 paths, `normal` otherwise; each argument is split at commas, backticks and a leading `./` are dropped and an absolute path under the repo root is made relative; exit 2 when no path is left). Before each `developer` spawn, `/review-harness` runs it on the plan's Affected Files and spawns the developer at `effort: "medium"` on `low`; `normal`, `high`, a failure and every bugfix plan keep the frontmatter effort
+- `hooks/rtk-wrap.sh`: `git diff` and `git show` run raw in every mode (`gh` diff too), because rtk 0.40 cuts them to about 500 lines (100 per hunk) and the reviewer reads the change through them; this also applies to an explicit opt-in. The default turns on only for the real rtk (`rtk --version` starts with `rtk`)
+- Small change path: at most 3 files (was 2), at most 1 of them a new test file
+
 **Developer-side bench**
 - New `bench/dev-run.sh <plain|harness> <case-dir> <out-dir>`: one end-to-end `claude -p` run of a task in a throwaway fixture, in a temp dir with its own config dir and plugin home, rtk off; the harness arm loads a `git archive HEAD` copy of the plugin's runtime files only (`.claude-plugin`, `agents`, `hooks`, `skills`, `profiles`, `constraints.md`). Fixed user-proxy replies (at most 4, through `--resume`), cost cap (`DEV_BENCH_BUDGET_USD`, default 15) and wall-time cap (`DEV_BENCH_TIME_S`, default 2700, kills the call's process group); copies the fixture, driver outputs, transcripts, `runs.jsonl` and `plan.md` to the out-dir with a `run.json`
 - New `bench/dev-score.sh <case-dir> <out-dir>`: one JSON line per run — hidden tests passed, regressions, base tests the run edited, cost, tokens, turns, wall time, user replies, harness attempts / verdicts / end, plan sections present, test runs and a contamination flag; `solved` needs all hidden tests, no regression, no abort, no `limit`/`abandoned` end and a clean transcript
