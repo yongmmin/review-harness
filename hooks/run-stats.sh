@@ -1,7 +1,7 @@
 #!/bin/bash
 # run-stats.sh [--repo <id|name>] [--since <days>] — summary (first-review PASS rate, attempts, FAIL rate and
 # categories, overrides, limit hits; when runs carry agent data, median tokens and active minutes per run and a
-# per-agent split — subagents only) of the run log that run-state.sh appends to
+# per-agent split — subagents only; the strategy check outcomes when runs carry them) of the run log that run-state.sh appends to
 # ~/.review-harness/state/runs.jsonl (one line per finished run, all repos). Reads only.
 #   --repo   a repo id (<name>-<hash>, the state folder name) or just the work-tree name
 #   --since  only runs that ended in the last <days> days
@@ -55,6 +55,9 @@ jq -Rnr --arg repo "$REPO" --arg since "$SINCE" --argjson now "$(date +%s)" '
       "FAIL categories: \($all.cats)",
       "override rate: \($all.override)",
       "limit reached: \($all.limit)",
+      # strategy = the outcome of the strategy check (run-state.sh strategy); suggested = followed + declined
+      ([$runs[] | .strategy | strings] | if . == [] then empty else
+        "strategy check: \(length) runs · suggested \(map(select(startswith("suggested-"))) | length) · followed \(map(select(. == "suggested-followed")) | length)" end),
       # agents = one entry per agent type of a run (run-state.sh log_run); main-session tokens are not measured
       if $ag == [] then empty else
         "tokens per run (subagents only): median \(median($ag | map([.agents[] | tok] | add)) | r0) total, \(median($ag | map([.agents[].out // 0] | add)) | r0) output (\($ag | length) runs with agent data)",

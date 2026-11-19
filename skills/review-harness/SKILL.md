@@ -8,7 +8,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(
 # Skill: review-harness
 
 **Trigger**: `/review-harness [request]` — or auto-invoked when a message looks like code work (feature, bug fix, refactor, review)
-**Purpose**: Handle setup, intent detection, planning, execution, verification with minimal context overhead.
+**Purpose**: setup, intent detection, planning, execution and verification at minimal context cost.
 
 ---
 
@@ -24,12 +24,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || echo "de
 - register: !`[ -f "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh" 2>/dev/null)/register-declined" ] && echo declined || echo offer`
 - run state: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" status 2>/dev/null || echo none`
 - knowledge: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/knowledge-has-content.sh" 2>/dev/null && echo "has content" || echo "empty — skip search-knowledge"`
+- strategy: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/strategy-file.sh" --status 2>/dev/null || echo none`
 - 5h usage: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/usage-state.sh" 2>/dev/null || echo unknown`
 - git: branch !`git branch --show-current 2>/dev/null || echo "(no git)"` · uncommitted paths: !`git status --porcelain 2>/dev/null | wc -l | tr -d " "`
 
 Plugin root for every hook call below: `${CLAUDE_PLUGIN_ROOT}` (never a cwd-relative `hooks/…` path — cwd is the consumer repo, not the plugin).
 
-**State dir**: the plugin never creates files inside the consumer repo. `plan.md`, `run-state.json`, the rtk flag, the `register-declined` flag, approvals and caches all live in the injected `state dir` (`~/.review-harness/state/<repo-id>/`, one per work tree). Every `plan.md` mentioned in this plugin means `<state dir>/plan.md`.
+**State dir**: the plugin never creates files in the consumer repo; `plan.md`, `run-state.json`, flags, approvals and caches live in the injected `state dir` (one per work tree). Every `plan.md` here means `<state dir>/plan.md`.
 
 ## Org Overlay
 
@@ -79,7 +80,7 @@ If the injected `run state` line is not `none`, a previous run in this work tree
 
 ### 1. Knowledge (optional)
 
-Project knowledge is optional. If `~/.review-harness/knowledge/index.md` (or `$REVIEW_HARNESS_HOME/knowledge/index.md`) is missing, continue with the generic rules.
+Project knowledge is optional: if `knowledge/index.md` under `$REVIEW_HARNESS_HOME` (default `~/.review-harness`) is missing, continue with the generic rules.
 
 ### 1.5. Active Repo Gate
 
@@ -134,13 +135,13 @@ If triggered → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/web-guidance.
 
 ### 5. Review Fast-Path
 
-If intent is `review`, **skip Plan Gate entirely**. Spawn `reviewer` directly on current changes. No `plan.md`, no approval wait. Reviewer verdict (PASS/FAIL) is final output; no commit/push follows.
-
-Applies only when intent is exactly `review`.
+Intent is exactly `review` → **skip the Plan Gate** (no `plan.md`, no approval wait) and spawn `reviewer` on the current changes. Its PASS/FAIL verdict is the final output; no commit or push follows.
 
 ### 6. Plan Gate
 
 Create `plan.md`, then wait for explicit user approval before execution (Bugfix exception: Workflow Selection → Bugfix).
+
+`strategy` is present and a `plan.md` will be written → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/strategy-gate.md` before writing the plan
 
 Intent is `feature`, `bugfix` or `refactor` and the Small change path is not taken → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/plan-gate.md` before writing or updating `plan.md`
 
@@ -169,7 +170,7 @@ Per agent call, include only:
 4. Compact handoff block
 5. Exact files needed
 
-Never inline full `constraints.md`. Never pass unrelated files or raw verbose logs.
+Never inline full `constraints.md`, unrelated files or raw verbose logs.
 
 ### Compact Handoff Schema
 
@@ -218,7 +219,7 @@ with `<workflow>` = `small-change | feature | bugfix | refactor | review` and th
 
 ### Shared Skip Rules
 
-- Skip `search-knowledge` if knowledge is empty/irrelevant. Use the injected `knowledge:` line (exit != 0 of `knowledge-has-content.sh`) means placeholder-only — skip agent spawn entirely
+- Skip `search-knowledge` when the injected `knowledge:` line says empty, or the knowledge is irrelevant
 - Pass `plan.md → Inputs.API` to `developer` only when the change touches data fetching/mutation
 - Pass the developer's `guidance:` line to `reviewer` when `Inputs.Web guidance` lists ids (any intent, like a bugfix's `red:`)
 - Skip `save-knowledge` if no durable learning

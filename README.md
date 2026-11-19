@@ -107,6 +107,7 @@ bash hooks/static-gates.sh                               # from a repo: grep-dec
 bash hooks/risk-tier.sh                                  # from a repo: low / normal / high for the current change, with reasons (reads only)
 bash hooks/review-context.sh                             # from a repo: changed files, changed symbols, their callers, changed tests (reads only)
 bash hooks/audit-rules.sh                                # rule drift: stale registry versions, version-bound or duplicate rules, budget, ledger (reads only)
+bash hooks/strategy-file.sh --status                     # from a repo: none, or the strategy file's Goal (reads only)
 ```
 
 Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules.
@@ -124,6 +125,7 @@ Open Claude Code in your project directory:
 | `/git-pr` | Write the PR title, body and `gh pr create` command (you run it) |
 | `/rtk-toggle` | Change the output-compression mode for the plugin's internal commands |
 | `/audit-rules` | Find rules that drifted from your repos (stale versions, version-bound or duplicate rules, budget, ledger) and apply the fixes you approve |
+| `/strategy` | Show, set or update this repo's goal, metrics and hypotheses; plans are checked against it (see [Strategy](#strategy)) |
 
 Requests can be written in any language. Output compression: rtk is on by default (`standard`) when the `rtk` binary is installed, otherwise off, with no question; `/rtk-toggle` changes it.
 
@@ -203,8 +205,15 @@ The output covers:
 - retries before PASS, the share of runs with a FAIL, and FAIL categories;
 - the override rate and how many runs hit the limit;
 - median tokens and active minutes per run, and each agent's share of tokens. These come from the `SubagentStart`/`SubagentStop` hook and cover subagents only; they start with the first session opened after installing or updating.
+- when runs recorded it, the [strategy check](#strategy): runs checked, how many got a suggestion, and how many followed it.
 
 Use it to check whether a rule change, a profile or an overlay actually helps.
+
+## Strategy
+
+Each request is otherwise planned on its own. A strategy file ties it to the larger goal: one file per repo, `~/.review-harness/strategy/<repo>-<hash>.md` (shared by all git worktrees of the repo, about 1,000 bytes at most), holding the goal, metrics, open hypotheses, decisions, kill criteria and non-goals. `/strategy` shows it, `/strategy set` writes it from at most 3 questions (goal, metric, non-goals), and `/strategy update <what>` changes one field; every write waits for your yes.
+
+When the file exists and a `plan.md` will be written, `/review-harness` first judges whether the request is the highest-leverage move for that goal. If it is, the plan's `## Why` line names the goal or metric it moves. If not, it names one concrete alternative and asks once: `Proceed as asked` or `Do the alternative`. It never blocks, and Small change and review runs skip it. The outcome (`aligned`, `suggested-followed`, `suggested-declined`) goes into `runs.jsonl`, so `run-stats.sh` shows whether the check ever changes a plan. After a run that settled a hypothesis, it proposes a `/strategy update` line for you to run.
 
 ## Where state is stored
 
@@ -226,7 +235,7 @@ One file sits directly in `~/.review-harness/state/`, shared by all repos:
 
 | File | Content |
 |---|---|
-| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories and who recorded them (`by`: `reviewer`, else `unknown`; re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed, and per agent type (spawns, active seconds, tokens, tool calls) plus run token totals when the `SubagentStart`/`SubagentStop` hook recorded them (subagents only). `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it, including the first-review PASS rate and median tokens / active minutes per run |
+| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories and who recorded them (`by`: `reviewer`, else `unknown`; re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed, the strategy check outcome when recorded, and per agent type (spawns, active seconds, tokens, tool calls) plus run token totals when the `SubagentStart`/`SubagentStop` hook recorded them (subagents only). `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it, including the first-review PASS rate and median tokens / active minutes per run |
 
 One file sits directly in `~/.review-harness/`, also shared by all repos:
 
@@ -238,8 +247,8 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 
 ## More documentation
 
-- [docs/skills.md](docs/skills.md) — the 12 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 22 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/skills.md](docs/skills.md) — the 13 skills, the `/review-harness` flow, `/git-pr` output, agents
+- [docs/hooks.md](docs/hooks.md) — the 23 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime; the parts one path needs (plan template, bugfix, retry loop, …) sit in sibling `skills/review-harness/*.md` files it reads only on that path
 - [constraints.md](constraints.md) — agent rules
