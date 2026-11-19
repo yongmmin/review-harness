@@ -123,7 +123,7 @@ Open Claude Code in your project directory:
 | `/git-pr` | Write the PR title, body and `gh pr create` command (you run it) |
 | `/rtk-toggle` | Change the output-compression mode for the plugin's internal commands |
 
-Requests can be written in any language. On first use it asks once which output-compression (rtk) mode to use.
+Requests can be written in any language. Output compression: rtk is on by default (`standard`) when the `rtk` binary is installed, otherwise off, with no question; `/rtk-toggle` changes it.
 
 ## Workflow
 
@@ -142,7 +142,7 @@ Review         reviewer
 ```
 
 - `?` marks a step that is skipped when not needed. UI work is handled as Feature.
-- **Small change** is a change that touches at most 2 existing files and creates no new file, component, hook, store, endpoint or socket event. It skips writing `plan.md` and waiting for approval. A bug fix never takes this path. It also has no test baseline, so a test that already failed before the edit blocks the commit; you are told which, and you may override.
+- **Small change** is a change that touches at most 3 files, at most 1 of them a new test file, and creates no new component, hook, store, endpoint or socket event. It skips writing `plan.md` and waiting for approval. A bug fix never takes this path. It also has no test baseline, so a test that already failed before the edit blocks the commit; you are told which, and you may override.
 - **Bugfix** is any request that describes a failure. Nothing is fixed until the failure is reproduced (a failing test, or a command and its output) and traced to a `file:line` cause; if it cannot be reproduced, it asks you for the symptom and environment. A fix of at most 2 files skips the approval wait but shows you the cause and the regression test first. The reviewer FAILs a fix with no regression test (and no stated reason none is possible) or with changes the cause does not explain.
 - Everything else writes `plan.md` and runs after you approve it. The plan's `Reuse` line (what is reused, or one concrete reason for building something new) cannot be empty; the reviewer FAILs an empty one. The plan also lists `Done When` (2–5 observable outcomes, each with the test, command or manual step that checks it) and `Out of Scope`; the reviewer FAILs an unmet outcome, a TODO or stub left in new code, a new export nothing calls, or an edit outside scope. Before approval the plan also names, from a search of the code, every file that uses a changed export, route or event (`Callers/Consumers`), one neighbouring file to imitate (`Pattern`) and the tests that cover the area (`Tests`); the reviewer FAILs a listed caller that is neither changed nor marked `no change needed`. A plan touching more than 6 files is split into ordered tasks, each with its own tests, and a refactor of untested code starts with characterization tests unless you waive them. A Small change states one `Done when:` line instead.
 - The baseline run records tests that already fail before the change; afterwards only new failures count, and you are told in one line if there were any. After the tests, test-runner also runs the repo's `check_cmd` (or `tsc --noEmit` when there is a `tsconfig.json`) once and reports it.
@@ -177,6 +177,8 @@ The plan, a stated browser policy, your repo's and design system's components, t
 The model is the `model:` value in each `agents/*.md` frontmatter.
 
 The review is matched to the change: before each reviewer spawn, `hooks/risk-tier.sh` scores it `low`, `normal` or `high`. A `low` change (docs or tests only, or at most 2 files with at most 30 added lines, no dependency file such as a lockfile, and no risky path or code word; words in `*.md`/`*.mdx`/`*.rst`/`*.txt` docs do not count) is reviewed with `opus` at `medium` effort; a `high` change (auth, payment, migrations, concurrency, parsers, hooks/CI/gates, or 10+ files) makes the reviewer write and run at least 2 executable probes in a temp dir. The usage-limit answer below still applies.
+
+The developer is matched to the plan the same way: before each developer spawn, `hooks/risk-tier.sh --paths <plan Affected Files>` scores the planned paths alone. A `low` plan (at most 3 paths, no risky path, no dependency file) spawns the developer at `medium` effort; `normal`, `high` and bugfix plans keep the frontmatter effort.
 
 ## Rules you need to know
 

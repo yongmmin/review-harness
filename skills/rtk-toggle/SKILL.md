@@ -29,10 +29,12 @@ Anything printed above is organisation-specific and is part of this skill; where
 
 | Mode | Behavior |
 |------|----------|
-| `off` | Raw commands. Default |
-| `standard` | `rtk` applied to git/gh/tsc/eslint/test/grep/find/ls |
+| `off` | Raw commands. Default when `rtk` is not installed |
+| `standard` | `rtk` applied to git/gh/tsc/eslint/test/grep/find/ls. Default when `rtk` is installed |
 | `aggressive` | Same as `standard` plus the `--ultra-compact` flag |
 | `git-only` | `rtk` applied only to git/gh; everything else raw |
+
+In every mode `git diff`, `git show` and `gh … diff` run raw: rtk truncates them, and the reviewer reads the change through them.
 
 ---
 
@@ -48,7 +50,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 
 1. `REVIEW_HARNESS_RTK` env var — hard override, never touched by this skill
 2. `~/.review-harness/state/<repo-id>/rtk-session.flag` — written by this skill and by `/review-harness` (per work tree, outside the repo)
-3. Default: `off`
+3. Default: `standard` when the `rtk` binary is on PATH, else `off` (only the real rtk counts: `rtk --version` starts with `rtk`)
 
 ---
 

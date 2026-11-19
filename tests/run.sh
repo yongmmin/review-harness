@@ -534,6 +534,7 @@ for f in "$SKD"/*.md; do
   eq "skill split: one pointer to $b" 1 "$(grep -cF "$SKP$b\` before " "$SK")"
 done
 eq "skill split: one pointer line per situational file" "$SKN" "$(grep -cF "$SKP" "$SK")"
+eq "skill split: 9 situational files" 9 "$SKN"
 SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT')
 eq "skill split: hook calls stay in the core but the one Contract rules line" 1 "$(printf '%s' "$SKX" | grep -c .)"
 has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
@@ -548,6 +549,23 @@ done
 has "skill: description names bug fix" "bug fix" "$(sed -n 's/^description: //p' "$SK")"
 has "skill: review needs a diff and no symptom" "no failure symptom is described" "$(grep '^| `review`' "$SK")"
 has "skill: Small change excludes bugfix" 'not a `refactor` or `bugfix` intent' "$(cat "$SK")"
+has "skill: Small change allows 3 files, 1 new test file" 'the change touches at most 3 files, of which at most 1 is a new test file and the rest already exist' "$(cat "$SK")"
+lacks "skill: Small change 2-file rule is gone" 'at most 2 existing files' "$(cat "$SK")"
+has "small-change.md: names the 3-file limit" 'at most 3 files, at most 1 of them a new test file' "$(cat "$SKD/small-change.md")"
+has "readme: Small change allows 3 files" 'touches at most 3 files, at most 1 of them a new test file,' "$(cat "$ROOT/README.md")"
+lacks "readme: Small change 2-file rule is gone" 'at most 2 existing files' "$(cat "$ROOT/README.md")"
+RG=$(sed -n '/^### 0\. RTK Mode Gate/,/^### 0\.5/p' "$SK")
+lacks "skill: rtk gate asks no question" 'AskUserQuestion' "$RG"
+has "skill: rtk default applies with no question" 'no question: the default applies (`standard` when the `rtk` binary is installed, else `off`); `/rtk-toggle` changes it' "$RG"
+has "rtk-toggle: default is standard when rtk is installed" 'Default: `standard` when the `rtk` binary is on PATH, else `off`' "$(cat "$ROOT/skills/rtk-toggle/SKILL.md")"
+lacks "readme: no first-use rtk question" 'On first use it asks' "$(cat "$ROOT/README.md")"
+has "readme: rtk default" 'rtk is on by default (`standard`) when the `rtk` binary is installed' "$(cat "$ROOT/README.md")"
+lacks "docs/hooks.md: no rtk picker on first use" 'picker is shown automatically' "$(cat "$ROOT/docs/hooks.md")"
+has "docs/hooks.md: rtk default" '`standard` when the `rtk` binary is installed, else `off`' "$(cat "$ROOT/docs/hooks.md")"
+has "docs/skills.md: RTK Mode Gate states the default" '**RTK Mode Gate** — no question: `standard` when the `rtk` binary is installed, else `off`' "$(cat "$ROOT/docs/skills.md")"
+for f in README.md CLAUDE.md CHANGELOG.md docs/skills.md docs/hooks.md skills/review-harness/SKILL.md; do
+  lacks "$f: no model-routing.md" 'model-routing.md' "$(cat "$ROOT/$f")"
+done
 for l in Symptom Repro Cause 'Regression test'; do
   eq "skill: plan template ## Bug has $l" 1 "$(sed -n '/^## Bug (bugfix only)/,/^$/p' "$SKD/plan-gate.md" | grep -c "^- $l: ")"
 done
@@ -1526,6 +1544,7 @@ FB="$TMP/fakertk"; mkdir -p "$FB"
 cat > "$FB/rtk" <<'EOF'
 #!/bin/bash
 # Like rtk 0.40: drops a `--` right after the subcommand, and knows only --ultra-compact.
+[ "$1" = --version ] && { echo "rtk 0.40.0"; exit 0; }
 echo "RTK-RAN $1"; [ "$1" = --ultra-compact ] && shift
 c=$1; s=$2; shift 2; [ "${1:-}" = -- ] && shift
 exec "$c" "$s" "$@"
@@ -1538,6 +1557,32 @@ has "rtk-wrap: '--' passed through unchanged" "deleted file mode" "$OUT"
 lacks "rtk-wrap: '--' runs raw" "RTK-RAN" "$OUT"
 has "rtk-wrap: no '--' → still through rtk" "RTK-RAN" "$(rw standard git status --short)"
 eq "rtk-wrap: aggressive → --ultra-compact" "RTK-RAN --ultra-compact" "$(rw aggressive git status --short | head -n 1)"
+# Default with no env and no flag: standard when an rtk binary is on PATH, else off. NORTK = PATH without any rtk.
+NORTK=$(printf '%s\n' "$PATH" | tr ':' '\n' | while read -r d; do [ -n "$d" ] && [ ! -x "$d/rtk" ] && printf '%s:' "$d"; done)
+NORTK=${NORTK%:}
+rwm() { (cd "$R" && PATH="$1" bash "$H/rtk-wrap.sh" --mode 2>&1); }
+eq "rtk-wrap: no env, no flag, rtk installed → standard" standard "$(rwm "$FB:$NORTK")"
+eq "rtk-wrap: no env, no flag, no rtk → off" off "$(rwm "$NORTK")"
+has "rtk-wrap: default standard routes through rtk" "RTK-RAN" "$(cd "$R" && PATH="$FB:$NORTK" bash "$H/rtk-wrap.sh" git status --short 2>&1)"
+lacks "rtk-wrap: default off runs raw" "RTK-RAN" "$(cd "$R" && PATH="$NORTK" bash "$H/rtk-wrap.sh" git status --short 2>&1)"
+eq "rtk-wrap: env beats the default" git-only "$(cd "$R" && PATH="$FB:$NORTK" REVIEW_HARNESS_RTK=git-only bash "$H/rtk-wrap.sh" --mode)"
+(cd "$R" && bash "$H/rtk-wrap.sh" --set off)
+eq "rtk-wrap: session flag beats the default" off "$(rwm "$FB:$NORTK")"
+(cd "$R" && bash "$H/rtk-wrap.sh" --clear)
+eq "rtk-wrap: --clear returns to the default" standard "$(rwm "$FB:$NORTK")"
+FO="$TMP/otherrtk"; mkdir -p "$FO"; printf '#!/bin/sh\necho "Rust Type Kit 2.1"\n' > "$FO/rtk"; chmod +x "$FO/rtk"
+eq "rtk-wrap: another tool named rtk → default off" off "$(rwm "$FO:$NORTK")"
+# git diff / git show run raw in every mode: rtk 0.40 cuts them to ~500 lines (100 per hunk), and the reviewer reads them.
+FM="$TMP/manglertk"; mkdir -p "$FM"
+printf '#!/bin/sh\n[ "$1" = --version ] && { echo "rtk 0.40.0"; exit 0; }\necho MANGLED\n' > "$FM/rtk"; chmod +x "$FM/rtk"
+git -C "$R" add -A; git -C "$R" -c user.name=t -c user.email=t@t.t commit -qm two; echo c >> "$R/f.txt"
+for m in standard aggressive git-only; do
+  for c in "diff" "show --stat HEAD" "-C . diff HEAD"; do
+    lacks "rtk-wrap: $m git $c runs raw" MANGLED "$(cd "$R" && PATH="$FM:$NORTK" REVIEW_HARNESS_RTK=$m bash "$H/rtk-wrap.sh" git $c 2>&1)"
+  done
+done
+has "rtk-wrap: raw git diff output intact" "+c" "$(cd "$R" && PATH="$FM:$NORTK" bash "$H/rtk-wrap.sh" git diff 2>&1)"
+has "rtk-wrap: git status still through rtk" MANGLED "$(cd "$R" && PATH="$FM:$NORTK" bash "$H/rtk-wrap.sh" git status 2>&1)"
 
 # --- static-gates -------------------------------------------------------------------------
 # Fixture lines that would trip the gates are split in this file (TO''DO, `%s` for `||`), so the script run on this
@@ -1842,6 +1887,44 @@ eq "risk-tier: unknown base → exit 2" 2 "$(rtx no-such-ref)"
 eq "risk-tier: option-like base → exit 2" 2 "$(rtx --help)"
 mkdir -p "$TMP/rt-nogit"; eq "risk-tier: outside a git repo → exit 2" 2 "$(cd "$TMP/rt-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/risk-tier.sh" >/dev/null 2>&1; echo $?)"
 eq "risk-tier: umask 077 for its temp files" 1 "$(grep -c '^umask 077' "$H/risk-tier.sh")"
+# --paths scores a planned change from its paths alone: run outside a git repo, so any git call would fail.
+rtp() { (cd "$TMP/rt-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/risk-tier.sh" --paths "$@" 2>&1); }
+rtpx() { (cd "$TMP/rt-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/risk-tier.sh" --paths "$@" >/dev/null 2>&1); echo $?; }
+OUT=$(rtp src/a.ts)
+eq "risk-tier --paths: 1 plain path → low" low "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier --paths: low reason" "reason: small plan: 1 paths" "$OUT"
+eq "risk-tier --paths: 3 plain paths → low" low "$(rtp src/a.ts src/b.ts src/a.test.ts | head -n 1)"
+eq "risk-tier --paths: 4 plain paths → normal, no reason lines" normal "$(rtp src/a.ts src/b.ts src/c.ts src/d.ts)"
+eq "risk-tier --paths: 4 doc paths → normal (no docs-only rule)" normal "$(rtp a.md b.md c.md d.md)"
+eq "risk-tier --paths: tokenizer path is not auth → low" low "$(rtp src/tokenizer.ts | head -n 1)"
+OUT=$(rtp src/plain.ts src/auth/index.ts)
+eq "risk-tier --paths: auth path → high" high "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier --paths: auth reason names the path" "reason: auth/session term (auth) in src/auth/index.ts" "$OUT"
+eq "risk-tier --paths: every line after the first is a reason" 0 "$(printf '%s\n' "$OUT" | sed 1d | grep -cv '^reason: ')"
+eq "risk-tier --paths: migration path → high" high "$(rtp db/migrations/001.sql | head -n 1)"
+eq "risk-tier --paths: hooks/ path → high" high "$(rtp hooks/x.sh | head -n 1)"
+eq "risk-tier --paths: gate file name → high" high "$(rtp src/commit-gate.ts | head -n 1)"
+OUT=$(rtp a b c d e f g h i j)
+eq "risk-tier --paths: 10 paths → high" high "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier --paths: 10 paths → reason" "reason: 10 files changed" "$OUT"
+eq "risk-tier --paths: 9 paths → normal" normal "$(rtp a b c d e f g h i | head -n 1)"
+OUT=$(rtp package-lock.json src/a.ts)
+eq "risk-tier --paths: a dependency file → normal" normal "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier --paths: dependency reason" "reason: dependency change" "$OUT"
+eq "risk-tier --paths: no paths → exit 2" 2 "$(rtpx)"
+eq "risk-tier --paths: outside a git repo → exit 0" 0 "$(rtpx src/a.ts)"
+eq "risk-tier --paths: ./hooks/x.sh → high" high "$(rtp ./hooks/x.sh | head -n 1)"
+eq "risk-tier --paths: backticked hooks/x.sh → high" high "$(rtp '`hooks/x.sh`' | head -n 1)"
+eq "risk-tier --paths: ./.github/workflows/ci.yml → high" high "$(rtp ./.github/workflows/ci.yml | head -n 1)"
+eq "risk-tier --paths: an empty argument → exit 2" 2 "$(rtpx '')"
+eq "risk-tier --paths: only commas and backticks → exit 2" 2 "$(rtpx ',`,`')"
+eq "risk-tier --paths: one comma-joined argument of 5 files counts 5 → normal" normal "$(rtp 'a.ts,b.ts,c.ts,d.ts,e.ts')"
+has "risk-tier --paths: comma and space separated, empties dropped" "reason: small plan: 2 paths" "$(rtp 'a.ts, b.ts,,')"
+rtrepo; mkdir -p "$R/src/auth" "$R/hooks"; echo 'getToken()' > "$R/src/auth/a.ts"; echo x > "$R/hooks/h.sh"
+eq "risk-tier --paths: a risky diff in the repo is never read" low "$(rt --paths src/plain.ts | head -n 1)"
+eq "risk-tier --paths: an absolute path inside the repo → high" high "$(rt --paths "$R/hooks/x.sh" | head -n 1)"
+eq "risk-tier --paths: an absolute path from a subdirectory → high" high "$(cd "$R/src" && bash "$H/risk-tier.sh" --paths "$R/hooks/x.sh" 2>&1 | head -n 1)"
+eq "risk-tier: that repo diff alone → high" high "$(rt | head -n 1)"
 AS=$(sed -n '/^## Agent Spawning/,/^## Context Budget/p' "$SK")
 has "skill: reviewer spawn runs risk-tier.sh" 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh"' "$AS"
 has "skill: risk line in the reviewer prompt" '`risk: <tier>`' "$AS"
@@ -1859,6 +1942,16 @@ has "reviewer: probes line is a 4th handoff bullet" 'plus `probes:` when your pr
 has "docs/hooks.md: risk-tier row" '| **`risk-tier.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
 has "readme: risk-tier example" 'bash hooks/risk-tier.sh' "$(cat "$ROOT/README.md")"
 has "CLAUDE.md: model routing names risk tiers" 'risk-tier.sh' "$(sed -n '/^## Model Routing/,$p' "$ROOT/CLAUDE.md")"
+has "usage-downgrade keeps its own pointer" 'usage-downgrade.md` before the first `reviewer` or `refactor-architect` spawn' "$(cat "$SK")"
+has "routing: developer spawn runs --paths on Affected Files" 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" --paths <plan Affected Files>' "$AS"
+has "routing: low plan → developer medium effort" '`low` → spawn `developer` with `effort: "medium"`' "$AS"
+has "routing: normal, high or failure → no developer override" '`normal`, `high` or a script failure → no override' "$AS"
+has "routing: bugfix never gets the medium override" 'A `bugfix` plan never gets this override' "$AS"
+has "docs/hooks.md: risk-tier --paths" 'risk-tier.sh --paths <path...>' "$(cat "$ROOT/docs/hooks.md")"
+has "readme: developer medium on a low plan" 'risk-tier.sh --paths' "$(sed -n '/^## Agents and models/,/^## Rules/p' "$ROOT/README.md")"
+has "CLAUDE.md: model routing names the developer plan tier" 'risk-tier.sh --paths' "$(sed -n '/^## Model Routing/,$p' "$ROOT/CLAUDE.md")"
+has "changelog: unreleased names git diff/show raw" 'git diff` and `git show` run raw' "$(sed -n '/^### Unreleased/,/^### v0\.7\.0/p' "$ROOT/CHANGELOG.md")"
+has "changelog: unreleased names risk-tier --paths" 'risk-tier.sh --paths' "$(sed -n '/^### Unreleased/,/^### v0\.7\.0/p' "$ROOT/CHANGELOG.md")"
 
 # --- review-context -----------------------------------------------------------------------
 rc() { (cd "$R" && bash "$H/review-context.sh" "$@" 2>&1); }

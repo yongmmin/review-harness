@@ -1,5 +1,5 @@
 #!/bin/bash
-# risk-tier.sh [base]
+# risk-tier.sh [base] | --paths <path...>
 # Scores the current change so the review can match it: line 1 `low`, `normal` or `high`, then one `reason: …` line
 # per rule that fired. The change is collected as static-gates.sh collects it (lib/collect-change.sh): with base,
 # everything since the merge base of <base> and HEAD plus the working tree; without, staged, unstaged and untracked
@@ -20,22 +20,30 @@
 # cut to its first 20,000 characters.
 # Words are case-insensitive whole runs of letters and digits, also split at camelCase (getToken → get, token), so
 # tokenizer, author, clock and parseInt are no hits. Paths match case-insensitively.
+# --paths scores a planned change (a plan's Affected Files) from its paths alone, before any code exists: no diff is
+# read and no line is scanned; git runs only to find the repo root. Each argument is split at commas; backticks,
+# surrounding blanks and leading ./ are dropped, an absolute path under the repo root ($PWD outside a repo) is made
+# relative, and empty entries are dropped. high and normal follow the path rules above (path words, migration,
+# hook/workflow/gate, 10+ paths, dependency file); low with at most 3 paths (`reason: small plan: N paths`); normal
+# otherwise.
 # Reads only; the real index is never written. Needs git ≥ 2.25.
-# Exit: 0, or 2 on a usage error, outside a git repo, or when an internal git command fails.
+# Exit: 0, or 2 on a usage error (--paths with no path included), outside a git repo, or when an internal git command
+# fails.
 
 umask 077   # the temp index and diff copies hold repo content
 ME=risk-tier
-usage() { echo "usage: risk-tier.sh [base]${1:+ — $1}" >&2; exit 2; }
-[ $# -le 1 ] || usage
-case "${1:-}" in -*) usage "unknown option: $1" ;; esac
-. "$(dirname "${BASH_SOURCE[0]}")/lib/collect-change.sh" || exit 2
-collect_change "${1:-}"
-g diff --name-only --no-renames "$FROM" -- > "$IDX.names" 2> "$IDX.err" || gitfail diff
-g diff -U0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ "$FROM" -- > "$IDX.diff" 2> "$IDX.err" \
-  || gitfail diff
+usage() { echo "usage: risk-tier.sh [base] | --paths <path...>${1:+ — $1}" >&2; exit 2; }
+PATHS=0
+if [ "${1:-}" = --paths ]; then
+  shift; [ $# -ge 1 ] || usage "--paths needs at least one path"; PATHS=1
+else
+  [ $# -le 1 ] || usage
+  case "${1:-}" in -*) usage "unknown option: $1" ;; esac
+fi
 
+# score <names file> <diff file> — prints the tier and its reasons.
 # LC_ALL=C: macOS awk in a UTF-8 locale aborts at a non-UTF-8 byte.
-LC_ALL=C awk '
+score() { LC_ALL=C awk -v paths="$PATHS" '
   # words(t) — lower-case letter/digit runs of t, then the same runs split at camelCase (APIToken → API Token)
   function words(t,   s, i, c, n) {
     s = ""; n = length(t)
@@ -96,7 +104,28 @@ LC_ALL=C awk '
     if (files >= 10) out = out "reason: " files " files changed\n"
     if (out != "") { printf "high\n%s%s", out, dep; exit }
     if (dep != "") { printf "normal\n%s", dep; exit }
+    if (paths) { print (files <= 3 ? "low\nreason: small plan: " files " paths" : "normal"); exit }
     if (files && !code) out = "reason: docs or tests only\n"
     if (files && files <= 2 && added <= 30) out = out "reason: small change: " (files + 0) " files, " (added + 0) " added lines\n"
     printf "%s\n%s", (out != "" ? "low" : "normal"), out
-  }' "$IDX.names" "$IDX.diff"
+  }' "$@"; }
+
+if [ "$PATHS" = 1 ]; then
+  # The root as git prints it (symlinks resolved) and as the shell sees it (logical); $PWD outside a repo.
+  TOP=$(git rev-parse --show-toplevel 2>/dev/null) || TOP=$PWD
+  LTOP=$(cd "./$(git rev-parse --show-cdup 2>/dev/null)" 2>/dev/null && pwd) || LTOP=$PWD
+  NAMES=$(printf '%s\n' "$@" | tr ',' '\n' | LC_ALL=C awk -v r1="$TOP/" -v r2="$LTOP/" '{
+    gsub(/`/, ""); sub(/^[ \t]+/, ""); sub(/[ \t]+$/, "")
+    if (index($0, r1) == 1) $0 = substr($0, length(r1) + 1); else if (index($0, r2) == 1) $0 = substr($0, length(r2) + 1)
+    while (substr($0, 1, 2) == "./") $0 = substr($0, 3)
+    if ($0 != "") print
+  }')
+  [ -n "$NAMES" ] || usage "--paths needs at least one path"
+  printf '%s\n' "$NAMES" | score /dev/stdin /dev/null; exit
+fi
+. "$(dirname "${BASH_SOURCE[0]}")/lib/collect-change.sh" || exit 2
+collect_change "${1:-}"
+g diff --name-only --no-renames "$FROM" -- > "$IDX.names" 2> "$IDX.err" || gitfail diff
+g diff -U0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ "$FROM" -- > "$IDX.diff" 2> "$IDX.err" \
+  || gitfail diff
+score "$IDX.names" "$IDX.diff"

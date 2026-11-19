@@ -9,7 +9,7 @@
 #        off | standard | aggressive | git-only
 #   2. <state dir>/rtk-session.flag — set by /review-harness UI or /rtk-toggle
 #        (state dir = ~/.review-harness/state/<repo-id>/, see state-dir.sh; per work tree)
-#   3. default: off
+#   3. default: standard when the real rtk is on PATH (`rtk --version` starts with "rtk"), else off
 #
 # Usage:
 #   bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <command> [args...]
@@ -46,7 +46,8 @@ resolve_mode() {
       return
     fi
   fi
-  printf 'off\n'
+  # Another tool may be installed under the name rtk; only the real one turns the default on.
+  case "$(rtk --version 2>/dev/null)" in rtk*) printf 'standard\n' ;; *) printf 'off\n' ;; esac
 }
 
 # Maps a command binary to an rtk subcommand category, or empty if rtk has no handler.
@@ -111,11 +112,15 @@ if [ "$CMD" = "npx" ] && [ -n "${1:-}" ]; then
 fi
 
 # rtk's argument parser can drop a `--` (rtk 0.40 drops a `--`, so `rtk grep -n -- '--continue' <file>` reads the dash pattern as an option),
-# so a command with one runs raw.
-HAS_DASHDASH=0
-for a in "$@"; do [ "$a" = "--" ] && HAS_DASHDASH=1; done
+# so a command with one runs raw. git/gh diff and show run raw too: rtk 0.40 cuts them to ~500 lines (100 per hunk),
+# and the reviewer reads the change through them. Any `diff`/`show` argument counts, so `git -C dir diff` is caught too.
+RAW=0
+for a in "$@"; do
+  [ "$a" = "--" ] && RAW=1
+  case "$CMD:$a" in git:diff|git:show|gh:diff) RAW=1 ;; esac
+done
 
-if [ "$HAS_DASHDASH" = 0 ] && should_prefix "$MODE" "$CATEGORY" && command -v rtk >/dev/null 2>&1; then
+if [ "$RAW" = 0 ] && should_prefix "$MODE" "$CATEGORY" && command -v rtk >/dev/null 2>&1; then
   EXTRA=""
   if [ "$MODE" = "aggressive" ]; then
     EXTRA="--ultra-compact"
