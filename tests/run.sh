@@ -2075,5 +2075,182 @@ has "constraints #review: points to reviewer step 5" "agents/reviewer.md\` step 
 has "find-consumers: header names every breaking kind" "renamed/removed/retyped/now-optional/now-required" "$(sed -n 3p "$H/find-consumers.sh")"
 lacks "find-consumers: no 'same hygiene as scan-repo.sh'" "same hygiene as scan-repo.sh" "$(cat "$H/find-consumers.sh")"
 
+# --- audit-rules ----------------------------------------------------------------------------
+AH="$TMP/audithome"; AW="$TMP/audit-web"; AA="$TMP/audit-api"; AB="$TMP/audit-sb"
+au() { REVIEW_HARNESS_HOME="$AH" REVIEW_HARNESS_TODAY=2026-06-01 bash "$H/audit-rules.sh" "$@" 2>&1; }
+aux() { au "$@" >/dev/null; echo $?; }
+mkdir -p "$AH"
+eq "audit-rules: empty home → no output" "" "$(au)"
+eq "audit-rules: empty home → exit 0" 0 "$(aux)"
+eq "audit-rules: an argument → usage error" 2 "$(aux --fix)"
+eq "audit-rules: malformed REVIEW_HARNESS_TODAY → usage error" 2 \
+  "$(REVIEW_HARNESS_HOME="$AH" REVIEW_HARNESS_TODAY=june bash "$H/audit-rules.sh" >/dev/null 2>&1; echo $?)"
+mkdir -p "$AH/knowledge/acme" "$AH/org/agents" "$AH/org/profiles" "$AH/org/retired" "$AH/org/.backup" "$AW" "$AA" "$AB"
+cat > "$AW/package.json" <<'EOF'
+{
+  "name": "web-app",
+  "peerDependencies": { "react": "^17.0.0" },
+  "dependencies": {
+    "next": "^15.5.2",
+    "react": "18.3.1",
+    "three": "~0.172.0",
+    "tailwindcss": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": ">=5.4.0"
+  }
+}
+EOF
+cat > "$AA/package.json" <<'EOF'
+{
+  "dependencies": {
+    "@nestjs/core": "^10.0.0",
+    "@prisma/client": "^5.1.0 || ^6.0.0",
+    "express": "*"
+  }
+}
+EOF
+# a one-line empty dependencies block must not open a block that swallows `scripts`
+cat > "$AB/package.json" <<'EOF'
+{
+  "dependencies": {},
+  "scripts": {
+    "storybook": "storybook dev"
+  },
+  "devDependencies": {
+    "next": "14.2.0",
+    "storybook": "^8.1.0"
+  }
+}
+EOF
+cat > "$AH/knowledge/acme/repos.md" <<EOF
+# Repos
+
+### web-app
+- **local_path**: \`$AW\`
+- **role**: web
+- **stack**: Next 14.2.3, React 18, TS 5, Three 0.160, Tailwind v3, MUI 6, **Zustand 4 ONLY**
+
+### api (\`@acme/api\`)
+- **local_path**: \`$AA\`
+- **stack**: NestJS 10, Prisma 6, Express 4
+
+### gone-app
+- **local_path**: \`$TMP/audit-gone\`
+- **stack**: Next 15
+
+### sb-app
+- **local_path**: \`$AB\`
+- **stack**: Storybook 7, Next 14
+EOF
+printf -- '- **local_path**: `%s`\n' "$TMP/audit-nohead" > "$AH/knowledge/repos.md"
+DUPL='- Never call the billing service directly from a component'
+cat > "$AH/org/agents/developer.md" <<EOF
+# Org overlay: developer
+
+- **Next.js 14.x only** — never upgrade to 15
+- Use React 18 features only
+- Next.js 14+ is fine here
+- Next 16+ required by the new router; Next 16+ again
+$DUPL
+$DUPL
+- short dup rule here
+\`\`\`ts
+// Next 13 example in a fence
+\`\`\`
+- In the next 3 steps, react 2 times
+EOF
+printf '## #org\n\n%s\n-   short dup rule here\n' "$(printf '%s' "$DUPL" | sed 's/ /   /g')" > "$AH/org/constraints.md"
+printf '%s\n- Next 13 rule in a retired file\n' "$DUPL" > "$AH/org/retired/old.md"
+printf -- '- Next 13 rule in a backup\n' > "$AH/org/.backup/old.md"
+{ echo '## #failure-patterns'; echo
+  echo '- [2026-01-01] [category:scope] old pattern - old rule'
+  echo '- [2026-03-02] [category:scope] 91 days - rule'
+  echo '- [2026-03-03] [category:scope] 90 days - rule'
+  echo '- [2026-04-01] [category:scope] recent pattern - recent rule'; } > "$AH/failure-patterns.md"
+BEFORE=$(ls -lR "$AH" "$AW" "$AA" "$AB")
+OUT=$(au); RC=$(aux)
+eq "audit-rules: findings → exit 1" 1 "$RC"
+has "audit-rules: stale major" "stale-version knowledge/acme/repos.md:6 — web-app: stack says Next 14.2.3, package.json has 15.5.2" "$OUT"
+has "audit-rules: 0.x compares the minor" "stale-version knowledge/acme/repos.md:6 — web-app: stack says Three 0.160, package.json has 0.172.0" "$OUT"
+lacks "audit-rules: same major → no finding" "React 18," "$OUT"
+lacks "audit-rules: devDependencies with >= → same major" "TS 5" "$OUT"
+lacks "audit-rules: workspace range skipped" "Tailwind" "$OUT"
+lacks "audit-rules: unknown name skipped" "MUI" "$OUT"
+lacks "audit-rules: name not in package.json skipped" "Zustand" "$OUT"
+lacks "audit-rules: peerDependencies not read" "17.0.0" "$OUT"
+lacks "audit-rules: * range skipped" "Express" "$OUT"
+has "audit-rules: range → first major, noted" "stale-version knowledge/acme/repos.md:10 — api: stack says Prisma 6, package.json has 5.1.0 (range: ^5.1.0 || ^6.0.0)" "$OUT"
+lacks "audit-rules: NestJS maps to @nestjs/core" "NestJS" "$OUT"
+has "audit-rules: missing local_path" "missing-path knowledge/acme/repos.md:13 — gone-app: $TMP/audit-gone not found" "$OUT"
+has "audit-rules: version-bound rule lists every repo, = and ≠" "version-rule org/agents/developer.md:3 — names Next.js 14.x; repos: web-app 15.5.2 (≠), sb-app 14.2.0 (=)" "$OUT"
+has "audit-rules: one-line {} dependencies → scripts not read as dependencies" "stale-version knowledge/acme/repos.md:18 — sb-app: stack says Storybook 7, package.json has 8.1.0" "$OUT"
+has "audit-rules: local_path before any heading → repo -" "missing-path knowledge/repos.md:1 — -: $TMP/audit-nohead not found" "$OUT"
+lacks "audit-rules: plain English 'next 3' is no rule" "names next" "$OUT"
+lacks "audit-rules: plain English 'react 2' is no rule" "names react" "$OUT"
+lacks "audit-rules: same major in a rule → no finding" "names React" "$OUT"
+lacks "audit-rules: N+ met by every repo → no finding" "names Next.js 14+" "$OUT"
+has "audit-rules: N+ above a repo → finding" "version-rule org/agents/developer.md:6 — names Next 16+; repos: web-app 15.5.2 (≠), sb-app 14.2.0 (≠)" "$OUT"
+eq "audit-rules: a token named twice on one line → one finding" 1 "$(printf '%s\n' "$OUT" | grep -c 'developer.md:6 ')"
+lacks "audit-rules: fenced code skipped" "names Next 13" "$OUT"
+eq "audit-rules: retired and hidden org folders not read" "" "$(printf '%s\n' "$OUT" | grep -e 'retired' -e '\.backup')"
+has "audit-rules: duplicate across files (whitespace-normalised)" "duplicate org/constraints.md:3 — also in org/agents/developer.md:7" "$OUT"
+eq "audit-rules: duplicate group reported once" 1 "$(printf '%s\n' "$OUT" | grep -c '^duplicate ')"
+lacks "audit-rules: short bullet is no duplicate" "developer.md:9" "$OUT"
+has "audit-rules: old ledger entry" "ledger-old failure-patterns.md:3 — dated 2026-01-01, 151 days old" "$OUT"
+has "audit-rules: 91 days is old" "ledger-old failure-patterns.md:4 — dated 2026-03-02, 91 days old" "$OUT"
+lacks "audit-rules: 90 days is not old" "2026-03-03" "$OUT"
+lacks "audit-rules: small ledger → no size finding" "ledger-size" "$OUT"
+lacks "audit-rules: under budget → no budget finding" "budget " "$OUT"
+lacks "audit-rules: ledger with its heading is loaded" "ledger-unloaded" "$OUT"
+eq "audit-rules: every line is <kind> <location> — <reason>" "" \
+  "$(printf '%s\n' "$OUT" | grep -vE '^(stale-version|missing-path|version-rule|duplicate|budget|ledger-size|ledger-old|ledger-unloaded) [^ ]+ — .')"
+eq "audit-rules: nothing written" "$BEFORE" "$(ls -lR "$AH" "$AW" "$AA" "$AB")"
+mkdir -p "$TMP/nojq"
+for t in bash cat grep sed awk dirname basename tr head cut date ls wc sort find paste; do ln -sf "$(command -v $t)" "$TMP/nojq/$t"; done
+eq "audit-rules: no jq → same findings" "$OUT" "$(PATH="$TMP/nojq" REVIEW_HARNESS_HOME="$AH" REVIEW_HARNESS_TODAY=2026-06-01 "$BASH" "$H/audit-rules.sh" 2>&1)"
+i=0; while [ "$i" -lt 40 ]; do echo "- [2026-05-01] [category:scope] filler pattern number $i - filler rule $i" >> "$AH/failure-patterns.md"; i=$((i + 1)); done
+OUT=$(au)
+has "audit-rules: ledger over 3072 bytes" "ledger-size failure-patterns.md — $(wc -c < "$AH/failure-patterns.md" | tr -d ' ') bytes, over the 3072 GC limit" "$OUT"
+OUT=$(REVIEW_HARNESS_BUDGET_WARN_BYTES=100 au)
+has "audit-rules: budget over the threshold" "budget reviewer — extract-constraints: " "$OUT"
+has "audit-rules: budget names the threshold" "over the 100 budget (non-profile part)" "$OUT"
+eq "audit-rules: one budget line per agent" 4 "$(printf '%s\n' "$OUT" | grep -c '^budget ')"
+eq "audit-rules: no here-string or heredoc (bash 3.2 writes them to a temp file)" 0 "$(grep -c '<<' "$H/audit-rules.sh")"
+UH="$TMP/audit-unloaded"; mkdir -p "$UH"
+printf -- '- [2026-05-01] [category:scope] a pattern - a rule\n- [2026-05-02] [category:scope] b pattern - b rule\n' > "$UH/failure-patterns.md"
+OUT=$(REVIEW_HARNESS_HOME="$UH" REVIEW_HARNESS_TODAY=2026-06-01 bash "$H/audit-rules.sh" 2>&1)
+has "audit-rules: ledger entries without the heading" 'ledger-unloaded failure-patterns.md — 2 entries but no "## #failure-patterns" heading' "$OUT"
+if [ "$(id -u)" = 0 ]; then echo "skip audit-rules: unreadable file (running as root)"; else
+  printf -- '- rule\n' > "$UH/failure-patterns.md"; mkdir -p "$UH/org/agents"; printf -- '- x\n' > "$UH/org/agents/reviewer.md"
+  chmod 000 "$UH/org/agents/reviewer.md"
+  OUT=$(REVIEW_HARNESS_HOME="$UH" bash "$H/audit-rules.sh" 2>&1); RC=$?
+  chmod 644 "$UH/org/agents/reviewer.md"
+  eq "audit-rules: unreadable overlay → exit 2" 2 "$RC"
+  has "audit-rules: unreadable overlay → one error line" "audit-rules: cannot read $UH/org/agents/reviewer.md" "$OUT"
+fi
+PH="$TMP/audit-perf"; mkdir -p "$PH/org/agents"; cp -R "$AH/knowledge" "$PH/"
+awk 'BEGIN { for (i = 0; i < 20000; i++) print "- Next 13 rule number " i " for the router, Next 13 again" }' > "$PH/org/agents/developer.md"
+S=$(date +%s); NPERF=$(REVIEW_HARNESS_HOME="$PH" bash "$H/audit-rules.sh" 2>/dev/null | grep -c '^version-rule '); E=$(date +%s)
+eq "audit-rules: 20,000 overlay lines → 20,000 findings" 20000 "$NPERF"
+eq "audit-rules: 20,000 overlay lines in under 10 s" yes "$([ $((E - S)) -lt 10 ] && echo yes || echo "no ($((E - S)) s)")"
+AS="$ROOT/skills/audit-rules/SKILL.md"
+has "audit-rules skill: name" "name: audit-rules" "$(cat "$AS" 2>/dev/null)"
+has "audit-rules skill: runs the script" 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/audit-rules.sh"' "$(cat "$AS" 2>/dev/null)"
+has "audit-rules skill: org overlay line" 'hooks/org-overlay.sh" skills audit-rules' "$(cat "$AS" 2>/dev/null)"
+has "audit-rules skill: edits only after approval" "only the items the user approves" "$(cat "$AS" 2>/dev/null)"
+has "audit-rules skill: never runs git" "never runs git" "$(cat "$AS" 2>/dev/null)"
+has "audit-rules skill: exit 0 still runs the semantic pass" 'On `exit: 0` still run step 3' "$(cat "$AS" 2>/dev/null)"
+has "audit-rules skill: offers the missing ledger heading" '`ledger-unloaded`' "$(cat "$AS" 2>/dev/null)"
+has "docs/hooks.md: ledger-unloaded kind" '`ledger-unloaded`' "$(cat "$ROOT/docs/hooks.md")"
+NS=$(ls -d "$ROOT"/skills/*/ | wc -l | tr -d ' ')
+has "docs/skills.md: skill count" "## $NS Skills" "$(cat "$ROOT/docs/skills.md")"
+has "readme: skill count" "the $NS skills" "$(cat "$ROOT/README.md")"
+has "docs/skills.md: audit-rules entry" '**`/audit-rules`**' "$(cat "$ROOT/docs/skills.md")"
+has "docs/hooks.md: audit-rules row" '| **`audit-rules.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
+has "readme: quick start row" '| `/audit-rules` |' "$(cat "$ROOT/README.md")"
+has "readme: check list line" 'bash hooks/audit-rules.sh' "$(cat "$ROOT/README.md")"
+has "changelog: audit-rules entry" 'hooks/audit-rules.sh' "$(sed -n '/^### Unreleased/,/^### v0\.7\.0/p' "$ROOT/CHANGELOG.md")"
+
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

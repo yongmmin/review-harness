@@ -14,7 +14,7 @@ Detailed description moved out of the [README](../README.md). The reference docu
 
 The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `web-guidance.md` (step 4), `plan-gate.md` (step 5: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 6: Small change, Bugfix, retries after a failure), `usage-downgrade.md` (5h usage at 80% or more), `git-ops.md` (branch, push or PR requests).
 
-## 11 Skills
+## 12 Skills
 
 The entry point + auxiliary commands. All can be called as `/<skill-name>`. Every skill has the organisation overlay injected at load via `hooks/org-overlay.sh skills <name>` (if absent, only the generic rules apply).
 
@@ -47,8 +47,9 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 - **`/git-commit`** — runs automatically when `run-state.sh check` passes (a reviewer PASS record for the current work tree and no failed or unconfirmed test result, or a recorded user override). Generates a Conventional Commit message, protects .npmrc/.env, forbids --no-verify
 - **`/git-pr`** — generates the title + body + `gh pr create` command + prefilled GitHub compare URL. **Never runs `gh`**
 
-### Plugin operations (1)
+### Plugin operations (2)
 
+- **`/audit-rules`** (`/review-harness:audit-rules`) — runs `hooks/audit-rules.sh` (stale registry versions, missing paths, version-bound overlay rules, duplicate rules, constraint budget, ledger size, age and missing heading), reads only the cited lines, judges `version-rule` and `duplicate` findings, and reads the org overlay and the profiles' `#review` sections once for rules that contradict each other — also when the script finds nothing. Proposes at most 10 numbered edits (file:line, old → new, or delete) and applies only the ones you approve, only under `~/.review-harness/` — never the plugin's files, never git. Ledger GC follows the `constraints.md` header rule
 - **`/rtk-toggle`** (`/review-harness:rtk-toggle`) — toggles the output compression mode of plugin-internal Bash calls (off/standard/aggressive/git-only). No effect on other projects (plugin-scoped)
 
 ## Git steps (user-triggered)

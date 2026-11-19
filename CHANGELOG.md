@@ -4,6 +4,10 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Rule audit**
+- New `hooks/audit-rules.sh`: read-only facts about rule drift, one `<kind> <location> — <reason>` line each — `stale-version` (a registry `stack` major that differs from the repo's `package.json`), `missing-path`, `version-rule` (an org overlay or profile line naming a framework version some registered repo does not run), `duplicate` (the same bullet in two or more rule files), `budget` (an agent's non-profile constraints over the warn threshold), `ledger-size` (over 3,072 bytes), `ledger-old` (older than 90 days) and `ledger-unloaded` (entries with no `## #failure-patterns` heading, which no agent receives). Writes nothing, not even a temp file; findings print as found. Exit 0 / 1 findings / 2 usage error or internal failure; `jq` optional
+- New `/audit-rules` skill: runs it, judges the version-bound and duplicate findings plus contradictions a script cannot see, proposes at most 10 numbered edits and applies only the approved ones, inside `~/.review-harness/` only
+
 **Token cost**
 - rtk is on by default: `hooks/rtk-wrap.sh` resolves inline arg/flag → `REVIEW_HARNESS_RTK` → session flag → `standard` when an `rtk` binary is on PATH, else `off`. `/review-harness` no longer asks for a mode on first use; `/rtk-toggle` changes it. The bench driver keeps `REVIEW_HARNESS_RTK=off`
 - New `risk-tier.sh --paths <path...>`: scores a planned change from its paths alone, without reading a diff (`high` on the existing path rules or 10+ paths, `normal` on a dependency file, `low` with at most 3 paths, `normal` otherwise; each argument is split at commas, backticks and a leading `./` are dropped and an absolute path under the repo root is made relative; exit 2 when no path is left). Before each `developer` spawn, `/review-harness` runs it on the plan's Affected Files and spawns the developer at `effort: "medium"` on `low`; `normal`, `high`, a failure and every bugfix plan keep the frontmatter effort
