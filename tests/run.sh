@@ -521,9 +521,25 @@ eq "pre-tool-use: bun.lock → deny" deny "$(edit "$P/bun.lock")"
 
 # --- workflows: intent table, plan template and flows agree -----------------------------
 SK="$ROOT/skills/review-harness/SKILL.md"
+SKD="$ROOT/skills/review-harness"
+# SKILL.md is a core plus situational files, each read through one pointer line in the core.
+SKP='→ read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/'
+eq "skill split: the pure-move fixture is gone" no "$([ -e "$ROOT/tests/fixtures/review-harness-SKILL.pre-split.md" ] && echo yes || echo no)"
+lacks "skill split: the added core line names the variable without \${}" '${CLAUDE_PLUGIN_ROOT}' "$(grep -F 'are read raw: replace the' "$SK")"
+eq "skill split: core is at most 20000 bytes" yes "$([ "$(wc -c < "$SK" | tr -d ' ')" -le 20000 ] && echo yes || echo no)"
+SKN=0
+for f in "$SKD"/*.md; do
+  b=$(basename "$f"); [ "$b" = SKILL.md ] && continue
+  SKN=$((SKN + 1))
+  eq "skill split: one pointer to $b" 1 "$(grep -cF "$SKP$b\` before " "$SK")"
+done
+eq "skill split: one pointer line per situational file" "$SKN" "$(grep -cF "$SKP" "$SK")"
+SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT')
+eq "skill split: hook calls stay in the core but the one Contract rules line" 1 "$(printf '%s' "$SKX" | grep -c .)"
+has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
 INTENTS=$(sed -n 's/^| `\([a-z-]*\)` | .*| .* |$/\1/p' "$SK" | tr '\n' ' ')
 eq "skill: intent table rows" "feature refactor bugfix review " "$INTENTS"
-WFLIST=$(grep -o '`<workflow>` = `[^`]*`' "$SK"); TMPL=$(grep '^\[feature' "$SK")
+WFLIST=$(grep -o '`<workflow>` = `[^`]*`' "$SK"); TMPL=$(grep '^\[feature' "$SKD/plan-gate.md")
 for i in $INTENTS; do
   has "skill: run-state workflow list names $i" "$i" "$WFLIST"
   has "skill: plan template Intent names $i" "$i" "$TMPL"
@@ -533,9 +549,9 @@ has "skill: description names bug fix" "bug fix" "$(sed -n 's/^description: //p'
 has "skill: review needs a diff and no symptom" "no failure symptom is described" "$(grep '^| `review`' "$SK")"
 has "skill: Small change excludes bugfix" 'not a `refactor` or `bugfix` intent' "$(cat "$SK")"
 for l in Symptom Repro Cause 'Regression test'; do
-  eq "skill: plan template ## Bug has $l" 1 "$(sed -n '/^## Bug (bugfix only)/,/^$/p' "$SK" | grep -c "^- $l: ")"
+  eq "skill: plan template ## Bug has $l" 1 "$(sed -n '/^## Bug (bugfix only)/,/^$/p' "$SKD/plan-gate.md" | grep -c "^- $l: ")"
 done
-BF=$(sed -n '/^### Bugfix/,/^### Refactor/p' "$SK")
+BF=$(cat "$SKD/bugfix.md")
 has "skill: bugfix flow order" "reproduce -> plan.md (## Bug) -> user approval
 -> test-runner (baseline) -> developer (regression test RED, then fix) -> test-runner -> reviewer" "$BF"
 has "skill: bugfix never fixes by guess" "Never fix by guess" "$BF"
@@ -547,6 +563,8 @@ has "reviewer: bugfix gate keys on ## Intent" 'plan `## Intent` is `bugfix`' "$R
 has "developer: bugfix may run an existing test" 'or run the existing test named there' "$(cat "$ROOT/agents/developer.md")"
 has "skill: handoff schema has optional red:" '- red: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: bugfix passes red: to reviewer" 'red:` line to `reviewer`' "$BF"
+has "skill: first pass passes guidance: to reviewer (any intent)" 'Pass the developer'"'"'s `guidance:` line to `reviewer` when `Inputs.Web guidance` lists ids' \
+  "$(sed -n '/^### Shared Skip Rules/,/^### Small change/p' "$SK")"
 has "skill: cause loop-back counts an attempt" 'run `run-state.sh attempt` (stop and report at `LIMIT REACHED`), then redo reproduce' "$BF"
 has "skill: plain review keyword unchanged" '| Keywords: `review`; `check`, `verify` only when a diff exists' "$(grep '^| `review`' "$SK")"
 has "skill: no intent match → one question" 'If no intent matches, ask one clarifying question.' "$(cat "$SK")"
@@ -562,14 +580,14 @@ rs step reproduce >/dev/null; rs verdict PASS >/dev/null
 eq "run-state: bugfix PASS passes check" 0 "$( (cd "$R" && bash "$H/run-state.sh" check >/dev/null 2>&1); echo $?)"
 
 # --- definition of done: plan sections, goal gate, one category list --------------------
-PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SK")
+PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SKD/plan-gate.md")
 for s in 'Done When' 'Out of Scope'; do
   eq "skill: plan template has ## $s" 1 "$(printf '%s\n' "$PLAN" | grep -c "^## $s\$")"
   eq "refactor-architect: plan format has ## $s" 1 "$(grep -c "^## $s\$" "$ROOT/agents/refactor-architect.md")"
 done
 has "skill: Done When item names its check" '- [observable outcome] — check: [test name, command, or manual step]' "$PLAN"
 has "skill: Done When / Out of Scope required for feature, bugfix, refactor" \
-  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes' "$(cat "$SK")"
+  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes' "$(cat "$SKD/plan-gate.md")"
 cats() { tr -d ' ' | tr '|' '\n'; }
 C1=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/agents/reviewer.md" | cats)
 C2=$(sed -n 's/^- `\[category\]`: `\([a-z |-]*\)`$/\1/p' "$ROOT/agents/reviewer.md" | cats)
@@ -602,12 +620,12 @@ has "reviewer: Out of Scope edit is [scope]" 'An edit to something `Out of Scope
 has "reviewer: Out of Scope [scope] rule excepts named stubs" 'a stub that `Out of Scope` names' "$(sed -n '/^An edit to something `Out of Scope` names/p' "$ROOT/agents/reviewer.md")"
 eq "refactor-architect: plan format has ## Intent refactor" "refactor" "$(sed -n '/^## Intent$/{n;p;}' "$ROOT/agents/refactor-architect.md")"
 has "skill: test-runner gets the Done When checks" 'for `test-runner`, include the `Done When` test/command checks (or the Small change `Done when:` check) so it runs them' "$(cat "$SK")"
-SC=$(sed -n '/^### Small change/,/^### Feature/p' "$SK")
+SC=$(cat "$SKD/small-change.md")
 has "skill: Small change states a done-when line" '`Done when: <observable outcome> — check: <test, command, or manual step>`' "$SC"
 has "skill: Small change passes it to reviewer" 'Put that `Done when:` line in the `reviewer` prompt.' "$SC"
 has "skill: handoff max bullets allows red:" 'max 6 bullets plus `red:` for bugfix' "$(cat "$SK")"
 has "skill: retries carry the first red: line" "bugfix: the first developer run's \`red:\` line — carry it through every retry" \
-  "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SK")"
+  "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SKD/retry.md")"
 has "developer: retry keeps the given red: line" 'On a retry, keep the `red:` line given in your prompt' "$(cat "$ROOT/agents/developer.md")"
 
 # --- verification: test results in the commit gate --------------------------------------
@@ -688,18 +706,18 @@ lacks "tdd: RED wording not duplicated" "Confirm they fail for the intended reas
 has "git-commit: tests reasons named" "manual confirmation" "$(cat "$ROOT/skills/git-commit/SKILL.md")"
 
 # --- planning discovery and task decomposition --------------------------------------------
-PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SK")
+PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SKD/plan-gate.md")
 DC=$(printf '%s\n' "$PLAN" | sed -n '/^## Design Check$/,/^$/p')
 for l in Callers/Consumers Pattern Tests; do
   eq "skill: Design Check has $l" 1 "$(printf '%s\n' "$DC" | grep -c "^- $l: ")"
 done
-has "skill: discovery lines filled from grep before approval" '`Callers/Consumers`, `Pattern`, `Tests` are also filled by the main session before approval, from grep' "$(cat "$SK")"
+has "skill: discovery lines filled from grep before approval" '`Callers/Consumers`, `Pattern`, `Tests` are also filled by the main session before approval, from grep' "$(cat "$SKD/plan-gate.md")"
 OR=$(printf '%s\n' "$PLAN" | sed -n '/^## Only When Relevant/,/^$/p')
 for l in Migration 'Dependency upgrade' Performance; do
   eq "skill: Only When Relevant has $l" 1 "$(printf '%s\n' "$OR" | grep -c "^- $l: ")"
 done
 has "skill: Execution Steps tasks over 6 files" '(more than 6 Affected Files) Task 1: [file group] — tests:' "$PLAN"
-has "skill: task rule" 'More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines' "$(cat "$SK")"
+has "skill: task rule" 'More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines' "$(cat "$SKD/plan-gate.md")"
 has "developer: works task by task" 'With `Task N` steps, work task by task' "$DV"
 has "developer: updates or marks callers" 'Update every file in `Callers/Consumers`, or append `no change needed: <reason>`' "$DV"
 has "reviewer: contract gate" 'neither in the diff nor marked there `no change needed: <reason>` → FAIL `[contract]`' "$RV"
@@ -711,13 +729,13 @@ for l in Producer Consumers Compatibility 'Deploy order'; do
 done
 has "skill: Contract is additive or breaking" '- Compatibility: [additive | breaking]' "$CT"
 has "skill: Contract consumers may be none with a reason" '"none — <reason>"' "$CT"
-CR=$(grep '^\*\*Contract rules\*\*' "$SK")
+CR=$(grep '^\*\*Contract rules\*\*' "$SKD/plan-gate.md")
 has "skill: breaking contract runs find-consumers.sh from the plugin root" 'run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/find-consumers.sh" <term...>`' "$CR"
 has "skill: unchanged consumer repo needs an Out of Scope follow-up" 'gets its follow-up named in `Out of Scope`' "$CR"
 has "skill: producer run first" 'The producer run goes first' "$CR"
 has "skill: a pasted Contract block is Inputs.API in any intent" '**Pasted Contract (any intent, trigger or not)**: a `## Contract` block from the producer repo'"'"'s run is always the spec — record it as-is in `plan.md → Inputs.API`' \
-  "$(sed -n '/^### 4. API Spec Check/,/^### 5/p' "$SK")"
-lacks "skill: pasted Contract is not a trigger-only table row" '| `## Contract` block pasted' "$(cat "$SK")"
+  "$(cat "$SKD/api-spec.md")"
+lacks "skill: pasted Contract is not a trigger-only table row" '| `## Contract` block pasted' "$(cat "$SKD"/*.md)"
 for x in 'type changed' 'an existing optional request field made required' '(a request field made optional is not breaking)'; do
   has "skill: breaking definition — $x" "$x" "$CR"
 done
@@ -745,7 +763,7 @@ has "reviewer: defer is not a FAIL reason" '`defer` issues never make a FAIL' "$
 has "reviewer: every FAIL issue listed" 'List every `patch` / `replan` issue' "$OF"
 lacks "reviewer: no 5-issue cap" "Max 5 issues" "$OF"
 has "reviewer: dispute re-judges one issue" 're-judge only the disputed issue(s)' "$RV"
-HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK")
+HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK"; cat "$SKD/retry.md")
 for r in 'patch  ->' 'replan ->' 'defer  ->'; do has "skill: harness loop routes $r" "$r" "$HL"; done
 has "skill: replan needs re-approval" 'get the user'"'"'s re-approval' "$HL"
 has "skill: dispute command in the loop" 'run-state.sh dispute <issue id...>' "$HL"
@@ -807,6 +825,15 @@ eq "ledger: entries count in the budget" 0 "$?"
 rm -f "$LEDGER"
 lacks "checklist: absent ledger → no ledger entries" "edits outside plan" "$(ckb)"
 has "checklist: absent ledger → constraints rule lines stay" "- Property access on nullable without guard" "$(ckb)"
+# A non-UTF-8 byte in the ledger: GNU grep in a UTF-8 locale would print "Binary file matches" instead of the lines.
+printf '## #failure-patterns\n\n- [2026-11-18] [category:scope] bad \377 byte NB-1\n- [2026-11-18] [category:goal] after it NB-2\n' > "$LEDGER"
+CK=$(LC_ALL=C.UTF-8 ec developer 2>/dev/null | LC_ALL=C sed -n '/^## Review checklist/,$p')   # the helper awk would trip on the byte too
+has "checklist: line with a non-UTF-8 byte kept" "NB-1" "$CK"
+has "checklist: line after a non-UTF-8 byte kept" "- [2026-11-18] [category:goal] after it NB-2" "$CK"
+has "checklist: non-UTF-8 ledger → constraints rule lines stay" "- Property access on nullable without guard" "$CK"
+lacks "checklist: non-UTF-8 ledger → no binary-file message" "Binary file" "$CK"
+has "checklist: filter reads bytes as text (BSD grep only flags NUL)" "grep -a '^- '" "$(cat "$H/extract-constraints.sh")"
+rm -f "$LEDGER"
 NC="$TMP/plugin-noreview"; mkdir -p "$NC" && cp -R "$ROOT/hooks" "$ROOT/profiles" "$NC/"
 awk '/^## #review/ { skip = 1; next } /^## #/ { skip = 0 } !skip' "$ROOT/constraints.md" > "$NC/constraints.md"
 lacks "checklist: no rule lines → no block" "## Review checklist" "$(bash "$NC/hooks/extract-constraints.sh" developer 2>/dev/null)"
@@ -820,21 +847,21 @@ for f in reviewer test-runner; do
   has "$f: ledger scope clause" 'only rules that no static gate, profile, `#review`/`#org` rule or ESLint/tsc already enforces; one-off mistakes do not belong' "$AG"
   lacks "$f: no Edit tool left" "Bash, Edit" "$(sed -n 's/^tools: //p' "$ROOT/agents/$f.md")"
 done
-HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK")
+HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK"; cat "$SKD/retry.md")
 lacks "skill: LIMIT no longer writes constraints.md" "constraints.md #failure-patterns" "$HL"
 has "skill: LIMIT appends to the ledger path" 'the `ledger:` path' "$HL"
 has "skill: LIMIT names the ledger format" 'entry format and scope of agents/reviewer.md step 5; a new file starts with `## #failure-patterns`' "$HL"
-has "skill: LIMIT replan on the Small change path" '(Small change: no plan — ask the user, or switch to the Feature path)' "$(sed -n '/prints "LIMIT REACHED"/,/^```$/p' "$SK")"
+has "skill: LIMIT replan on the Small change path" '(Small change: no plan — ask the user, or switch to the Feature path)' "$(sed -n '/prints "LIMIT REACHED"/,/^```$/p' "$SKD/retry.md")"
 has "skill: dispute re-judge is no attempt line" 'not a dispute re-judge' "$HL"
 has "skill: attempts line per retry" 'N. hypothesis → change → result' "$HL"
 has "skill: attempts in plan.md or attempts.md" '`## Attempts` in plan.md' "$HL"
 has "skill: attempts.md without a plan" '<state dir>/attempts.md' "$HL"
-has "skill: retry context carries the Attempts lines" 'the Attempts lines' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SK")"
+has "skill: retry context carries the Attempts lines" 'the Attempts lines' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SKD/retry.md")"
 has "skill: third failure of the same test or issue asks about the plan" 'whether the plan is wrong' "$HL"
 has "skill: orchestrator may write attempts.md" '`attempts.md`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
 has "skill: handoff schema allows root cause:" '- root cause: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: handoff schema has the developer self-check: line" '- self-check: <rule hit → fixed>; … | clean (developer only)' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
-has "skill: handoff Rules line names self-check:" '`root cause:` and `self-check:`' "$(grep '^Rules: omit empty fields' "$SK")"
+has "skill: handoff Rules line names self-check: and guidance:" '`root cause:`, `self-check:` and `guidance:`' "$(grep '^Rules: omit empty fields' "$SK")"
 has "developer: root cause on the second failure" '`root cause: <file:line' "$(cat "$ROOT/agents/developer.md")"
 README_STATE=$(cat "$ROOT/README.md")
 has "readme: attempts.md in the state table" '| `attempts.md` |' "$README_STATE"
@@ -843,6 +870,59 @@ R="$TMP/attempts"; new_repo "$R"; SD=$(bash "$H/state-dir.sh" --create "$R"); ec
 rs start small-change test-runner reviewer >/dev/null
 eq "run-state: start clears the previous run's attempts.md" absent "$([ -f "$SD/attempts.md" ] && echo present || echo absent)"
 rs abandon >/dev/null
+
+# --- modern web guidance: plan search, developer retrieve, reviewer legacy-scan ----------------
+PINS=$(grep -rhoE 'modern-web-guidance@[A-Za-z0-9.-]*[A-Za-z0-9]' "$ROOT/skills" "$ROOT/agents" "$ROOT/profiles" "$ROOT/README.md" "$ROOT/docs" | sort -u)
+eq "web guidance: one pinned version in skills, agents, profiles, README and docs" 1 "$(printf '%s\n' "$PINS" | grep -c .)"
+case "$PINS" in modern-web-guidance@[0-9]*.[0-9]*.[0-9]*) PASS=$((PASS + 1)) ;; *) eq "web guidance: pin is x.y.z" x.y.z "$PINS" ;; esac
+PIN=${PINS#modern-web-guidance@}
+eq "web guidance: no @latest" "" "$(grep -rl 'modern-web-guidance@latest' "$ROOT/skills" "$ROOT/agents" "$ROOT/profiles" "$ROOT/README.md" "$ROOT/docs")"
+eq "web guidance: no hook runs it" "" "$(grep -rl 'modern-web-guidance' "$H")"
+has "skill: plan Inputs has Web guidance" '- Web guidance: [guide ids, none, or unavailable]' "$(sed -n '/^## Inputs/,/^$/p' "$SKD/plan-gate.md")"
+WG=$(sed -n '/^### 4\.5\. Web Guidance Search/,/^### 5\./p' "$SK"; cat "$SKD/web-guidance.md")
+has "skill: search step sits after the API Spec Check" "### 4.5. Web Guidance Search" "$(sed -n '/^### 4\. API Spec Check/,/^### 5\./p' "$SK")"
+has "skill: search trigger is the web-frontend profile" '`detect-profile.sh` on the planned Affected Files includes `web-frontend`' "$WG"
+has "skill: search only when a plan.md is written" 'a `plan.md` will be written (never on the Small change path or for `review`)' "$WG"
+has "skill: search trigger skips non-UI work" 'not 3D/canvas-only, styling-token-only or tooling' "$WG"
+has "skill: search command pinned" "npx -y modern-web-guidance@$PIN search \"<2–5 word action query>\"" "$WG"
+has "skill: at most 3 searches" 'at most 3' "$WG"
+has "skill: search unavailable never blocks" 'or any other CLI error or timeout → stop searching at that first one, write `unavailable` and continue. Never ask the user, never retry in a loop' "$WG"
+has "skill: retries and reviewer carry guidance:" 'the same for the developer'"'"'s `guidance:` line whenever `Inputs.Web guidance` lists ids' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SKD/retry.md")"
+has "skill: handoff schema has guidance:" '- guidance: <id> applied | <id> not applied — <reason> (developer only, when Inputs.Web guidance lists ids)' \
+  "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
+DEVO=$(ec developer web-frontend 2>/dev/null); REVO=$(ec reviewer web-frontend 2>/dev/null)
+has "web guidance: developer retrieves the plan's ids" "npx -y modern-web-guidance@$PIN retrieve" "$DEVO"
+has "web guidance: developer reads a saved temp file in full" 'read that file in full' "$DEVO"
+EXEMPT="the plan, a stated browser policy, an existing repo or design-system component, this profile's rules, or an org rule"
+has "web guidance: developer precedence list" "Precedence: $EXEMPT win over a guide" "$DEVO"
+has "web guidance: guide CSS in the repo styling system" "write a guide's CSS in the repo's styling system and tokens (this profile's rules win)" "$DEVO"
+has "web guidance: retry keeps guidance:" 'On a retry, keep the `guidance:` line from the prompt; `retrieve` again only when the fix list names a guide or a `legacy-scan` finding' "$DEVO"
+has "web guidance: no dependency or polyfill" 'never adds a dependency or a polyfill unless the plan says so' "$DEVO"
+has "web guidance: Baseline default" 'Baseline Widely Available unless the org overlay or the repo states a browser policy' "$DEVO"
+has "web guidance: developer reports guidance:" '`guidance: <id> applied | <id> not applied — <reason>`' "$DEVO"
+has "web guidance: developer self-check scans each file, bounded" "run \`npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each added or modified UI file on its own (at most 5: the 5 with the most added lines)" "$DEVO"
+has "web guidance: developer scan unavailable goes to self-check" '`legacy-scan: unavailable` in the `self-check:` line, not `blockers`' "$DEVO"
+has "web guidance: developer checklist has the legacy-scan gate" '- `legacy-scan` finding on an ADDED line' "$DEVO"
+lacks "web guidance: reviewer's unavailable → blockers rule stays out of the developer checklist" \
+  '`legacy-scan: unavailable` in handoff `blockers`' "$(ckb web-frontend)"
+for f in web-frontend web-api web-common; do
+  has "$f: header table — #review reaches the developer checklist" '| `#review` | reviewer; developer (as its review checklist) |' "$(cat "$ROOT/profiles/$f.md")"
+done
+lacks "web guidance: reviewer never retrieves" "retrieve" "$REVO"
+has "web guidance: reviewer scans each UI file, never a directory" "npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each added or modified UI file on its own, never on a directory" "$REVO"
+has "web guidance: reviewer scans at most 5 files" 'at most 5 files — with more, scan the 5 with the most added lines and put `legacy-scan: 5 of N files` in handoff `blockers`' "$REVO"
+has "web guidance: reviewer UI file types" '`.tsx .jsx .vue .svelte .html .css .scss`' "$REVO"
+has "web guidance: added-line finding → FAIL [design]" "rubric → FAIL \`[design]\`, unless $EXEMPT requires that pattern; on unchanged lines → a \`defer\` issue" "$REVO"
+has "web guidance: unavailable is no FAIL" 'or any other CLI error or timeout) → `legacy-scan: unavailable` in handoff `blockers`, never a FAIL' "$REVO"
+has "web guidance: missing guidance: → FAIL [goal]" 'the developer handoff has no `guidance:` line → FAIL `[goal]` (patch)' "$REVO"
+README_WG=$(sed -n '/^## Modern web guidance/,/^## /p' "$ROOT/README.md")
+has "readme: Modern web guidance section" "## Modern web guidance" "$README_WG"
+has "readme: allowlist entry" "Bash(npx -y modern-web-guidance@$PIN *)" "$README_WG"
+has "readme: hooks never run it" 'Hooks never run it' "$README_WG"
+has "readme: token costs are estimates" 'Token cost (estimate, not measured)' "$README_WG"
+has "readme: each retry repeats the reviewer scan" "each retry repeats the reviewer's scan" "$README_WG"
+has "docs: flow names Web Guidance Search" 'Web Guidance Search' "$(cat "$ROOT/docs/skills.md")"
+has "changelog: names modern-web-guidance" 'modern-web-guidance' "$(sed -n '/^### v0\.7\.0/,/^### v0\.6/p' "$ROOT/CHANGELOG.md")"
 
 # --- post-tool-use: tsc count of errors in other files -------------------------------
 TP="$TMP/tsproj"; mkdir -p "$TP/src" "$TMP/fakebin"; echo '{}' > "$TP/package.json"; echo '{}' > "$TP/tsconfig.json"
@@ -1002,7 +1082,7 @@ has "run-stats: per-agent share and median seconds" "per agent (subagents only):
 has "run-stats: old lines unchanged with agent data" "limit reached: 0" "$OUT"
 
 # --- agent usage (SubagentStart / SubagentStop) --------------------------------------------
-R="$TMP/agentrepo"; new_repo "$R"; SD=$(bash "$H/state-dir.sh" "$R"); AF="$SD/run-state.json"; AG="$SD/agents.json"; ALOG="$REVIEW_HARNESS_HOME/state/runs.jsonl"
+R="$TMP/agentrepo"; new_repo "$R"; SD=$(bash "$H/state-dir.sh" "$R"); AF="$SD/run-state.json"; AG="$SD/agents.jsonl"; ALOG="$REVIEW_HARNESS_HOME/state/runs.jsonl"
 TR="$TMP/agent.jsonl"   # m1 repeats on two lines (one per content block); a <synthetic> model line; the last line is torn
 cat > "$TR" <<'EOF'
 {"type":"user","message":{"role":"user","content":"go"}}
@@ -1018,7 +1098,11 @@ au() { # au <event> <agent_id> [agent_type] [transcript] — run agent-usage.sh 
     '{session_id:"s", transcript_path:"/x", cwd:$d, hook_event_name:$e, agent_id:$id, agent_type:$t}
      + (if $e == "SubagentStop" then {stop_hook_active:false, agent_transcript_path:$tp, last_assistant_message:"done"} else {} end)' \
     | bash "$H/agent-usage.sh"; }
-aj() { jq -c "$1" "$AG"; }
+aj() { rs agents | jq -c "$1"; }
+agent_age() { # agent_age <id> <seconds> — move the id's last start line back by <seconds>
+  jq -Rrs --arg id "$1" --argjson by "$2" '[split("\n")[] | select(length > 0)] as $l
+    | ([range($l | length) | select($l[.] | fromjson? | .e == "start" and .id == $id)] | last) as $i
+    | $l | .[$i] |= (fromjson | .ts -= $by | tojson) | .[]' "$AG" > "$AG.x" && mv "$AG.x" "$AG"; }
 age() { jq --argjson by "$2" "$1 -= \$by" "$3" > "$3.x" && mv "$3.x" "$3"; }   # age <path> <seconds> <file>
 gatefields() { jq -c '{review, verdicts, tests, attempts, updated_at}' "$AF"; }
 exists() { [ -e "$1" ] && echo true || echo false; }
@@ -1029,52 +1113,57 @@ rs start feature developer reviewer >/dev/null
 age .updated_at 100 "$AF"; G0=$(gatefields)
 OUT=$(au SubagentStart a1); RC=$?
 eq "agent-usage: start → silent, exit 0" "0:" "$RC:$OUT"
-eq "agent-usage: start opens a span in agents.json, type without plugin prefix" '{"type":"developer","open":true,"s":0}' "$(aj '.a1 | {type, open: (.open | type == "number"), s}')"
-age .a1.open 5 "$AG"; OUT=$(au SubagentStop a1); RC=$?
+eq "agent-usage: start opens a span in agents.jsonl, type without plugin prefix" '{"type":"developer","open":true,"s":0}' "$(aj '.a1 | {type, open: (.open | type == "number"), s}')"
+agent_age a1 5; OUT=$(au SubagentStop a1); RC=$?
 eq "agent-usage: stop → silent, exit 0" "0:" "$RC:$OUT"
 eq "agent-usage: run-state.json (gate fields, updated_at) untouched by start/stop" "$G0" "$(gatefields)"
 eq "agent-usage: run-state.json holds no agent data" false "$(jq 'has("agents")' "$AF")"
 eq "agent-usage: stop → deduplicated tokens, tools, model (not <synthetic>), span closed" '{"model":"claude-x","in":11,"out":7,"cr":103,"cw":24,"tools":2,"open":null}' \
   "$(aj '.a1 | {model, in, out, cr, cw, tools, open}')"
 eq "agent-usage: stop → active seconds" true "$(aj '.a1.s >= 5 and .a1.s < 60')"
-au SubagentStart a1; age .a1.open 3 "$AG"; au SubagentStop a1
+au SubagentStart a1; agent_age a1 3; au SubagentStop a1
 eq "agent-usage: resume → tokens replaced, not added" '{"in":11,"out":7,"tools":2}' "$(aj '.a1 | {in, out, tools}')"
 eq "agent-usage: resume → second span added" true "$(aj '.a1.s >= 8 and .a1.s < 60')"
-OUT=$(au SubagentStop a9); RC=$?
+N0=$(wc -l < "$AG"); OUT=$(au SubagentStop a9); RC=$?
 eq "agent-usage: unknown agent_id → silent, exit 0" "0:" "$RC:$OUT"
+eq "agent-stop: unknown id exits early, nothing appended to agents.jsonl" "$N0" "$(wc -l < "$AG")"
 eq "agent-usage: unknown agent_id → no entry" null "$(aj '.a9')"
-au SubagentStart a2 review-harness:reviewer; age .a2.open 2 "$AG"
+au SubagentStart a2 review-harness:reviewer; agent_age a2 2
 OUT=$(au SubagentStop a2 review-harness:reviewer "$TMP/missing.jsonl"); RC=$?
 eq "agent-usage: missing transcript → silent, exit 0" "0:" "$RC:$OUT"
 eq "agent-usage: missing transcript → span kept, no tokens" '{"type":"reviewer","in":0,"time":true}' "$(aj '.a2 | {type, in, time: (.s >= 2)}')"
 au SubagentStart a3 test-runner   # bare agent type (matcher allows it)
 eq "agent-usage: bare agent type kept" '"test-runner"' "$(aj '.a3.type')"
-for i in 1 2 3 4 5 6; do au SubagentStart "p$i" & done; wait
-eq "agent-usage: parallel starts all recorded" 6 "$(aj '[keys[] | select(startswith("p"))] | length')"
-jq 'with_entries(select(.key | startswith("p") | not))' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
-mkdir "$AG.lock"; touch -t 202001010000 "$AG.lock"; au SubagentStart s1
-eq "agent-usage: lock over a minute old is broken" '"s1:false"' "$(aj '"s1:" + (.s1 == null | tostring)')"
-eq "agent-usage: broken lock released" false "$(exists "$AG.lock")"
-jq 'del(.s1)' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do { au SubagentStart "p$i"; au SubagentStop "p$i"; } & done; wait
+eq "agent-usage: 12 parallel starts + interleaved stops all recorded and closed" 12 \
+  "$(aj '[to_entries[] | select(.key | startswith("p")) | select(.value.open == null and .value.in == 11)] | length')"
+grep -v '"id":"p' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
+printf '{"e":"start","id":"t\n' >> "$AG"   # a torn line (killed writer)
+au SubagentStart t1; au SubagentStop t1
+eq "agent-usage: torn line skipped, next line still read" '{"open":null,"in":11}' "$(aj '.t1 | {open, in}')"
+printf '{"e":"stop","id":"z9","ts":1,"u":{"in":5}}\n' >> "$AG"
+eq "agent-usage: stop with no earlier start ignored by the fold" null "$(aj '.z9')"
+grep -v -e '"id":"t' -e '"id":"z9"' "$AG" > "$AG.x" && mv "$AG.x" "$AG"
 OUT=$(printf '{"hook_event_name":"SubagentStart"}' | PATH="$TMP/nojq" "$BASH" "$H/agent-usage.sh" 2>&1); RC=$?
 eq "agent-usage: no jq → silent, exit 0" "0:" "$RC:$OUT"
 OUT=$(printf 'not json' | bash "$H/agent-usage.sh" 2>&1); RC=$?
 eq "agent-usage: bad input → silent, exit 0" "0:" "$RC:$OUT"
 has "status: agent count" " · agents 3" "$(rs status)"
 rs done >/dev/null
-eq "agents.json: removed by done" false "$(exists "$AG")"
+eq "agents.jsonl: removed by done" false "$(exists "$AG")"
 eq "run log: agents grouped by type" '[{"type":"developer","n":1,"in":11,"out":7,"cr":103,"cw":24,"tools":2},{"type":"reviewer","n":1,"in":0,"out":0,"cr":0,"cw":0,"tools":0},{"type":"test-runner","n":1,"in":0,"out":0,"cr":0,"cw":0,"tools":0}]' \
   "$(tail -n 1 "$ALOG" | jq -c '[.agents[] | del(.s)]')"
 eq "run log: agent seconds summed" true "$(tail -n 1 "$ALOG" | jq '(.agents[0].s >= 8) and (.agents[1].s >= 2)')"
 eq "run log: run token totals" '{"in":11,"out":7,"cr":103,"cw":24}' "$(tail -n 1 "$ALOG" | jq -c .tokens)"
-echo '{"x":{"type":"developer","s":1,"in":1,"out":1,"cr":0,"cw":0,"tools":0}}' > "$AG"   # left over from a closed run
+echo '{"e":"start","id":"x","t":"developer","ts":1}' > "$AG"   # left over from a closed run
+echo '{}' > "$SD/agents.json"; mkdir "$SD/agents.json.lock"   # left over from an older version
 rs start feature >/dev/null
-eq "agents.json: removed by start" false "$(exists "$AG")"
+eq "agents.jsonl + old agents.json/lock: removed by start" "false false false" "$(exists "$AG") $(exists "$SD/agents.json") $(exists "$SD/agents.json.lock")"
 rs done >/dev/null
 eq "run log: no agent data → no agents/tokens keys" false "$(tail -n 1 "$ALOG" | jq 'has("agents") or has("tokens")')"
 lacks "status: no agent data → no agent count" "agents" "$(rs start feature >/dev/null; rs status)"
-au SubagentStart b1; rs abandon >/dev/null
-eq "agents.json: removed by abandon" false "$(exists "$AG")"
+au SubagentStart b1; echo '{}' > "$SD/agents.json"; mkdir "$SD/agents.json.lock"; rs abandon >/dev/null
+eq "agents.jsonl + old agents.json/lock: removed by abandon" "false false false" "$(exists "$AG") $(exists "$SD/agents.json") $(exists "$SD/agents.json.lock")"
 rs start feature >/dev/null; age .updated_at 200000 "$AF"; G0=$(gatefields)
 eq "agent-usage: stale run → check --active-only exit 4 (before)" 4 "$(rc rs check --active-only)"
 OUT=$(au SubagentStart s1); RC=$?
@@ -1449,6 +1538,439 @@ has "rtk-wrap: '--' passed through unchanged" "deleted file mode" "$OUT"
 lacks "rtk-wrap: '--' runs raw" "RTK-RAN" "$OUT"
 has "rtk-wrap: no '--' → still through rtk" "RTK-RAN" "$(rw standard git status --short)"
 eq "rtk-wrap: aggressive → --ultra-compact" "RTK-RAN --ultra-compact" "$(rw aggressive git status --short | head -n 1)"
+
+# --- static-gates -------------------------------------------------------------------------
+# Fixture lines that would trip the gates are split in this file (TO''DO, `%s` for `||`), so the script run on this
+# repo's own diff stays quiet.
+sg() { (cd "$R" && bash "$H/static-gates.sh" "$@" 2>&1); }
+sgx() { (cd "$R" && bash "$H/static-gates.sh" "$@" >/dev/null 2>&1); echo $?; }
+cm() { git -C "$R" add -A && git -C "$R" -c user.name=t -c user.email=t@t.t commit -qm "$1"; }
+R="$TMP/sg"; new_repo "$R"
+eq "static-gates: a plain text edit → no output" "" "$(sg)"
+eq "static-gates: no hit → exit 0" 0 "$(sgx)"
+mkdir -p "$R/src/__tests__" "$R/tests" "$R/test" "$R/config" "$R/sp ace"
+printf 'console.log("old")\nconst a = 1\n' > "$R/src/a.ts"
+printf 'x\n' > "$R/sp ace/f s.ts"
+printf 'console.log(1)\n' > "$R/src/gone.ts"
+printf 'console.log("kept")\n' > "$R/src/kept.ts"
+printf 'a\nb\nc\nd\ne\n' > "$R/src/ctx.ts"
+printf 'K=1\n' > "$R/.env.prod"
+printf '\000console.log(\n' > "$R/tracked.bin.js"
+git -C "$R" config diff.interHunkContext 10
+cm base; SGBASE=$(git -C "$R" rev-parse HEAD)
+printf 'console.log("late")\n' > "$R/src/late.ts"; cm late
+# the change: staged, unstaged, untracked and deleted files
+printf 'const a = 1\nconst b = 2\nconsole.log(b)\n' > "$R/src/a.ts"
+rm "$R/src/gone.ts" "$R/.env.prod"
+printf 'console.log(2)\n' >> "$R/sp ace/f s.ts"
+printf 'console.log(3)\n' > "$R/sp ace/new one.ts"
+for f in src/__tests__/t.ts src/b.test.ts src/b.spec.tsx tests/x.js test/y.js notes.md; do printf 'console.log(4)\n' > "$R/$f"; done
+printf '\000console.log(\n' > "$R/bin.js"; printf '\001\000console.log(5)\n' >> "$R/tracked.bin.js"
+: > "$R/.env.local"; : > "$R/config/.env"; : > "$R/.env.example"; : > "$R/.env.sample"; : > "$R/.env.template"
+: > "$R/.env.test.development.example"
+OR='||'; NN='??'
+printf 'const k = process.env.API_KEY %s "sk-1"\nconst e = process.env.EMPTY %s %s\nconst t = process.env.TOKEN %s %s\n' \
+  "$OR" "$OR" "''" "$NN" "'abc'" > "$R/src/c.ts"
+printf 'const n = process.env.NODE_ENV %s %s\nconst m = process.env.apiKey %s %s\n' "$OR" "'local'" "$OR" "'x'" >> "$R/src/c.ts"
+printf 'const a = process.env.NODE_ENV %s %s, b = process.env.API_KEY %s %s\n' "$OR" "'a'" "$NN" "'b'" >> "$R/src/c.ts"   # :6
+SG_NOTES='HOTKEY_LAYOUT KEYBOARD_MODE MONKEY KEYCLOAK_URL TOKENIZER'; SG_HARDS='JWT_SECRET GITHUB_TOKEN PRIVATE_KEY SENDGRID_APIKEY APIKEY API_KEYS TOKENS AUTH_TOKENS JWT_SECRETS PASSWORDS X_API_KEY2'
+for v in $SG_NOTES $SG_HARDS; do   # :7 …
+  printf 'const v = process.env.%s %s %s\n' "$v" "$OR" "'v'" >> "$R/src/c.ts"
+done
+printf 'Flag `process.env.X %s %s`\n' "$OR" "'<value>'" > "$R/doc.md"
+printf 'A\nb\nc\nd\nconsole.log(e)\n' > "$R/src/ctx.ts"
+printf 'x\n' > "$R/-"
+mkdir -p "$R/nested"; git -C "$R/nested" init -q; printf 'console.log(9)\n' > "$R/nested/n.ts"
+git -C "$R" add src/c.ts
+printf '// %s later\nconst %s = 1\n' 'TO''DO' 'TO''DOS' > "$R/src/d.ts"
+printf 'export function lonelyFn() {}\nexport const usedThing = 1\nexport default function Page() {}\nexport class Tested {}\nexport async function asyncLone() {}\n' > "$R/src/e.ts"
+printf "import { usedThing } from './e'\n" > "$R/src/use.ts"
+printf 'new Tested()\n' > "$R/src/e.test.ts"
+printf 'let i = 0\n++i; console.log(i)\n' > "$R/src/plus.ts"
+ST0=$(git -C "$R" status --porcelain); IX0=$(cksum < "$R/.git/index")
+OUT=$(sg); RC=$(sgx)
+eq "static-gates: real index untouched" "$IX0" "$(cksum < "$R/.git/index")"
+eq "static-gates: git status unchanged" "$ST0" "$(git -C "$R" status --porcelain)"
+eq "static-gates: hard hit → exit 1" 1 "$RC"
+has "static-gates: console.log on its new line number" "hard [ops] src/a.ts:3 — no console.log in production code" "$OUT"
+eq "static-gates: removed line not reported (one hit in src/a.ts, on its new line)" \
+  "hard [ops] src/a.ts:3 — no console.log in production code" "$(printf '%s\n' "$OUT" | grep ' src/a.ts:')"
+lacks "static-gates: unchanged file not reported" "kept.ts" "$OUT"
+has "static-gates: context lines from diff.interHunkContext count" "hard [ops] src/ctx.ts:5 — no console.log" "$OUT"
+has "static-gates: a file named - does not swallow the untracked files after it" "hard [ops] src/plus.ts:2" "$OUT"
+lacks "static-gates: a nested repo is skipped" "nested" "$OUT"
+lacks "static-gates: deleted file not reported" "gone.ts" "$OUT"
+lacks "static-gates: deleted .env not reported" ".env.prod" "$OUT"
+has "static-gates: tracked path with spaces" "hard [ops] sp ace/f s.ts:2 — no console.log" "$OUT"
+has "static-gates: untracked path with spaces" "hard [ops] sp ace/new one.ts:1 — no console.log" "$OUT"
+for f in src/__tests__/t.ts src/b.test.ts src/b.spec.tsx tests/x.js test/y.js notes.md bin.js tracked.bin.js; do
+  lacks "static-gates: no console.log hit in $f" "$f:" "$OUT"
+done
+has "static-gates: an added line starting with ++ is still an added line" "hard [ops] src/plus.ts:2 — no console.log" "$OUT"
+has "static-gates: untracked .env.local" "hard [security] .env.local:1 — .env file in the change" "$OUT"
+has "static-gates: .env by basename" "hard [security] config/.env:1 — .env file in the change" "$OUT"
+for f in .env.example .env.sample .env.template .env.test.development.example; do lacks "static-gates: $f passes" "$f" "$OUT"; done
+has "static-gates: || fallback literal (staged)" "hard [security] src/c.ts:1 — secret fallback literal" "$OUT"
+lacks "static-gates: empty fallback passes" "src/c.ts:2 " "$OUT"
+has "static-gates: ?? fallback literal" "hard [security] src/c.ts:3 — secret fallback literal" "$OUT"
+has "static-gates: a non-secret name is a note" "note [security] src/c.ts:4 — literal fallback for an env var" "$OUT"
+has "static-gates: camelCase secret name (apiKey)" "hard [security] src/c.ts:5 — secret fallback literal" "$OUT"
+has "static-gates: every fallback on a line is classified, not only the first" "hard [security] src/c.ts:6 — secret fallback literal" "$OUT"
+eq "static-gates: one hit per fallback line" 1 "$(printf '%s\n' "$OUT" | grep -c ' src/c.ts:6 ')"
+L=7; for v in $SG_NOTES; do
+  has "static-gates: $v is a note (KEY only as a whole segment)" "note [security] src/c.ts:$L — literal fallback for an env var" "$OUT"; L=$((L + 1))
+done
+for v in $SG_HARDS; do
+  has "static-gates: $v is hard" "hard [security] src/c.ts:$L — secret fallback literal" "$OUT"; L=$((L + 1))
+done
+has "static-gates: header names the git version" 'git ≥ 2.25' "$(sed -n '2,20p' "$H/static-gates.sh")"
+has "static-gates: a doc quoting the rule is a note" "note [security] doc.md:1 — literal fallback" "$OUT"
+lacks "static-gates: a doc quoting the rule is not hard" "hard [security] doc.md" "$OUT"
+has "static-gates: TO""DO note" "note [goal] src/d.ts:1 — " "$OUT"
+lacks "static-gates: TO""DO is matched as a whole word" "src/d.ts:2 " "$OUT"
+has "static-gates: export with no caller" "note [goal] src/e.ts:1 — new export with no caller: lonelyFn" "$OUT"
+lacks "static-gates: export used in another file" "usedThing" "$OUT"
+has "static-gates: export default function" "note [goal] src/e.ts:3 — new export with no caller: Page" "$OUT"
+lacks "static-gates: a test file is a caller" "Tested" "$OUT"
+has "static-gates: export async function" "note [goal] src/e.ts:5 — new export with no caller: asyncLone" "$OUT"
+lacks "static-gates: commits before the base are not reported without a base" "late.ts" "$OUT"
+eq "static-gates: every line is a hit line" 0 \
+  "$(printf '%s\n' "$OUT" | grep -cvE '^(hard|note) \[[a-z]+\] .+:[0-9]+ — ')"
+eq "static-gates: same output from a subdirectory" "$OUT" "$(cd "$R/src" && bash "$H/static-gates.sh" 2>&1)"
+OUTB=$(sg "$SGBASE")
+has "static-gates: base → commits since the base" "hard [ops] src/late.ts:1 — no console.log" "$OUTB"
+has "static-gates: base → plus the working tree" "hard [ops] src/a.ts:3 — no console.log" "$OUTB"
+has "static-gates: base → plus untracked" "hard [security] .env.local:1" "$OUTB"
+lacks "static-gates: base → nothing before the base" "kept.ts" "$OUTB"
+R="$TMP/sg-notes"; new_repo "$R"; printf 'const %s = 1\n' 'TO''DO' > "$R/notes-only.ts"
+OUT=$(sg)
+has "static-gates: notes only → still reported" "note [goal] notes-only.ts:1" "$OUT"
+eq "static-gates: notes only → exit 0" 0 "$(sgx)"
+eq "static-gates: two arguments → exit 2" 2 "$(sgx a b)"
+eq "static-gates: unknown base → exit 2" 2 "$(sgx no-such-ref)"
+eq "static-gates: option-like base → exit 2" 2 "$(sgx --help)"
+mkdir -p "$TMP/sg-nogit"; eq "static-gates: outside a git repo → exit 2" 2 "$(cd "$TMP/sg-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/static-gates.sh" >/dev/null 2>&1; echo $?)"
+R="$TMP/sg-nonutf"; new_repo "$R"; printf 'const s = "\377"\nconsole.log(1)\n' > "$R/n.ts"
+OUT=$(cd "$R" && LC_ALL=C.UTF-8 bash "$H/static-gates.sh" 2>&1); RC=$?
+has "static-gates: a non-UTF-8 byte does not end the parse" "hard [ops] n.ts:2 — no console.log" "$OUT"
+eq "static-gates: a non-UTF-8 byte → still exit 1" 1 "$RC"
+R="$TMP/sg-clean"; new_repo "$R"; cm clean
+eq "static-gates: success → nothing on stderr (git's add -N chatter is kept back)" "" "$(cd "$R" && bash "$H/static-gates.sh" 2>&1 >/dev/null)"
+eq "static-gates: clean tree, nothing untracked → exit 0, no output" "0:" "$(sgx):$(sg)"
+# An internal git failure is exit 2 with one stderr line, never a silent clean 0.
+printf 'console.log(1)\n' > "$R/u.ts"
+mkdir -p "$TMP/sg-gitfail"; REALGIT=$(command -v git)
+printf '#!/bin/sh\ncase " $* " in *" add -N "*) exit 128 ;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$TMP/sg-gitfail/git"; chmod +x "$TMP/sg-gitfail/git"
+OUT=$(cd "$R" && PATH="$TMP/sg-gitfail:$PATH" bash "$H/static-gates.sh" 2>&1 >/dev/null); RC=$?
+eq "static-gates: git add -N fails → exit 2" 2 "$RC"
+eq "static-gates: git add -N fails → last stderr line names the command" "static-gates: git add -N failed (see the git error above)" "$(printf '%s\n' "$OUT" | tail -n 1)"
+chmod 000 "$R/u.ts"
+if [ -r "$R/u.ts" ]; then PASS=$((PASS + 3))   # root reads it anyway: nothing to test
+else
+  OUT=$(cd "$R" && bash "$H/static-gates.sh" 2>&1 >/dev/null); RC=$?
+  eq "static-gates: unreadable untracked file → exit 2" 2 "$RC"
+  has "static-gates: unreadable untracked file → git's own error shown" "Permission denied" "$OUT"
+  eq "static-gates: unreadable untracked file → last line names the command" "static-gates: git diff failed (see the git error above)" "$(printf '%s\n' "$OUT" | tail -n 1)"
+fi
+chmod 644 "$R/u.ts"
+R="$TMP/sg-sparse"; mkdir -p "$R/in" "$R/out"; git -C "$R" init -q; echo a > "$R/in/a.txt"; echo b > "$R/out/b.txt"; cm init
+git -C "$R" sparse-checkout set --cone in
+mkdir -p "$R/out"; printf 'x\n' > "$R/out/new.txt"; printf 'console.log(1)\n' > "$R/in/x.ts"
+OUT=$(sg); RC=$(sgx)
+eq "static-gates: sparse checkout, untracked file outside the cone → no exit 2" 1 "$RC"
+has "static-gates: sparse checkout → in-cone hard hit reported" "hard [ops] in/x.ts:1 — no console.log" "$OUT"
+eq "static-gates: umask 077 for its temp files" 1 "$(grep -c '^umask 077' "$H/static-gates.sh")"
+for f in README.md profiles/web-frontend.md; do lacks "$f: no 'each changed UI file'" "each changed UI file" "$(cat "$ROOT/$f")"; done
+R="$TMP/sg-nohead"; mkdir -p "$R"; git -C "$R" init -q
+printf 'console.log(1)\n' > "$R/staged.ts"; git -C "$R" add staged.ts
+printf 'x\nconsole.log(2)\n' > "$R/loose file.ts"
+OUT=$(sg)
+has "static-gates: no HEAD → tracked file counts as added" "hard [ops] staged.ts:1 — no console.log" "$OUT"
+has "static-gates: no HEAD → untracked file counts as added" "hard [ops] loose file.ts:2 — no console.log" "$OUT"
+eq "static-gates: no HEAD → exit 1" 1 "$(sgx)"
+eq "static-gates: no HEAD with a base → exit 2" 2 "$(sgx main)"
+lacks "static-gates: never runs npx" "npx" "$(grep -v '^#' "$H/static-gates.sh")"
+has "developer: self-check runs static-gates.sh" 'run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"`' "$(cat "$ROOT/agents/developer.md")"
+has "reviewer: static gates run the script first" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"`' "$(sed -n '/^## Static Review Gates/,/^## Constraints/p' "$ROOT/agents/reviewer.md")"
+has "reviewer: note hits are never an automatic FAIL" '`note` hits feed the Goal gate' "$(cat "$ROOT/agents/reviewer.md")"
+has "docs/hooks.md: static-gates row" '| **`static-gates.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
+has "docs/hooks.md: torn line skipped and the next append can be lost" \
+  'a torn line is skipped, and a writer killed mid-line can also lose the next append' "$(cat "$ROOT/docs/hooks.md")"
+has "readme: static-gates example" 'bash hooks/static-gates.sh' "$(cat "$ROOT/README.md")"
+
+# --- risk-tier ----------------------------------------------------------------------------
+rt() { (cd "$R" && bash "$H/risk-tier.sh" "$@" 2>&1); }
+rtx() { (cd "$R" && bash "$H/risk-tier.sh" "$@" >/dev/null 2>&1); echo $?; }
+RTN=0
+rtrepo() { R="$TMP/rt-$RTN"; RTN=$((RTN + 1)); new_repo "$R"; git -C "$R" checkout -q -- f.txt; }
+# rtin <name> <tier> <path> [line...] — a fresh repo whose only change is the untracked <path> holding the lines
+rtin() {
+  local n=$1 t=$2 p=$3; shift 3; [ $# -eq 0 ] && set -- x
+  rtrepo; mkdir -p "$R/$(dirname "$p")"; printf '%s\n' "$@" > "$R/$p"
+  eq "risk-tier: $n → $t" "$t" "$(rt | head -n 1)"
+}
+lines() { i=0; while [ "$i" -lt "$1" ]; do echo "line $i"; i=$((i + 1)); done; }
+rtin "a one-line file" low src/plain.ts 'const a = 1'
+rtin "auth path segment" high src/auth/index.ts
+rtin "camelCase auth path" high src/AuthService.ts
+rtin "upper-case session path" high src/SESSION/store.ts
+rtin "tokenizer path is not auth" low src/tokenizer.ts
+rtin "author path is not auth" low src/author.ts
+rtin "token on an added line" high src/a.ts 'const t = getToken()'
+rtin "SNAKE_CASE token" high src/a.ts 'const k = env.API_TOKEN'
+rtin "tokenizer on an added line is not auth" low src/a.ts 'const tokenizer = 1'
+for w in session permissions roles ACLs rbac authorization oauth OAuth2 password passwd JWT login logout credentials; do
+  rtin "$w on an added line" high src/a.ts "use $w here"
+done
+rtin "an ARIA role attribute is not auth" low src/a.tsx '<div role="dialog" />'
+rtin "getByRole( is not auth" low src/a.test.tsx 'screen.getByRole("button")'
+rtin "a role check is auth" high src/a.ts 'if (user.role !== "admin") deny()'
+rtin "a role guard path is auth" high src/guards/role.guard.ts
+rtin "payment path" high src/payment/api.ts
+for w in billing invoice stripe refunds; do rtin "$w on an added line" high src/a.ts "go($w)"; done
+rtin "sparse-checkout is not a payment term" low src/a.sh 'git sparse-checkout set src'
+rtin "git checkout is not a payment term" low src/a.sh 'git checkout main'
+rtin "actions/checkout is not a payment term" low src/ci.yml '- uses: actions/checkout@v4'
+rtin "an actions/checkout.ts path is payment" high app/actions/checkout.ts
+rtin "an import from @/actions/checkout is payment" high src/a.ts 'import { go } from "@/actions/checkout"'
+rtin "a checkout path is payment" high src/checkout/CheckoutPage.tsx
+rtin "a checkout call is payment" high src/a.ts 'submitCheckout(cart)'
+rtin "migrations/ path" high db/migrations/001.js
+rtin "migration/ path" high db/Migration/001.js
+rtin "*.sql path, any case" high db/Schema.SQL
+for w in lock mutex Semaphore workers queue concurrency; do rtin "$w on an added line" high src/a.ts "a $w b"; done
+for w in clock blocking; do rtin "$w is not a concurrency word" low src/a.ts "a $w b"; done
+rtin "parser path" high src/parser.ts
+rtin "deserialize on an added line" high src/a.ts 'deserializeUser(x)'
+rtin "parseInt is not a parser term" low src/a.ts 'parseInt(x)'
+rtin "root hooks/ path" high hooks/pre-commit
+rtin "a nested hooks/ folder is not the hooks dir" low src/hooks/useThing.ts
+rtin ".github/workflows/ path" high .github/workflows/ci.yml
+rtin "*gate* name" high scripts/commit-gate.sh
+rtin "Gates in camelCase name" high src/ReviewGates.ts
+for f in src/navigate.ts src/aggregate.ts; do rtin "$f is not a gate" low "$f"; done
+RTW='Rotate the token, take the lock, end the session.'
+rtin "high words on added doc lines do not count (.md)" low README.md "$RTW"
+for f in notes.txt guide.rst page.mdx; do rtin "high words on added doc lines do not count ($f)" low "$f" "$RTW"; done
+rtin "the same words in a code file → high" high src/a.ts "$RTW"
+rtin "a doc path still counts" high docs/auth.md
+rtin "a non-doc file under docs/ is word-scanned" high docs/plain.yml "$RTW"
+rtin "code under a docs/ folder is word-scanned" high app/docs/page.tsx 'const t = getToken()'
+rtin "CMakeLists.txt is not a doc" high CMakeLists.txt 'find_package(mutex)'
+rtrepo; mkdir -p "$R/docs/img"; for n in 1 2 3; do printf 'p\n' > "$R/docs/img/$n.svg"; done; printf 'text\n' > "$R/docs/guide.md"
+eq "risk-tier: images under docs/ plus a doc → low (docs only)" low "$(rt | head -n 1)"
+rtrepo; mkdir -p "$R/app/docs"; lines 60 > "$R/app/docs/page.tsx"
+eq "risk-tier: plain code under docs/ is not docs-only → normal" normal "$(rt)"
+rtrepo; printf 'requests==2.0\n' > "$R/requirements.txt"; OUT=$(rt)
+eq "risk-tier: requirements.txt → normal (not docs-only)" normal "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: requirements.txt → dependency reason" "reason: dependency change" "$OUT"
+# lockfiles: never a lock/word hit, but a dependency change is at least normal
+for f in package-lock.json yarn.lock pnpm-lock.yaml bun.lock bun.lockb Cargo.lock poetry.lock Gemfile.lock composer.lock go.sum sub/yarn.lock Pipfile.lock uv.lock any.lock constraints.txt; do
+  rtin "lockfile $f with high words → normal" normal "$f" 'proper-lockfile worker token mutex'
+done
+rtrepo; printf '{"version": "1.0.1"}\n' > "$R/package.json"; printf 'lock\n' > "$R/package-lock.json"; OUT=$(rt)
+eq "risk-tier: manifest + lockfile bump → normal" normal "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: dependency change → reason" "reason: dependency change" "$OUT"
+lacks "risk-tier: lockfile → no concurrency reason" "concurrency" "$OUT"
+rtin "a non-lockfile lock name still counts" high src/lock.ts
+rtrepo; mkdir -p "$R/src"; printf 'x\n' > "$R/src/auth.ts"; printf 'x\n' > "$R/yarn.lock"; OUT=$(rt)
+eq "risk-tier: lockfile plus a high path → high" high "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: high keeps the dependency reason" "reason: dependency change" "$OUT"
+# multi-file changes
+rtrepo; mkdir -p "$R/docs/deep"; lines 40 > "$R/README.md"; lines 40 > "$R/docs/deep/guide.txt"; lines 40 > "$R/notes.MD"
+OUT=$(rt)
+eq "risk-tier: docs only → low" low "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: docs only → reason" "reason: docs or tests only" "$OUT"
+lacks "risk-tier: docs only, 120 lines → no small-change reason" "small change" "$OUT"
+rtrepo; mkdir -p "$R/src/__tests__" "$R/test" "$R/tests/unit"
+for f in src/a.test.ts src/b.spec.tsx src/__tests__/c.js test/d.py tests/unit/e.sh; do lines 40 > "$R/$f"; done
+eq "risk-tier: tests only → low" low "$(rt | head -n 1)"
+rtrepo; mkdir -p "$R/src"; lines 3 > "$R/README.md"; lines 3 > "$R/src/x.ts"; lines 3 > "$R/src/y.ts"
+eq "risk-tier: docs plus 2 code files → normal, no reason lines" normal "$(rt)"
+rtrepo; mkdir -p "$R/src"; lines 3 > "$R/src/x.ts"; lines 3 > "$R/src/y.ts"
+OUT=$(rt)
+eq "risk-tier: 2 files, 6 lines → low" low "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: small change → reason" "reason: small change: 2 files, 6 added lines" "$OUT"
+rtrepo; lines 30 > "$R/x.ts"; eq "risk-tier: 30 added lines → low" low "$(rt | head -n 1)"
+rtrepo; lines 31 > "$R/x.ts"; eq "risk-tier: 31 added lines → normal" normal "$(rt | head -n 1)"
+rtrepo; echo c >> "$R/f.txt"; eq "risk-tier: a tracked edit counts" low "$(rt | head -n 1)"
+rtrepo; for i in 1 2 3 4 5 6 7 8 9; do echo x > "$R/n$i.ts"; done
+eq "risk-tier: 9 files → normal" normal "$(rt | head -n 1)"
+echo x > "$R/n10.ts"; OUT=$(rt)
+eq "risk-tier: 10 files → high" high "$(printf '%s\n' "$OUT" | head -n 1)"
+has "risk-tier: 10 files → reason" "reason: 10 files changed" "$OUT"
+rtrepo; mkdir -p "$R/hooks"; echo x > "$R/hooks/x.sh"; cm hooks; rm "$R/hooks/x.sh"
+eq "risk-tier: a deleted hooks/ file → high" high "$(rt | head -n 1)"
+rtrepo; mkdir -p "$R/src/auth"; printf 'const t = getToken()\n' > "$R/src/auth/a.ts"; printf 'mutex\n' > "$R/src/b.ts"
+OUT=$(rt)
+has "risk-tier: auth reason names the path" "reason: auth/session term (auth) in src/auth/a.ts" "$OUT"
+has "risk-tier: concurrency reason names the file of the added line" "reason: concurrency term (mutex) in src/b.ts" "$OUT"
+eq "risk-tier: every line after the first is a reason" 0 "$(printf '%s\n' "$OUT" | sed 1d | grep -cv '^reason: ')"
+ST0=$(git -C "$R" status --porcelain); IX0=$(cksum < "$R/.git/index")
+eq "risk-tier: high → exit 0" 0 "$(rtx)"
+eq "risk-tier: real index untouched" "$IX0" "$(cksum < "$R/.git/index")"
+eq "risk-tier: git status unchanged" "$ST0" "$(git -C "$R" status --porcelain)"
+eq "risk-tier: same output from a subdirectory" "$OUT" "$(cd "$R/src" && bash "$H/risk-tier.sh" 2>&1)"
+# committed change: seen only with a base
+rtrepo; RTB=$(git -C "$R" rev-parse HEAD); mkdir -p "$R/src"; echo x > "$R/src/billing.ts"; cm billing
+eq "risk-tier: committed change, no base → normal (an empty change is never low)" normal "$(rt)"
+eq "risk-tier: committed change with a base → high" high "$(rt "$RTB" | head -n 1)"
+rtrepo; mkdir -p "$R/src"; echo x > "$R/src/auth.ts"; cm auth; RTB=$(git -C "$R" rev-parse HEAD)
+git -C "$R" mv src/auth.ts src/plain.ts; cm move
+eq "risk-tier: a committed move keeps its old path (auth.ts → plain.ts) → high" high "$(rt "$RTB" | head -n 1)"
+# A 5 MB minified line: only its first 20,000 characters are scanned, so it stays fast.
+rtrepo; mkdir -p "$R/src"; yes 'var block=aB;' | head -n 400000 | tr -d '\n' > "$R/src/min.js"; printf 'const t = getToken()\n' > "$R/src/b.ts"
+RTS=$SECONDS; OUT=$(rt); RTS=$((SECONDS - RTS))
+eq "risk-tier: a 5 MB one-line file plus getToken() → high" high "$(printf '%s\n' "$OUT" | head -n 1)"
+eq "risk-tier: a 5 MB one-line file is scanned in under 20 s" yes "$([ "$RTS" -lt 20 ] && echo yes || echo "no ($RTS s)")"
+# Racy entry: an edit of the same size whose mtime equals both the index entry and the index file. Git re-reads such
+# an entry only while the copied index keeps the real index's mtime (touch -r); trustctime off makes it deterministic.
+rtrepo; mkdir -p "$R/src"; printf 'const xxxxx = 1\n' > "$R/src/a.ts"; git -C "$R" config core.trustctime false
+touch -t 202001010000 "$R/src/a.ts"; cm racy
+printf 'const token = 1\n' > "$R/src/a.ts"; touch -t 202001010000 "$R/src/a.ts" "$R/.git/index"
+eq "risk-tier: a racily clean same-size edit is still seen" high "$(rt | head -n 1)"
+# The temp index copy holds repo content: it stays 0600 even when the real index is 0644 (a git wrapper reads its mode).
+chmod 644 "$R/.git/index"; mkdir -p "$TMP/rt-mode"
+printf '#!/bin/sh\ncase " $* " in *" add -N "*) ls -l "$GIT_INDEX_FILE" | cut -c1-10 > "%s" ;; esac\nexec "%s" "$@"\n' \
+  "$TMP/rt-mode/seen" "$REALGIT" > "$TMP/rt-mode/git"; chmod +x "$TMP/rt-mode/git"
+(cd "$R" && PATH="$TMP/rt-mode:$PATH" bash "$H/risk-tier.sh" >/dev/null 2>&1)
+eq "risk-tier: the temp index is not group- or world-readable" "-rw-------" "$(cat "$TMP/rt-mode/seen" 2>/dev/null)"
+R="$TMP/rt-nonutf"; new_repo "$R"; printf 'const s = "\377" + token\n' > "$R/n.ts"
+eq "risk-tier: a non-UTF-8 byte does not end the parse" high "$(cd "$R" && LC_ALL=C.UTF-8 bash "$H/risk-tier.sh" 2>/dev/null | head -n 1)"
+eq "risk-tier: two arguments → exit 2" 2 "$(rtx a b)"
+eq "risk-tier: unknown base → exit 2" 2 "$(rtx no-such-ref)"
+eq "risk-tier: option-like base → exit 2" 2 "$(rtx --help)"
+mkdir -p "$TMP/rt-nogit"; eq "risk-tier: outside a git repo → exit 2" 2 "$(cd "$TMP/rt-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/risk-tier.sh" >/dev/null 2>&1; echo $?)"
+eq "risk-tier: umask 077 for its temp files" 1 "$(grep -c '^umask 077' "$H/risk-tier.sh")"
+AS=$(sed -n '/^## Agent Spawning/,/^## Context Budget/p' "$SK")
+has "skill: reviewer spawn runs risk-tier.sh" 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh"' "$AS"
+has "skill: risk line in the reviewer prompt" '`risk: <tier>`' "$AS"
+has "skill: low risk → opus, medium effort" '`low` → spawn `reviewer` with `model: "opus"` and `effort: "medium"`' "$AS"
+has "skill: risk-tier failure → normal" 'fails → `risk: normal`' "$AS"
+has "code-review: risk tier for a diff target" 'hooks/risk-tier.sh' "$(cat "$ROOT/skills/code-review/SKILL.md")"
+PR=$(sed -n '/^\*\*Probes\*\*/p' "$ROOT/agents/reviewer.md")
+has "reviewer: high risk → at least 2 executed probes" 'at least 2 executable probes' "$PR"
+has "reviewer: probes never in the work tree" "never in the user's work tree" "$PR"
+has "reviewer: probes handoff line" '`probes: N run, K failed`' "$PR"
+has "reviewer: a dispute re-judge re-runs probes only for a probe issue" 'does not re-run probes unless the disputed issue came from a probe' "$PR"
+has "skill: Keep Fable does not change low" '`Keep Fable` does not change `low`' "$AS"
+has "code-review: Keep Fable does not change low" '`Keep Fable` does not change `low`' "$(cat "$ROOT/skills/code-review/SKILL.md")"
+has "reviewer: probes line is a 4th handoff bullet" 'plus `probes:` when your prompt says `risk: high`' "$OF"
+has "docs/hooks.md: risk-tier row" '| **`risk-tier.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
+has "readme: risk-tier example" 'bash hooks/risk-tier.sh' "$(cat "$ROOT/README.md")"
+has "CLAUDE.md: model routing names risk tiers" 'risk-tier.sh' "$(sed -n '/^## Model Routing/,$p' "$ROOT/CLAUDE.md")"
+
+# --- review-context -----------------------------------------------------------------------
+rc() { (cd "$R" && bash "$H/review-context.sh" "$@" 2>&1); }
+rcx() { (cd "$R" && bash "$H/review-context.sh" "$@" >/dev/null 2>&1); echo $?; }
+R="$TMP/rc"; mkdir -p "$R/src" "$R/tools" "$R/py"; git -C "$R" init -q
+printf 'export function keepFn() {}\nexport function goneFn() {}\nexport const oldName = 1\n' > "$R/src/lib.ts"
+printf "import { goneFn, keepFn } from './lib'\ngoneFn()\nkeepFn()\n" > "$R/src/use.ts"
+printf 'goneFn()\n' > "$R/src/lib.test.ts"
+printf 'oldName\n' > "$R/src/other.ts"
+printf 'Call newName to start.\n' > "$R/README.md"; printf 'newName\n' > "$R/docs.TXT"; printf 'Shape\n' > "$R/CMakeLists.txt"
+printf 'export function deadFn() {}\n' > "$R/src/dead.ts"; printf 'deadFn()\n' > "$R/src/zombie.ts"
+printf 'export function fetchUser() {}\n' > "$R/src/api.ts"; printf 'fetchUser()\n' > "$R/src/real.ts"
+printf 'myfetchUser()\nfetchUserList()\n' > "$R/src/super.ts"
+printf 'export const stay = 1\n' > "$R/src/moved.ts"
+printf 'helper() { :; }\n' > "$R/tools/run.sh"; printf '. ./run.sh; helper\n' > "$R/tools/call.sh"
+printf 'def pyfn():\n    pass\nclass Old:\n    pass\n' > "$R/py/m.py"; printf 'from m import pyfn, Old\n' > "$R/py/user.py"
+cm base; RCB=$(git -C "$R" rev-parse HEAD)
+printf 'export function keepFn(a) {}\nexport const newName = 1\nconst arrowFn = (x) => x\n' > "$R/src/lib.ts"
+printf 'export default async function Page() {}\nexport interface Shape {}\nexport type Tp = 1\nexport enum En {}\nexport class Cl {}\nexport let lv = 1\nfunction plainFn(a) {}\n  function nestedFn() {}\n' >> "$R/src/lib.ts"
+rm "$R/src/dead.ts"; git -C "$R" mv src/moved.ts src/renamed.ts; : > "$R/src/api.ts"
+printf 'function newhelp {\n  :\n}\n' > "$R/tools/run.sh"
+printf 'def pyfn(x):\n    pass\nclass New:\n    pass\n' > "$R/py/m.py"
+printf 'keepFn()\n' > "$R/src/new.test.ts"
+IX0=$(cksum < "$R/.git/index"); ST0=$(git -C "$R" status --porcelain)
+OUT=$(rc)
+eq "review-context: exit 0" 0 "$(rcx)"
+eq "review-context: real index untouched" "$IX0" "$(cksum < "$R/.git/index")"
+eq "review-context: git status unchanged" "$ST0" "$(git -C "$R" status --porcelain)"
+eq "review-context: sections in order" "files: symbols: callers: tests: " "$(printf '%s\n' "$OUT" | grep -E '^(files|symbols|callers|tests):$' | tr '\n' ' ')"
+has "review-context: modified file with counts" "M src/lib.ts +11 -3" "$OUT"
+has "review-context: deleted file" "D src/dead.ts +0 -1" "$OUT"
+has "review-context: rename keeps both paths" "R src/moved.ts -> src/renamed.ts +0 -0" "$OUT"
+has "review-context: untracked file is added" "A src/new.test.ts +1 -0" "$OUT"
+lacks "review-context: unchanged file not listed as changed" "M src/use.ts" "$OUT"
+has "review-context: removed export" "goneFn (removed) in src/lib.ts" "$OUT"
+has "review-context: removed const" "oldName (removed) in src/lib.ts" "$OUT"
+has "review-context: changed export (both sides)" "keepFn (changed) in src/lib.ts" "$OUT"
+has "review-context: added export" "newName (added) in src/lib.ts" "$OUT"
+has "review-context: symbol in a deleted file" "deadFn (removed) in src/dead.ts" "$OUT"
+for s in arrowFn Page Shape Tp En Cl lv plainFn; do has "review-context: JS/TS form $s" "$s (added) in src/lib.ts" "$OUT"; done
+lacks "review-context: a nested function is not a symbol" "nestedFn" "$OUT"
+has "review-context: shell name() removed" "helper (removed) in tools/run.sh" "$OUT"
+has "review-context: shell function name added" "newhelp (added) in tools/run.sh" "$OUT"
+has "review-context: python def changed" "pyfn (changed) in py/m.py" "$OUT"
+has "review-context: python class removed" "Old (removed) in py/m.py" "$OUT"
+has "review-context: python class added" "New (added) in py/m.py" "$OUT"
+lacks "review-context: a pure rename has no symbols" "stay (" "$OUT"
+eq "review-context: removed symbols come first" "removed" "$(printf '%s\n' "$OUT" | sed -n '/^symbols:/{n;p;}' | sed 's/.*(\([a-z]*\)).*/\1/')"
+has "review-context: callers of a removed name, test marked, defining file excluded" "goneFn: src/lib.test.ts (test), src/use.ts" "$OUT"
+has "review-context: caller of a removed const" "oldName: src/other.ts" "$OUT"
+eq "review-context: callers match whole words (not myfetchUser, fetchUserList)" "fetchUser: src/real.ts" "$(printf '%s\n' "$OUT" | grep '^fetchUser: ')"
+has "review-context: caller of a symbol in a deleted file" "deadFn: src/zombie.ts" "$OUT"
+has "review-context: untracked caller found" "keepFn: src/new.test.ts (test), src/use.ts" "$OUT"
+has "review-context: a name mentioned only in a README and a .TXT doc → none" "newName: none" "$OUT"
+has "review-context: CMakeLists.txt is not a doc, so it stays a caller" "Shape: CMakeLists.txt" "$OUT"
+has "review-context: shell caller" "helper: tools/call.sh" "$OUT"
+has "review-context: python caller" "Old: py/user.py" "$OUT"
+eq "review-context: tests section lists the changed test files" "src/new.test.ts" "$(printf '%s\n' "$OUT" | sed -n '/^tests:/,$p' | sed 1d)"
+eq "review-context: same output from a subdirectory" "$OUT" "$(cd "$R/src" && bash "$H/review-context.sh" 2>&1)"
+cm change
+eq "review-context: committed change, no base → empty" "files: none
+symbols: none
+callers: none
+tests: none" "$(rc)"
+OUTB=$(rc "$RCB")
+has "review-context: base → committed removals" "goneFn (removed) in src/lib.ts" "$OUTB"
+has "review-context: base → committed rename" "R src/moved.ts -> src/renamed.ts +0 -0" "$OUTB"
+eq "review-context: two arguments → exit 2" 2 "$(rcx a b)"
+eq "review-context: unknown base → exit 2" 2 "$(rcx no-such-ref)"
+eq "review-context: option-like base → exit 2" 2 "$(rcx --help)"
+mkdir -p "$TMP/rc-nogit"; eq "review-context: outside a git repo → exit 2" 2 "$(cd "$TMP/rc-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/review-context.sh" >/dev/null 2>&1; echo $?)"
+(cd "$R" && PATH="$TMP/sg-gitfail:$PATH" bash "$H/review-context.sh" >/dev/null 2>&1); RC=$?
+eq "review-context: shared collection fails → exit 2" 2 "$RC"
+eq "review-context: umask 077 for its temp files" 1 "$(grep -c '^umask 077' "$H/review-context.sh")"
+R="$TMP/rc-nonutf"; new_repo "$R"; printf 'const s = "\377"\nexport function afterByte() {}\n' > "$R/n.ts"
+has "review-context: a non-UTF-8 byte does not end the parse" "afterByte (added) in n.ts" "$(cd "$R" && LC_ALL=C.UTF-8 bash "$H/review-context.sh" 2>/dev/null)"
+# caps: 30 symbols, 10 callers each → 25 symbols, 8 callers per symbol, then the 4 KB cut
+R="$TMP/rc-caps"; mkdir -p "$R/callers"; git -C "$R" init -q
+RCN=$(i=10; while [ "$i" -lt 40 ]; do printf 'sym%s ' "$i"; i=$((i + 1)); done)
+for c in 0 1 2 3 4 5 6 7 8 9; do echo "$RCN" > "$R/callers/a-rather-long-caller-file-name-to-fill-the-block-$c.ts"; done
+cm base
+for s in $RCN; do echo "export function $s() {}"; done > "$R/defs.ts"
+OUT=$(rc)
+eq "review-context: at most 25 symbol lines" 25 "$(printf '%s\n' "$OUT" | grep -c ' (added) in defs.ts$')"
+has "review-context: symbols over the cap are counted" "symbols: +5 more" "$OUT"
+has "review-context: at most 8 callers, then +N more" "sym10: callers/a-rather-long-caller-file-name-to-fill-the-block-0.ts" "$OUT"
+has "review-context: callers over the cap are counted" "-7.ts, +2 more" "$(printf '%s\n' "$OUT" | grep '^sym10: ')"
+lacks "review-context: the 9th caller is not listed" "-8.ts" "$(printf '%s\n' "$OUT" | grep '^sym10: ')"
+eq "review-context: over the byte cap → last line says truncated" "… truncated" "$(printf '%s\n' "$OUT" | tail -n 1)"
+eq "review-context: output stays within 4 KB" yes "$([ "$(printf '%s\n' "$OUT" | LC_ALL=C wc -c | tr -d ' ')" -le 4096 ] && echo yes || echo no)"
+# 120 touched files with long paths: the files section is capped, so a removed export and its caller stay in the block
+R="$TMP/rc-wide"; mkdir -p "$R/src" "$R/a-rather-long-directory-name-for-many-files"; git -C "$R" init -q
+printf 'export function dropped() {}\n' > "$R/src/lib.ts"; printf 'dropped()\n' > "$R/src/keep.ts"; cm base
+: > "$R/src/lib.ts"
+i=100; while [ "$i" -lt 220 ]; do echo x > "$R/a-rather-long-directory-name-for-many-files/file-$i.ts"; i=$((i + 1)); done
+OUT=$(rc)
+eq "review-context: at most 30 file lines" 30 "$(printf '%s\n' "$OUT" | grep -cE '^[AMDR] ')"
+has "review-context: files over the cap are counted" "files: +91 more" "$OUT"
+has "review-context: 120 files → the removed export is kept" "dropped (removed) in src/lib.ts" "$OUT"
+has "review-context: 120 files → its untouched caller is kept" "dropped: src/keep.ts" "$OUT"
+# short lines (many changed tests): the cut lands within one 12-byte line of the cap, the marker included
+R="$TMP/rc-short"; mkdir -p "$R/tests"; git -C "$R" init -q
+i=1000; while [ "$i" -lt 1500 ]; do echo x > "$R/tests/t$i"; i=$((i + 1)); done
+RCW=$(rc | LC_ALL=C wc -c | tr -d ' ')
+eq "review-context: short lines → cut between 4080 and 4096 bytes" yes "$([ "$RCW" -ge 4080 ] && [ "$RCW" -le 4096 ] && echo yes || echo "no ($RCW)")"
+RVG=$(sed -n '/^## Static Review Gates/,/^## Constraints/p' "$ROOT/agents/reviewer.md")
+has "reviewer: runs review-context.sh after static-gates" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/review-context.sh"`' "$RVG"
+has "reviewer: unchanged caller of a removed symbol → contract FAIL" 'FAIL `[contract]` unless the plan' "$RVG"
+has "developer: self-check runs review-context.sh" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/review-context.sh"`' "$(sed -n '/^6\. Self-check/p' "$ROOT/agents/developer.md")"
+has "docs/hooks.md: review-context row" '| **`review-context.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
+has "readme: review-context example" 'bash hooks/review-context.sh' "$(cat "$ROOT/README.md")"
+has "changelog: review-context entry" 'hooks/review-context.sh' "$(sed -n '/^### v0\.7\.0/,/^### v0\.6/p' "$ROOT/CHANGELOG.md")"
 
 # --- small doc items ----------------------------------------------------------------------
 has "refactor-architect: rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$RA"

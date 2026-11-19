@@ -1,15 +1,18 @@
 # Skills and Agents details
 
-Detailed description moved out of the [README](../README.md). The reference documents at runtime are each `skills/*/SKILL.md` and `agents/*.md`.
+Detailed description moved out of the [README](../README.md). The reference documents at runtime are each `skills/*/SKILL.md`, the situational files next to `skills/review-harness/SKILL.md`, and `agents/*.md`.
 
 ## `/review-harness` flow
 
 1. **RTK Mode Gate** — choose the output compression mode in the first session (off/standard/aggressive/git-only)
 2. **Active Repo Gate** — `hooks/detect-repo.sh` matches cwd → repo. If there is no registry (`~/.review-harness/knowledge/<org>/repos.md`) it proceeds with the generic rules; for code work in a repo that is not registered (or with no registry at all) it offers `/register-repo` once per work tree; choosing to continue records `register-declined` in the state dir so it is not asked again
 3. **Ambiguity Check** — up to 2 questions when ambiguous. Detects requests whose target is unclear, such as demonstratives ("that", "this"), and asks for clarification. The organisation overlay can add detection items
-4. **Plan Gate** — writes `plan.md` to `~/.review-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
-5. **Workflow execution** — a different chain per intent (feature/bugfix/refactor/review) or the Small change path. A bugfix reproduces the failure and records its cause before any fix, and never takes the Small change path. UI work is handled as feature
-6. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
+4. **Web Guidance Search** — when a `plan.md` will be written for UI or client-behaviour work under the `web-frontend` profile, up to 3 `npx -y modern-web-guidance@1.0.1 search` calls (stopping at the first failure); the matching guide ids go to `plan.md → Inputs.Web guidance` (`none` or `unavailable` otherwise, never a question). The developer `retrieve`s those ids; the developer's self-check and the reviewer run `legacy-scan` on each changed UI file (at most 5) ([README](../README.md#modern-web-guidance))
+5. **Plan Gate** — writes `plan.md` to `~/.review-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
+6. **Workflow execution** — a different chain per intent (feature/bugfix/refactor/review) or the Small change path. A bugfix reproduces the failure and records its cause before any fix, and never takes the Small change path. UI work is handled as feature
+7. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
+
+The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `web-guidance.md` (step 4), `plan-gate.md` (step 5: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 6: Small change, Bugfix, retries after a failure), `usage-downgrade.md` (5h usage at 80% or more), `git-ops.md` (branch, push or PR requests).
 
 ## 11 Skills
 
@@ -17,7 +20,7 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 
 ### Entry point (1)
 
-- **`/review-harness`** — the single public entry point. RTK Mode Gate → Active Repo Gate → Ambiguity Check → Intent Classification → API Spec Check → Plan Gate → workflow execution
+- **`/review-harness`** — the single public entry point. RTK Mode Gate → Active Repo Gate → Ambiguity Check → Intent Classification → API Spec Check → Web Guidance Search → Plan Gate → workflow execution
 
 ### Context / knowledge (3)
 

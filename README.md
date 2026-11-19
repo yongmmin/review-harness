@@ -1,8 +1,38 @@
 # review-harness
 
+[![test](https://github.com/yongmmin/review-harness/actions/workflows/test.yml/badge.svg)](https://github.com/yongmmin/review-harness/actions/workflows/test.yml)
+[![version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fyongmmin%2Freview-harness%2Fmain%2F.claude-plugin%2Fplugin.json&query=%24.version&label=version)](CHANGELOG.md)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)](https://docs.claude.com/en/docs/claude-code/plugins)
+
+**Claude Code writes the code. A second agent has to approve it before it can be committed.**
+
+```
+/plugin marketplace add yongmmin/review-harness
+/plugin install review-harness@review-harness
+/review-harness add a status filter to GET /orders
+```
+
 A review-gated coding harness for Claude Code. You give it one line — `/review-harness "what you want"` — and it hands plan → implement → test → review to specialist agents (developer / test-runner / reviewer / refactor-architect), and only lets a change be committed after the reviewer returns PASS. The workflow and the review gate are stack-neutral. Stack-specific rules live in profiles (`profiles/<name>.md`), and each run picks the profiles from the files the change touches; three ship today — `web-frontend` (TypeScript, React, Next.js), `web-api` (API servers such as NestJS, Express or FastAPI, with their ORM and migrations) and `web-common` (a change that touches frontend and API code together). Other stacks run on the generic rules, and you can add rules for your own stack with an overlay. The test step finds JavaScript, Python, Go and Rust test commands, or the `test_cmd` you register for a repo. Organisation-specific knowledge (repo structure, internal conventions) is not part of the plugin; each user prepares it on their own machine.
 
+How it keeps the first review passing and the review honest:
+
+- **The developer sees the reviewer's rules.** It gets the review checklist and your past failure patterns, and checks its own diff before handoff with two scripts: `static-gates.sh` (grep-decidable rules such as `console.log`, `.env` files, secret fallbacks) and `review-context.sh` (changed symbols and every file that calls them).
+- **Review strength follows risk.** `risk-tier.sh` scores each change. A small or docs-only change gets a cheaper reviewer. A risky one (auth, payment, migrations, concurrency, hooks/CI, 10+ files) makes the reviewer run executable probes instead of only reading code.
+- **Web UI follows current platform guidance.** [modern-web-guidance](#modern-web-guidance) is searched at plan time, read by the developer and scanned by the reviewer.
+- **The commit gate is a hook.** It is not a promise in a prompt. See [Rules you need to know](#rules-you-need-to-know).
+- **Every run is measured**: first-review PASS rate, retries, and tokens and time per agent. See [Measuring runs](#measuring-runs).
+
 ## Install / Update
+
+**Quick install.** Run this inside a Claude Code session; no clone is needed:
+
+```
+/plugin marketplace add yongmmin/review-harness
+/plugin install review-harness@review-harness
+```
+
+Open a new session, and `/plugin` lists it. To update later, follow **Update** below. The steps below are the manual route. They also add `.env*` edit protection to your global settings.
 
 **1. Clone and bootstrap**
 
@@ -73,6 +103,9 @@ bash hooks/extract-constraints.sh reviewer web-frontend   # #org section, then t
 bash hooks/detect-profile.sh src/App.tsx                 # profiles for these paths (no args: the current changes)
 bash hooks/detect-test-cmd.sh /absolute/path/to/my-app    # the test command the test step will run
 bash hooks/find-consumers.sh userName                    # from a repo: the other registered repos that use this name (reads only)
+bash hooks/static-gates.sh                               # from a repo: grep-decidable review rules on the current change (reads only)
+bash hooks/risk-tier.sh                                  # from a repo: low / normal / high for the current change, with reasons (reads only)
+bash hooks/review-context.sh                             # from a repo: changed files, changed symbols, their callers, changed tests (reads only)
 ```
 
 Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules.
@@ -114,10 +147,23 @@ Review         reviewer
 - Everything else writes `plan.md` and runs after you approve it. The plan's `Reuse` line (what is reused, or one concrete reason for building something new) cannot be empty; the reviewer FAILs an empty one. The plan also lists `Done When` (2–5 observable outcomes, each with the test, command or manual step that checks it) and `Out of Scope`; the reviewer FAILs an unmet outcome, a TODO or stub left in new code, a new export nothing calls, or an edit outside scope. Before approval the plan also names, from a search of the code, every file that uses a changed export, route or event (`Callers/Consumers`), one neighbouring file to imitate (`Pattern`) and the tests that cover the area (`Tests`); the reviewer FAILs a listed caller that is neither changed nor marked `no change needed`. A plan touching more than 6 files is split into ordered tasks, each with its own tests, and a refactor of untested code starts with characterization tests unless you waive them. A Small change states one `Done when:` line instead.
 - The baseline run records tests that already fail before the change; afterwards only new failures count, and you are told in one line if there were any. After the tests, test-runner also runs the repo's `check_cmd` (or `tsc --noEmit` when there is a `tsconfig.json`) once and reports it.
 - In a repo with no test command, you are shown the manual checks from `Done When` and asked to confirm them before the commit.
+- Before handoff, the developer runs a self-check and reports it as a `self-check:` line. It holds the diff against the review checklist, which holds the reviewer's `#review` rules, the profile rules and your failure-pattern ledger. It also runs `static-gates.sh`, fixing every `hard` hit, and `review-context.sh`, updating or justifying every caller of a changed or removed symbol. The reviewer starts from the same two scripts. A `hard` hit, or an unchanged caller of a removed symbol, is a FAIL unless the plan names it.
 - Test failures and reviewer FAILs share a limit of 3 retries. At the limit it stops and reports what is still wrong.
 - Each reviewer issue carries a route: `patch` (fixed in the next retry), `replan` (the plan is wrong: `plan.md` is updated and you approve it again before the retry) or `defer` (outside this change: listed in the final report, never retried, and not a reason to FAIL). Every FAIL reason is listed at once. The developer may dispute an issue once with evidence instead of patching it; the reviewer re-judges that issue only, and a dispute does not use up a retry. Every retry re-runs the tests before the reviewer.
 - **Changes across repos**: when a change adds, changes or removes a route, socket event or request/response field another repo may use, the plan gets a `## Contract` (producer, consumer repos, `additive` or `breaking`, deploy order). For a breaking one, `find-consumers.sh` searches the other registered repos for each renamed or removed name and the hits go into the plan; the reviewer FAILs a breaking contract with no consumers listed, or a consumer repo with hits that is neither changed nor named as a follow-up in `Out of Scope`. Run the producer repo first: its final report ends with the `## Contract` block, which you paste into the consumer repo's run as its API spec.
 - Everything after `DONE` (branch, push, PR) is yours to do.
+
+## Modern web guidance
+
+For web UI work (the `web-frontend` profile, a change to markup, CSS/layout, forms, dialogs, tables, a11y or client-side JS), the flow uses GoogleChrome's [modern-web-guidance](https://github.com/GoogleChrome/modern-web-guidance) CLI, pinned to `modern-web-guidance@1.0.1`. Each use is a visible Bash call:
+
+| When | Who | Command | Token cost (estimate, not measured) |
+|---|---|---|---|
+| Planning (only when a `plan.md` is written) | main session | `search "<2–5 word query>"`, at most 3, stopping at the first failure; the matching guide ids go to `plan.md → Inputs.Web guidance` | a few hundred tokens per UI plan |
+| Implementation | developer | `retrieve` of exactly the ids the plan names (again on a retry only when the fix list names a guide or finding); reports `guidance: <id> applied \| not applied — <reason>`. Its self-check runs the same `legacy-scan` as the reviewer | about 3–15K per guide, plus the scan output |
+| Review | reviewer | `legacy-scan` on each added or modified UI file on its own (at most 5, the ones with the most added lines); a surviving finding on an added line is a FAIL `[design]`, on unchanged lines a deferred note | the scan output; each retry repeats the reviewer's scan |
+
+The plan, a stated browser policy, your repo's and design system's components, the profile's rules and the organisation rules win over a guide; a guide's CSS is written in the repo's styling system and tokens, and a guide never adds a dependency or polyfill unless the plan says so. Guides assume Baseline Widely Available; to state another browser policy, add a line such as `- Browser support: <policy>` to your organisation overlay (`~/.review-harness/org/`). When `npx`, the network or the permission is missing, or the CLI errors or times out, the step records `unavailable` and the run continues — never a FAIL and never a question. To run it without permission prompts, allowlist `Bash(npx -y modern-web-guidance@1.0.1 *)` in your Claude Code settings. Hooks never run it: they stay offline.
 
 ## Agents and models
 
@@ -130,6 +176,8 @@ Review         reviewer
 
 The model is the `model:` value in each `agents/*.md` frontmatter.
 
+The review is matched to the change: before each reviewer spawn, `hooks/risk-tier.sh` scores it `low`, `normal` or `high`. A `low` change (docs or tests only, or at most 2 files with at most 30 added lines, no dependency file such as a lockfile, and no risky path or code word; words in `*.md`/`*.mdx`/`*.rst`/`*.txt` docs do not count) is reviewed with `opus` at `medium` effort; a `high` change (auth, payment, migrations, concurrency, parsers, hooks/CI/gates, or 10+ files) makes the reviewer write and run at least 2 executable probes in a temp dir. The usage-limit answer below still applies.
+
 ## Rules you need to know
 
 1. **You run the git operations.** The plugin commits automatically, but for branches, pushes and PRs it only writes the commands and text.
@@ -138,6 +186,22 @@ The model is the `model:` value in each `agents/*.md` frontmatter.
 4. **At 80% of the 5-hour usage limit it asks which model to use.** Before starting reviewer / refactor-architect it asks once: `Keep Fable` / `Opus for this run`. Usage is read from `~/.claude/usage-state.json`, written by your status line; if the file is missing or older than 10 minutes it does not ask.
 5. **Editing `package.json`, `next.config.*`, `tsconfig*.json`, lock files (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`, `go.sum`, …) or `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`) needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
 
+## Measuring runs
+
+Every finished run appends one line to `~/.review-harness/state/runs.jsonl`. To summarise it, run:
+
+```bash
+bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]
+```
+
+The output covers:
+- the number of runs and the **first-review PASS rate** (runs whose first verdict was PASS);
+- retries before PASS, the share of runs with a FAIL, and FAIL categories;
+- the override rate and how many runs hit the limit;
+- median tokens and active minutes per run, and each agent's share of tokens. These come from the `SubagentStart`/`SubagentStop` hook and cover subagents only; they start with the first session opened after installing or updating.
+
+Use it to check whether a rule change, a profile or an overlay actually helps.
+
 ## Where state is stored
 
 The plugin never creates files inside the repo you are working in. Run state lives in `~/.review-harness/state/<repo-id>/`. `<repo-id>` is the work-tree name plus a hash of its absolute path, so each git worktree gets its own.
@@ -145,7 +209,7 @@ The plugin never creates files inside the repo you are working in. Run state liv
 | File | Content |
 |---|---|
 | `run-state.json` | Current workflow, completed steps, retry count, reviewer verdict, test result |
-| `agents.json` | Per-subagent active time, tokens and tool calls for the current run (`agent-usage.sh`); moved into `runs.jsonl` by `done` |
+| `agents.jsonl` | Per-subagent active time, tokens and tool calls for the current run (`agent-usage.sh`), one appended line per agent start or stop; summarised into `runs.jsonl` by `done` or `abandon` |
 | `baseline.txt` | Tests that already failed before the current run's change |
 | `attempts.md` | One line per failed attempt (`N. hypothesis → change → result`) on a path without `plan.md` (Small change); with a plan the lines go to its `## Attempts`. Cleared by `run-state.sh start` |
 | `plan.md` | The plan awaiting approval. Its full path is reported every time it is written |
@@ -171,9 +235,9 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 11 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 18 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 21 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
-- [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime
+- [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime; the parts one path needs (plan template, bugfix, retry loop, …) sit in sibling `skills/review-harness/*.md` files it reads only on that path
 - [constraints.md](constraints.md) — agent rules
 - [CLAUDE.md](CLAUDE.md) — maintainer rules for working on this repo (not loaded for plugin users; runtime rules live in `skills/` and `agents/`)
 - [profiles/web-frontend.md](profiles/web-frontend.md) — stack-specific agent rules (TypeScript / React / Next.js), loaded per agent by tag
