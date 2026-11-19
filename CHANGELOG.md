@@ -4,6 +4,15 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+### v0.7.0 (2026-11-19)
+
+Highlights:
+- **Measurement.** Per-agent tokens and time are recorded, and run-stats shows the first-review PASS rate. On this repo, first-review PASS went from 2 of 9 runs before the developer self-check to 4 of 8 after it. Both sets are small and the tasks differed.
+- **Developer self-check.** The developer gets the review checklist and the failure ledger, and runs `static-gates.sh` and `review-context.sh` before handoff.
+- **Review strength by risk.** `risk-tier.sh` sends a cheaper reviewer for low risk and makes the reviewer run executable probes for high risk.
+- **Modern web guidance.** For web UI work there is a plan-time search, a developer retrieve and a reviewer `legacy-scan`.
+- **Main skill split.** The core skill went from 31.8 KB to 19.8 KB; parts only one path needs are read on that path alone.
+
 **Review context**
 - New `hooks/review-context.sh [base]`: one block of at most 4,096 bytes (cut at a line, then `… truncated`) on the change `static-gates.sh` sees (it sources `hooks/lib/collect-change.sh`), renames detected: `files:` (`<A|M|D|R> path +added -removed`, at most 30, so symbols and callers still fit), `symbols:` (`<name> (<added|removed|changed>) in <path>` for JS/TS/Vue/Svelte exports, top-level functions and arrow functions, shell `Name()` / `function Name`, Python `def` / `class`, found on added or removed lines; removed first, at most 25), `callers:` (per symbol, the other tracked or untracked files holding the name as a whole word via `git grep -lwIF`, the defining file and docs (`*.md`, `*.mdx`, `*.rst`, `*.txt`, the doc set of `risk-tier.sh`) excluded, tests marked `(test)`, at most 8), `tests:` (the changed test files); an empty section prints `<section>: none`. Exit 0, or 2 on a usage error, outside a git repo or when git fails
 - `reviewer`: runs it after `static-gates.sh` and starts from its block; every listed caller of a `removed` or `changed` symbol is in the diff or checked, and a caller of a removed symbol left unchanged is a FAIL `[contract]` unless the plan's `Callers/Consumers` marks it `no change needed`. `developer`: the self-check runs it and updates or justifies each such caller
