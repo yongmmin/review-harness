@@ -17,8 +17,6 @@ echo "--- status ---"; git status --porcelain 2>/dev/null | head -60 || true
 echo "--- staged stat ---"; git diff --cached --stat 2>/dev/null | tail -20 || true
 ```
 
-**Purpose**: Commit staged changes with Conventional Commit messages. Verify repo conventions before committing.
-
 ## Org Overlay
 
 ```!
@@ -44,68 +42,18 @@ Anything printed above is organisation-specific and is part of this skill; where
    - Verify no secrets in diff (basic regex: `API_KEY=`, `SECRET=`, `password=`, `BEGIN PRIVATE KEY`)
    - Verify no `.npmrc` is staged
    - Verify `plan.md` is NOT staged (a legacy leftover from < 0.4.0 — the plugin now keeps it in `~/.review-harness/state/`)
-5. **Generate Conventional Commit message** (see format below)
+5. **Write the commit message** (see Commit Message below)
 6. **Run `git commit`** with the message (this is the auto-chained step that DOES execute)
 7. After the last commit of the run, close it: `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" done`
-8. **Never push** — push is user's action (see Git Operations Policy)
+8. **Never push** — push is the user's action
 
 ---
 
-## Conventional Commit Format
+## Commit Message
 
-```
-<type>(<scope>): <subject>
+Conventional Commit: `<type>(<scope>): <subject>`, subject at most 70 characters in the imperative, a short body that says why, and the trailer `Co-Authored-By: Claude <noreply@anthropic.com>`. Follow the repo's own commit convention where it differs (its rule files, or `git log`).
 
-<body>
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-```
-
-### Type
-- `feat` — new feature
-- `fix` — bug fix
-- `refactor` — code restructure, no behavior change
-- `style` — formatting/style only
-- `docs` — documentation
-- `test` — tests added/modified
-- `chore` — tooling, config, dependencies
-- `perf` — performance improvement
-- `ui` — UI/visual changes
-
-### Scope (optional but recommended)
-- Use the module or domain the change touches
-- e.g. `feat(events): add capture event filter`
-- e.g. `refactor(tools): extract useToolInteraction hook`
-
-### Subject
-- ≤ 70 chars
-- Imperative mood ("add", not "added")
-- No trailing period
-
-### Body
-- Wrap at 72 chars
-- 2-4 short paragraphs MAX
-- WHY over WHAT
-
----
-
-## Output Format (after commit)
-
-```
-## Committed
-
-Branch:  <current-branch>
-Hash:    <short-sha>
-Message: <first line of commit message>
-
-### Files
-- path/to/file1.tsx
-- path/to/file2.test.tsx
-
-### Next steps (user-driven)
-- Push yourself: git push -u origin <branch>
-- Ready for a PR: /git-pr
-```
+After the commit, report the branch, the short hash, the first line of the message and the files, and that pushing and `/git-pr` are the user's next steps.
 
 ---
 

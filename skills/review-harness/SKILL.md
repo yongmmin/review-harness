@@ -42,33 +42,18 @@ Anything printed above is organisation-specific and is part of this skill; where
 
 ## Canonical Rules
 
-- This file is the canonical runtime workflow
-- `README.md` is documentation only — do not load during execution
+- This file is the canonical runtime workflow; `README.md` is documentation only
 - Questions, option labels and report text in this skill are written in English. Present them in the user's language
-- `review-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents.
+- `review-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 - In orchestration mode, Write/Edit limited to `plan.md`, `attempts.md` and the `register-declined` flag in the state dir, and the failure-pattern ledger (Small change path excepted)
-- Active agents only: `developer`, `test-runner`, `reviewer`, `refactor-architect`
-- Run `git`, `grep`/`find` and test commands via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`
+- Run `git`, `grep`/`find` and test commands via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`. The request carries `--rtk=<off|standard|aggressive|git-only>` or `--no-rtk` → persist it first with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>` (use `off` for `--no-rtk`; reject any other mode with a one-line error); otherwise the injected mode applies and nothing is asked
 - Files read through a `→ read` pointer below are read raw: replace the `CLAUDE_PLUGIN_ROOT` variable in them with the plugin root named in Session Context.
 
 ---
 
 ## Request Gate
 
-### 0. RTK Mode Gate
-
-Resolve rtk token-filter mode before any agent spawn. Plugin-scoped — no global hook installed.
-
-**Resolution order:**
-
-1. **Inline arg** — if user message contains `--rtk=<mode>` or `--no-rtk`, persist with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>` (use `off` for `--no-rtk`)
-2. **Env var** — if `REVIEW_HARNESS_RTK` is set, do nothing. Hard override
-3. **Session flag** — if the injected `session flag: present` line says present, reuse the injected mode
-4. **Otherwise** — no question: the default applies (`standard` when the `rtk` binary is installed, else `off`); `/rtk-toggle` changes it
-
-Valid modes: `off | standard | aggressive | git-only`. Reject others with one-line error.
-
-### 0.5. Unfinished Run Gate
+### 1. Unfinished Run Gate
 
 If the injected `run state` line is not `none`, a previous run in this work tree did not finish. Show that line and ask with `AskUserQuestion`: `Resume` | `Start new`.
 
@@ -76,64 +61,30 @@ If the injected `run state` line is not `none`, a previous run in this work tree
 - `Start new` → run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" abandon`, then proceed as a new request
 - A `STALE` run (not updated for over 24h) is asked the same way — the commit hook does not enforce it until the user decides
 
-### 1. Knowledge (optional)
+### 2. Active Repo Gate
 
-Project knowledge is optional: if `knowledge/index.md` under `$REVIEW_HARNESS_HOME` (default `~/.review-harness`) is missing, continue with the generic rules.
-
-### 1.5. Active Repo Gate
-
-The `=== Active Repo ===` block is already injected above — do not re-run `detect-repo.sh`. Three branches:
-
-- **Matched** → compact repo block becomes part of agent context. Apply the repo-specific rules the block names (stack, layout, path alias, commands)
-- **Unmatched** AND user request implies code work → the register offer below
-- **Unmatched** AND user request is generic (e.g. "/review-harness explain yourself") → continue without repo context
-- **No Active Repo block at all** (no repo registry installed, no `~/.review-harness/knowledge/<org>/repos.md`) → continue with the generic rules; only the register offer below may ask
+The `=== Active Repo ===` block is already injected above — do not re-run `detect-repo.sh`. Matched → the block (stack, layout, path alias, commands) is part of agent context. With no block or no match, continue with the generic rules.
 
 The request implies code work and the repo is not registered (`status: not registered`, or no Active Repo block at all) → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/register-offer.md` before asking anything in this step
 
-### 2. Ambiguity Check
+### 3. Intent
 
-Ask a clarification question before planning if ANY of:
+| Intent | When | Workflow |
+|--------|------|----------|
+| `review` | a diff to judge, and no failure described | Review fast-path: no `plan.md`, no approval wait, no commit — the reviewer's PASS/FAIL verdict is the final output |
+| `bugfix` | the request describes a failure or symptom, or asks why something fails | Bugfix flow — never the Small change path |
+| `refactor` | restructuring with no behaviour change | Refactor flow |
+| `feature` | any other change, UI work included | Feature flow, or the Small change path when all its conditions hold |
 
-**Generic ambiguity:**
-- Target is unclear
-- Scope is overly broad
-- Request mixes multiple major tasks
-- "Optimize"/"improve" doesn't specify dimension
-- **Deictic reference**: user says "that", "this one", "the one above", "that component" (in any language) without a clear referent in this turn → ask "What exactly does X refer to?" Cite candidates from recent context if any
+A trivial textual fix with no failure (e.g. "fix this typo") is not `bugfix`. When what to change or where is unclear, ask before planning: max 2 questions, only what blocks planning.
 
-Rules: max 2 questions, only what blocks planning.
+### 4. Plan Gate
 
-### 3. Intent Classification
-
-Before classifying, check the Small change conditions (Workflow Selection → Small change). If they all hold, take that path; otherwise classify the intent below. A request that describes a failure or symptom is `bugfix` and never takes the Small change path; a trivial textual fix with no failure (e.g. "fix this typo") is not `bugfix` and stays on the Small change path. If no intent matches, ask one clarifying question.
-
-| Intent | Detection | Workflow |
-|--------|-----------|----------|
-| `feature` | Keywords: `feature`, `add`, `connect`, `API`, `logic`, `build`, `form`, `button`, `page`, `screen`, `component`, `endpoint`, `migration`, `schema`, `handler` | Feature flow |
-| `refactor` | Keywords: `refactor`, `clean up`, `improve`, `duplicate` | Refactor flow |
-| `bugfix` | Keywords: `fix`, `bug`, `error`, `broken`, `fails`, `crash`, `regression`, or a "why" question about a failure | Bugfix flow |
-| `review` | Keywords: `review`; `check`, `verify` only when a diff exists to review and no failure symptom is described (a symptom → `bugfix`) | Review fast-path |
-
-Keywords are examples: match the same meaning in whatever language the user writes.
-
-UI work is `feature` work. A design URL in the request (e.g. a figma.com link) is only a reference input: record it in `plan.md → Inputs.Design`. It does not select a workflow, and this plugin gives no design-tool instructions.
-
-### 4. API Spec Check
-
-**Trigger**: intent is `feature` AND request contains API keyword: `fetch`, `axios`, `API`, `GraphQL`, `query`, `mutation`, `Apollo`, `WebSocket`, `endpoint`, `server`, `backend`, `connect`, `data`, `load`, `save`, `realtime` (or the same meaning in the user's language)
-
-If triggered, or the request carries a pasted `## Contract` block → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/api-spec.md` before recording `plan.md → Inputs.API`
-
-### 5. Review Fast-Path
-
-Intent is exactly `review` → **skip the Plan Gate** (no `plan.md`, no approval wait) and spawn `reviewer` on the current changes. Its PASS/FAIL verdict is the final output; no commit or push follows.
-
-### 6. Plan Gate
+Intent is `feature`, `bugfix` or `refactor` and the Small change path is not taken → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/plan-gate.md` before writing or updating `plan.md`
 
 Create `plan.md`, then wait for explicit user approval before execution (Bugfix exception: Workflow Selection → Bugfix).
 
-Intent is `feature`, `bugfix` or `refactor` and the Small change path is not taken → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/plan-gate.md` before writing or updating `plan.md`
+The change calls an API whose request/response shape you do not have, or the request carries a pasted `## Contract` block → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/api-spec.md` before recording `plan.md → Inputs.API`
 
 ---
 
@@ -149,11 +100,10 @@ Spawn specialists with the `Agent` tool. When installed as a plugin, the `subage
 
 Per agent call, include only:
 
-1. The relevant `agents/*.md`
-2. Relevant `constraints.md` and profile sections via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" <paths>)"`, where `<paths>` = the plan's Affected Files for developer / refactor-architect and nothing for reviewer / test-runner (current changes) — pass its output in the spawn prompt as-is (it carries the constraints, the selected profiles' sections and the agent's org overlay); never read `~/.review-harness/org/` separately
-3. Minimal `plan.md` excerpt — for `test-runner`, include the `Done When` test/command checks (or the Small change `Done when:` check) so it runs them
-4. Compact handoff block
-5. Exact files needed
+1. The output of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/extract-constraints.sh" <agent-name> "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-profile.sh" <paths>)"`, where `<paths>` = the plan's Affected Files for developer / refactor-architect and nothing for reviewer / test-runner (current changes) — pass its output in the spawn prompt as-is (it carries the constraints, the selected profiles' sections and the agent's org overlay); never read `~/.review-harness/org/` separately
+2. Minimal `plan.md` excerpt — for `test-runner`, include the `Done When` test/command checks (or the Small change `Done when:` check) so it runs them. Pass `plan.md → Inputs.API` to `developer` only when the change touches data fetching/mutation
+3. Compact handoff block
+4. Exact files needed
 
 Never inline full `constraints.md`, unrelated files or raw verbose logs.
 
@@ -163,7 +113,6 @@ Never inline full `constraints.md`, unrelated files or raw verbose logs.
 ## Handoff
 - plan_path: /abs/path/to/state-dir/plan.md
 - changed_files: path1, path2
-- reusable_components: Button, Card
 - decisions: keep existing filter sidebar pattern
 - blockers: cart.spec.ts failing
 - test_status: not_run | passed:npm run test | failed:npm run test
@@ -173,13 +122,11 @@ Never inline full `constraints.md`, unrelated files or raw verbose logs.
 - self-check: <rule hit → fixed>; … | clean (developer only)
 ```
 
-Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:`, `root cause:` and `self-check:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
+Rules: omit empty fields, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
 
 ---
 
 ## Workflow Selection
-
-`||` = run in parallel — launch both concurrently and wait for both.
 
 **Run state (first step of EVERY workflow, Small change included)**: before anything else in the chosen workflow, run
 
@@ -187,7 +134,7 @@ Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:`, 
 bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" start <workflow> <step> <step> ...
 ```
 
-with `<workflow>` = `small-change | feature | bugfix | refactor | review` and the workflow's steps in order (e.g. `start feature baseline developer test-runner reviewer git-commit`). If it refuses because a run is already active, go back to Request Gate 0.5. Then keep the file current — the script computes every counter, timestamp and hash; never write those values yourself:
+with `<workflow>` = `small-change | feature | bugfix | refactor | review` and the workflow's steps in order (e.g. `start feature baseline developer test-runner reviewer git-commit`). If it refuses because a run is already active, go back to Request Gate 1. Then keep the file current — the script computes every counter, timestamp and hash; never write those values yourself:
 
 - step finished → `run-state.sh step <name>`
 - tests failed → `run-state.sh attempt`
@@ -195,17 +142,13 @@ with `<workflow>` = `small-change | feature | bugfix | refactor | review` and th
 - test result → recorded by `test-runner` itself: put `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" tests <pass|fail|none>` in its prompt (not in the baseline run)
 - last commit made, or a `review` workflow finished → `run-state.sh done`
 
-**Review gate**: `reviewer` is the single quality gate, and it is enforced from the state file, not from the conversation. `git-commit` proceeds only when `run-state.sh check` passes: a recorded PASS whose work-tree hash equals the current work tree and no blocking test result, or a recorded user override. FAIL, a missing verdict, code changed after the review or after the last test run, a `tests fail`, or a `tests none` the user has not confirmed all block the commit; the fix list feeds the retry loop. The `commit-gate.sh` PreToolUse hook denies `git commit` on the same check as a backstop.
+**Review gate**: `git-commit` proceeds only when `run-state.sh check` passes; the `commit-gate.sh` PreToolUse hook denies `git commit` on the same check. The state file decides, never your memory of the conversation, and a FAIL's fix list feeds the retry loop.
 
 **Test baseline** (`feature`, `bugfix`, `refactor`): before `developer`, spawn `test-runner` with `mode: baseline`. It writes the already-failing tests to `<state dir>/baseline.txt`, and later runs count only new failures. If it lists any, tell the user in one line: `N tests already fail before this change: <ids> — they do not count against it.` Then `run-state.sh step baseline` (also on `no_tests_configured`). A bugfix's regression test appears there only if it already exists.
 
 **No tests** (`test-runner` reports `no_tests_configured`): after reviewer PASS, show the user the `Done When` manual steps (Small change: the `Done when:` check) with the test-runner's command results, and ask with `AskUserQuestion`: `Checked — commit` | `Not yet`. Record `run-state.sh tests manual-confirmed` only after the user explicitly says yes; otherwise stop before `git-commit`.
 
-### Shared Skip Rules
-
-- Skip `search-knowledge` when the injected `knowledge:` line says empty, or the knowledge is irrelevant
-- Pass `plan.md → Inputs.API` to `developer` only when the change touches data fetching/mutation
-- Skip `save-knowledge` if no durable learning
+Skip `search-knowledge` when the injected `knowledge:` line says empty or the knowledge is irrelevant; run `save-knowledge` only when a reusable pattern, decision or repeatable issue emerged.
 
 ### Small change
 
@@ -224,8 +167,6 @@ search-knowledge? -> test-runner (baseline) -> developer
 -> git-commit -> [DONE — report ready, await user git ops] -> save-knowledge?
 ```
 
-`developer` owns API integration inline (types → hook/service → UI states) — all code exists before `test-runner` runs, so tests always cover the full change.
-
 ### Bugfix
 
 Intent is `bugfix` → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/bugfix.md` before `run-state.sh start` or any Bugfix step
@@ -242,27 +183,8 @@ If the user waives the characterization-test step at re-approval, remove it from
 
 ### Review
 
-Fast-path: bypasses Plan Gate (see Request Gate step 5).
-
 ```
 reviewer -> run-state.sh done
-```
-
----
-
-## Git Operations Policy (USER-DRIVEN)
-
-The plugin does **NOT** auto-create branches or submit PRs. Both are the user's explicit action.
-
-After the workflow chain reaches `[DONE]`, the plugin reports:
-
-```
-✅ Implementation + review complete.
-
-Next steps (user-driven):
-- No branch yet: run `/git-branch` to create one
-- Ready for a PR: run `/git-pr`
-- Push yourself: `git push -u origin <branch-name>`
 ```
 
 ---
@@ -279,8 +201,6 @@ Tests fail, `reviewer` returns FAIL, `developer` reports an issue as `wrong:`, o
 
 - Never declare completion without test evidence when applicable
 - Never move to `git-commit` without reviewer PASS — verified by `run-state.sh check`, not by memory of the conversation
-- **Never auto-create branches or PRs** — these are user-driven (see "Git Operations Policy")
-- **Never auto-push** — `git push` is the user's action
-- Save knowledge only if reusable pattern, decision, or repeatable issue emerged
+- **Never auto-create branches or PRs, never auto-push** — after `[DONE]`, report `Implementation + review complete` and name the user's next steps: `/git-branch`, `/git-pr`, or `git push -u origin <branch-name>`
 - List the reviewer's `defer` issues in the final report (also at `LIMIT REACHED`)
 - A plan with `## Contract`: end the final report with that block verbatim and one line asking the user to paste it into the consumer repo's `/review-harness` run, which records it as `Inputs.API`
