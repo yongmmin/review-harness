@@ -19,7 +19,6 @@ How it keeps the first review passing and the review honest:
 
 - **The developer sees the reviewer's rules.** It gets the review checklist and your past failure patterns, and checks its own diff before handoff with two scripts: `static-gates.sh` (grep-decidable rules such as `console.log`, `.env` files, secret fallbacks) and `review-context.sh` (changed symbols and every file that calls them).
 - **Review strength follows risk.** `risk-tier.sh` scores each change. A small or docs-only change gets a cheaper reviewer. A risky one (auth, payment, migrations, concurrency, hooks/CI, 10+ files) makes the reviewer run executable probes instead of only reading code.
-- **Web UI follows current platform guidance.** [modern-web-guidance](#modern-web-guidance) is searched at plan time, read by the developer and scanned by the reviewer.
 - **The commit gate is a hook.** It is not a promise in a prompt. See [Rules you need to know](#rules-you-need-to-know).
 - **Every run is measured**: first-review PASS rate, retries, and tokens and time per agent. See [Measuring runs](#measuring-runs).
 
@@ -156,18 +155,6 @@ Review         reviewer
 - Each reviewer issue carries a route: `patch` (fixed in the next retry), `replan` (the plan is wrong: `plan.md` is updated and you approve it again before the retry) or `defer` (outside this change: listed in the final report, never retried, and not a reason to FAIL). Every FAIL reason is listed at once. The developer may dispute an issue once with evidence instead of patching it; the reviewer re-judges that issue only, and a dispute does not use up a retry. Every retry re-runs the tests before the reviewer.
 - **Changes across repos**: when a change adds, changes or removes a route, socket event or request/response field another repo may use, the plan gets a `## Contract` (producer, consumer repos, `additive` or `breaking`, deploy order). For a breaking one, `find-consumers.sh` searches the other registered repos for each renamed or removed name and the hits go into the plan; the reviewer FAILs a breaking contract with no consumers listed, or a consumer repo with hits that is neither changed nor named as a follow-up in `Out of Scope`. Run the producer repo first: its final report ends with the `## Contract` block, which you paste into the consumer repo's run as its API spec.
 - Everything after `DONE` (branch, push, PR) is yours to do.
-
-## Modern web guidance
-
-For web UI work (the `web-frontend` profile, a change to markup, CSS/layout, forms, dialogs, tables, a11y or client-side JS), the flow uses GoogleChrome's [modern-web-guidance](https://github.com/GoogleChrome/modern-web-guidance) CLI, pinned to `modern-web-guidance@1.0.1`. Each use is a visible Bash call:
-
-| When | Who | Command | Token cost (estimate, not measured) |
-|---|---|---|---|
-| Planning (only when a `plan.md` is written) | main session | `search "<2–5 word query>"`, at most 3, stopping at the first failure; the matching guide ids go to `plan.md → Inputs.Web guidance` | a few hundred tokens per UI plan |
-| Implementation | developer | `retrieve` of exactly the ids the plan names (again on a retry only when the fix list names a guide or finding); reports `guidance: <id> applied \| not applied — <reason>`. Its self-check runs the same `legacy-scan` as the reviewer | about 3–15K per guide, plus the scan output |
-| Review | reviewer | `legacy-scan` on each added or modified UI file on its own (at most 5, the ones with the most added lines); a surviving finding on an added line is a FAIL `[design]`, on unchanged lines a deferred note | the scan output; each retry repeats the reviewer's scan |
-
-The plan, a stated browser policy, your repo's and design system's components, the profile's rules and the organisation rules win over a guide; a guide's CSS is written in the repo's styling system and tokens, and a guide never adds a dependency or polyfill unless the plan says so. Guides assume Baseline Widely Available; to state another browser policy, add a line such as `- Browser support: <policy>` to your organisation overlay (`~/.review-harness/org/`). When `npx`, the network or the permission is missing, or the CLI errors or times out, the step records `unavailable` and the run continues — never a FAIL and never a question. To run it without permission prompts, allowlist `Bash(npx -y modern-web-guidance@1.0.1 *)` in your Claude Code settings. Hooks never run it: they stay offline.
 
 ## Agents and models
 

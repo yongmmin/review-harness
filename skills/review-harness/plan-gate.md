@@ -16,7 +16,6 @@
 ## Inputs
 - Design: [reference URL or none]
 - API: [spec, endpoint, or none]
-- Web guidance: [guide ids, none, or unavailable]
 
 ## Affected Files
 - path/to/file.tsx - [change]

@@ -534,7 +534,7 @@ for f in "$SKD"/*.md; do
   eq "skill split: one pointer to $b" 1 "$(grep -cF "$SKP$b\` before " "$SK")"
 done
 eq "skill split: one pointer line per situational file" "$SKN" "$(grep -cF "$SKP" "$SK")"
-eq "skill split: 8 situational files" 8 "$SKN"
+eq "skill split: 7 situational files" 7 "$SKN"
 SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT' | grep -v 'hooks/repo-rules.sh"')
 eq "skill split: hook calls stay in the core but the one Contract rules line (and repo-rules.sh)" 1 "$(printf '%s' "$SKX" | grep -c .)"
 has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
@@ -581,8 +581,6 @@ has "reviewer: bugfix gate keys on ## Intent" 'plan `## Intent` is `bugfix`' "$R
 has "developer: bugfix may run an existing test" 'or run the existing test named there' "$(cat "$ROOT/agents/developer.md")"
 has "skill: handoff schema has optional red:" '- red: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: bugfix passes red: to reviewer" 'red:` line to `reviewer`' "$BF"
-has "skill: first pass passes guidance: to reviewer (any intent)" 'Pass the developer'"'"'s `guidance:` line to `reviewer` when `Inputs.Web guidance` lists ids' \
-  "$(sed -n '/^### Shared Skip Rules/,/^### Small change/p' "$SK")"
 has "skill: cause loop-back counts an attempt" 'run `run-state.sh attempt` (stop and report at `LIMIT REACHED`), then redo reproduce' "$BF"
 has "skill: plain review keyword unchanged" '| Keywords: `review`; `check`, `verify` only when a diff exists' "$(grep '^| `review`' "$SK")"
 has "skill: no intent match → one question" 'If no intent matches, ask one clarifying question.' "$(cat "$SK")"
@@ -879,7 +877,7 @@ has "skill: third failure of the same test or issue asks about the plan" 'whethe
 has "skill: orchestrator may write attempts.md" '`attempts.md`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
 has "skill: handoff schema allows root cause:" '- root cause: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: handoff schema has the developer self-check: line" '- self-check: <rule hit → fixed>; … | clean (developer only)' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
-has "skill: handoff Rules line names self-check: and guidance:" '`root cause:`, `self-check:` and `guidance:`' "$(grep '^Rules: omit empty fields' "$SK")"
+has "skill: handoff Rules line names self-check:" '`root cause:` and `self-check:`' "$(grep '^Rules: omit empty fields' "$SK")"
 has "developer: root cause on the second failure" '`root cause: <file:line' "$(cat "$ROOT/agents/developer.md")"
 README_STATE=$(cat "$ROOT/README.md")
 has "readme: attempts.md in the state table" '| `attempts.md` |' "$README_STATE"
@@ -889,58 +887,10 @@ rs start small-change test-runner reviewer >/dev/null
 eq "run-state: start clears the previous run's attempts.md" absent "$([ -f "$SD/attempts.md" ] && echo present || echo absent)"
 rs abandon >/dev/null
 
-# --- modern web guidance: plan search, developer retrieve, reviewer legacy-scan ----------------
-PINS=$(grep -rhoE 'modern-web-guidance@[A-Za-z0-9.-]*[A-Za-z0-9]' "$ROOT/skills" "$ROOT/agents" "$ROOT/profiles" "$ROOT/README.md" "$ROOT/docs" | sort -u)
-eq "web guidance: one pinned version in skills, agents, profiles, README and docs" 1 "$(printf '%s\n' "$PINS" | grep -c .)"
-case "$PINS" in modern-web-guidance@[0-9]*.[0-9]*.[0-9]*) PASS=$((PASS + 1)) ;; *) eq "web guidance: pin is x.y.z" x.y.z "$PINS" ;; esac
-PIN=${PINS#modern-web-guidance@}
-eq "web guidance: no @latest" "" "$(grep -rl 'modern-web-guidance@latest' "$ROOT/skills" "$ROOT/agents" "$ROOT/profiles" "$ROOT/README.md" "$ROOT/docs")"
-eq "web guidance: no hook runs it" "" "$(grep -rl 'modern-web-guidance' "$H")"
-has "skill: plan Inputs has Web guidance" '- Web guidance: [guide ids, none, or unavailable]' "$(sed -n '/^## Inputs/,/^$/p' "$SKD/plan-gate.md")"
-WG=$(sed -n '/^### 4\.5\. Web Guidance Search/,/^### 5\./p' "$SK"; cat "$SKD/web-guidance.md")
-has "skill: search step sits after the API Spec Check" "### 4.5. Web Guidance Search" "$(sed -n '/^### 4\. API Spec Check/,/^### 5\./p' "$SK")"
-has "skill: search trigger is the web-frontend profile" '`detect-profile.sh` on the planned Affected Files includes `web-frontend`' "$WG"
-has "skill: search only when a plan.md is written" 'a `plan.md` will be written (never on the Small change path or for `review`)' "$WG"
-has "skill: search trigger skips non-UI work" 'not 3D/canvas-only, styling-token-only or tooling' "$WG"
-has "skill: search command pinned" "npx -y modern-web-guidance@$PIN search \"<2–5 word action query>\"" "$WG"
-has "skill: at most 3 searches" 'at most 3' "$WG"
-has "skill: search unavailable never blocks" 'or any other CLI error or timeout → stop searching at that first one, write `unavailable` and continue. Never ask the user, never retry in a loop' "$WG"
-has "skill: retries and reviewer carry guidance:" 'the same for the developer'"'"'s `guidance:` line whenever `Inputs.Web guidance` lists ids' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SKD/retry.md")"
-has "skill: handoff schema has guidance:" '- guidance: <id> applied | <id> not applied — <reason> (developer only, when Inputs.Web guidance lists ids)' \
-  "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
-DEVO=$(ec developer web-frontend 2>/dev/null); REVO=$(ec reviewer web-frontend 2>/dev/null)
-has "web guidance: developer retrieves the plan's ids" "npx -y modern-web-guidance@$PIN retrieve" "$DEVO"
-has "web guidance: developer reads a saved temp file in full" 'read that file in full' "$DEVO"
-EXEMPT="the plan, a stated browser policy, an existing repo or design-system component, this profile's rules, or an org rule"
-has "web guidance: developer precedence list" "Precedence: $EXEMPT win over a guide" "$DEVO"
-has "web guidance: guide CSS in the repo styling system" "write a guide's CSS in the repo's styling system and tokens (this profile's rules win)" "$DEVO"
-has "web guidance: retry keeps guidance:" 'On a retry, keep the `guidance:` line from the prompt; `retrieve` again only when the fix list names a guide or a `legacy-scan` finding' "$DEVO"
-has "web guidance: no dependency or polyfill" 'never adds a dependency or a polyfill unless the plan says so' "$DEVO"
-has "web guidance: Baseline default" 'Baseline Widely Available unless the org overlay or the repo states a browser policy' "$DEVO"
-has "web guidance: developer reports guidance:" '`guidance: <id> applied | <id> not applied — <reason>`' "$DEVO"
-has "web guidance: developer self-check scans each file, bounded" "run \`npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each added or modified UI file on its own (at most 5: the 5 with the most added lines)" "$DEVO"
-has "web guidance: developer scan unavailable goes to self-check" '`legacy-scan: unavailable` in the `self-check:` line, not `blockers`' "$DEVO"
-has "web guidance: developer checklist has the legacy-scan gate" '- `legacy-scan` finding on an ADDED line' "$DEVO"
-lacks "web guidance: reviewer's unavailable → blockers rule stays out of the developer checklist" \
-  '`legacy-scan: unavailable` in handoff `blockers`' "$(ckb web-frontend)"
+# --- profiles: #review reaches the developer checklist --------------------------------
 for f in web-frontend web-api web-common; do
   has "$f: header table — #review reaches the developer checklist" '| `#review` | reviewer; developer (as its review checklist) |' "$(cat "$ROOT/profiles/$f.md")"
 done
-lacks "web guidance: reviewer never retrieves" "retrieve" "$REVO"
-has "web guidance: reviewer scans each UI file, never a directory" "npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each added or modified UI file on its own, never on a directory" "$REVO"
-has "web guidance: reviewer scans at most 5 files" 'at most 5 files — with more, scan the 5 with the most added lines and put `legacy-scan: 5 of N files` in handoff `blockers`' "$REVO"
-has "web guidance: reviewer UI file types" '`.tsx .jsx .vue .svelte .html .css .scss`' "$REVO"
-has "web guidance: added-line finding → FAIL [design]" "rubric → FAIL \`[design]\`, unless $EXEMPT requires that pattern; on unchanged lines → a \`defer\` issue" "$REVO"
-has "web guidance: unavailable is no FAIL" 'or any other CLI error or timeout) → `legacy-scan: unavailable` in handoff `blockers`, never a FAIL' "$REVO"
-has "web guidance: missing guidance: → FAIL [goal]" 'the developer handoff has no `guidance:` line → FAIL `[goal]` (patch)' "$REVO"
-README_WG=$(sed -n '/^## Modern web guidance/,/^## /p' "$ROOT/README.md")
-has "readme: Modern web guidance section" "## Modern web guidance" "$README_WG"
-has "readme: allowlist entry" "Bash(npx -y modern-web-guidance@$PIN *)" "$README_WG"
-has "readme: hooks never run it" 'Hooks never run it' "$README_WG"
-has "readme: token costs are estimates" 'Token cost (estimate, not measured)' "$README_WG"
-has "readme: each retry repeats the reviewer scan" "each retry repeats the reviewer's scan" "$README_WG"
-has "docs: flow names Web Guidance Search" 'Web Guidance Search' "$(cat "$ROOT/docs/skills.md")"
-has "changelog: names modern-web-guidance" 'modern-web-guidance' "$(sed -n '/^### v0\.7\.0/,/^### v0\.6/p' "$ROOT/CHANGELOG.md")"
 
 # --- post-tool-use: tsc count of errors in other files -------------------------------
 TP="$TMP/tsproj"; mkdir -p "$TP/src" "$TMP/fakebin"; echo '{}' > "$TP/package.json"; echo '{}' > "$TP/tsconfig.json"

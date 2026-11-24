@@ -125,12 +125,6 @@ UI work is `feature` work. A design URL in the request (e.g. a figma.com link) i
 
 If triggered, or the request carries a pasted `## Contract` block → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/api-spec.md` before recording `plan.md → Inputs.API`
 
-### 4.5. Web Guidance Search
-
-**Trigger**: a `plan.md` will be written (never on the Small change path or for `review`) AND `detect-profile.sh` on the planned Affected Files includes `web-frontend` AND the change adds or changes UI or client behaviour (markup, CSS/layout, forms, dialogs, tables, a11y, client-side JS such as dates or sanitization) — not 3D/canvas-only, styling-token-only or tooling.
-
-If triggered → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/web-guidance.md` before writing `plan.md`
-
 ### 5. Review Fast-Path
 
 Intent is exactly `review` → **skip the Plan Gate** (no `plan.md`, no approval wait) and spawn `reviewer` on the current changes. Its PASS/FAIL verdict is the final output; no commit or push follows.
@@ -177,10 +171,9 @@ Never inline full `constraints.md`, unrelated files or raw verbose logs.
 - assumptions: <what developer assumed where the plan was silent> (developer only)
 - root cause: <file:line — why the last change did not fix it> (developer, when the same test or issue fails again)
 - self-check: <rule hit → fixed>; … | clean (developer only)
-- guidance: <id> applied | <id> not applied — <reason> (developer only, when Inputs.Web guidance lists ids)
 ```
 
-Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:`, `root cause:`, `self-check:` and `guidance:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
+Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:`, `root cause:` and `self-check:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
 
 ---
 
@@ -212,7 +205,6 @@ with `<workflow>` = `small-change | feature | bugfix | refactor | review` and th
 
 - Skip `search-knowledge` when the injected `knowledge:` line says empty, or the knowledge is irrelevant
 - Pass `plan.md → Inputs.API` to `developer` only when the change touches data fetching/mutation
-- Pass the developer's `guidance:` line to `reviewer` when `Inputs.Web guidance` lists ids (any intent, like a bugfix's `red:`)
 - Skip `save-knowledge` if no durable learning
 
 ### Small change
