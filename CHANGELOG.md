@@ -4,6 +4,9 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Removed**
+- Usage downgrade: `hooks/usage-state.sh`, `skills/review-harness/usage-downgrade.md` and the `5h usage` question in `/review-harness`, `/code-review` and `/refactor-scan` — inert unless a private status-line wrapper writes `usage-state.json`
+
 **Run stats**
 - `run-stats.sh`: a `weighted cost per run (subagents only)` line after the tokens line — median of `in + cr×0.1 + cw×1.25 + out×5` per run, in input-equivalent tokens; the raw total is about 90% cache reads and overstates cost about threefold
 

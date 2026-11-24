@@ -12,7 +12,7 @@ Detailed description moved out of the [README](../README.md). The reference docu
 6. **Workflow execution** — a different chain per intent (feature/bugfix/refactor/review) or the Small change path. A bugfix reproduces the failure and records its cause before any fix, and never takes the Small change path. UI work is handled as feature
 7. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
 
-The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `web-guidance.md` (step 4), `strategy-gate.md` (step 5, when a strategy file exists: the strategy check), `plan-gate.md` (step 5: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 6: Small change, Bugfix, retries after a failure), `usage-downgrade.md` (5h usage at 80% or more), `git-ops.md` (branch, push or PR requests).
+The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `web-guidance.md` (step 4), `strategy-gate.md` (step 5, when a strategy file exists: the strategy check), `plan-gate.md` (step 5: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 6: Small change, Bugfix, retries after a failure), `git-ops.md` (branch, push or PR requests).
 
 ## 13 Skills
 

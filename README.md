@@ -182,7 +182,7 @@ The plan, a stated browser policy, your repo's and design system's components, t
 
 The model is the `model:` value in each `agents/*.md` frontmatter.
 
-The review is matched to the change: before each reviewer spawn, `hooks/risk-tier.sh` scores it `low`, `normal` or `high`. A `low` change (docs or tests only, or at most 2 files with at most 30 added lines, no dependency file such as a lockfile, and no risky path or code word; words in `*.md`/`*.mdx`/`*.rst`/`*.txt` docs do not count) is reviewed with `opus` at `medium` effort; a `high` change (auth, payment, migrations, concurrency, parsers, hooks/CI/gates, or 10+ files) makes the reviewer write and run at least 2 executable probes in a temp dir. The usage-limit answer below still applies.
+The review is matched to the change: before each reviewer spawn, `hooks/risk-tier.sh` scores it `low`, `normal` or `high`. A `low` change (docs or tests only, or at most 2 files with at most 30 added lines, no dependency file such as a lockfile, and no risky path or code word; words in `*.md`/`*.mdx`/`*.rst`/`*.txt` docs do not count) is reviewed with `opus` at `medium` effort; a `high` change (auth, payment, migrations, concurrency, parsers, hooks/CI/gates, or 10+ files) makes the reviewer write and run at least 2 executable probes in a temp dir.
 
 The developer is matched to the plan the same way: before each developer spawn, `hooks/risk-tier.sh --paths <plan Affected Files>` scores the planned paths alone. A `low` plan (at most 3 paths, no risky path, no dependency file) spawns the developer at `medium` effort; `normal`, `high` and bugfix plans keep the frontmatter effort.
 
@@ -191,8 +191,7 @@ The developer is matched to the plan the same way: before each developer spawn, 
 1. **You run the git operations.** The plugin commits automatically, but for branches, pushes and PRs it only writes the commands and text.
 2. **No commit without a reviewer PASS.** The verdict is stored in a file together with a hash of the work tree at review time. If you change code after the review, it must be reviewed again (`git add` does not count as a change). A failed test run, a test run older than the current code, or a repo without tests whose manual checks you have not confirmed, also blocks the commit. While a run is active, Claude's `merge`, `cherry-pick`, `revert`, `am` and `rebase --continue` are held to the same check. To commit anyway, say so explicitly; it is recorded as an override.
 3. **An organisation overlay can add rules.** Example: a gate that requires QA documents to be updated when behaviour changes.
-4. **At 80% of the 5-hour usage limit it asks which model to use.** Before starting reviewer / refactor-architect it asks once: `Keep Fable` / `Opus for this run`. Usage is read from `~/.claude/usage-state.json`, written by your status line; if the file is missing or older than 10 minutes it does not ask.
-5. **Editing `package.json`, `next.config.*`, `tsconfig*.json`, lock files (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`, `go.sum`, …) or `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`) needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
+4. **Editing `package.json`, `next.config.*`, `tsconfig*.json`, lock files (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`, `go.sum`, …) or `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`) needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
 
 ## Measuring runs
 
@@ -251,7 +250,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 13 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 24 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 23 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime; the parts one path needs (plan template, bugfix, retry loop, …) sit in sibling `skills/review-harness/*.md` files it reads only on that path
 - [constraints.md](constraints.md) — agent rules

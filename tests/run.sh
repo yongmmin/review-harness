@@ -534,7 +534,7 @@ for f in "$SKD"/*.md; do
   eq "skill split: one pointer to $b" 1 "$(grep -cF "$SKP$b\` before " "$SK")"
 done
 eq "skill split: one pointer line per situational file" "$SKN" "$(grep -cF "$SKP" "$SK")"
-eq "skill split: 10 situational files" 10 "$SKN"
+eq "skill split: 9 situational files" 9 "$SKN"
 SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT' | grep -v 'hooks/repo-rules.sh"')
 eq "skill split: hook calls stay in the core but the one Contract rules line (and repo-rules.sh)" 1 "$(printf '%s' "$SKX" | grep -c .)"
 has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
@@ -1944,13 +1944,10 @@ has "reviewer: high risk → at least 2 executed probes" 'at least 2 executable 
 has "reviewer: probes never in the work tree" "never in the user's work tree" "$PR"
 has "reviewer: probes handoff line" '`probes: N run, K failed`' "$PR"
 has "reviewer: a dispute re-judge re-runs probes only for a probe issue" 'does not re-run probes unless the disputed issue came from a probe' "$PR"
-has "skill: Keep Fable does not change low" '`Keep Fable` does not change `low`' "$AS"
-has "code-review: Keep Fable does not change low" '`Keep Fable` does not change `low`' "$(cat "$ROOT/skills/code-review/SKILL.md")"
 has "reviewer: probes line is a 4th handoff bullet" 'plus `probes:` when your prompt says `risk: high`' "$OF"
 has "docs/hooks.md: risk-tier row" '| **`risk-tier.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
 has "readme: risk-tier example" 'bash hooks/risk-tier.sh' "$(cat "$ROOT/README.md")"
 has "CLAUDE.md: model routing names risk tiers" 'risk-tier.sh' "$(sed -n '/^## Model Routing/,$p' "$ROOT/CLAUDE.md")"
-has "usage-downgrade keeps its own pointer" 'usage-downgrade.md` before the first `reviewer` or `refactor-architect` spawn' "$(cat "$SK")"
 has "routing: developer spawn runs --paths on Affected Files" 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" --paths <plan Affected Files>' "$AS"
 has "routing: low plan → developer medium effort" '`low` → spawn `developer` with `effort: "medium"`' "$AS"
 has "routing: normal, high or failure → no developer override" '`normal`, `high` or a script failure → no override' "$AS"

@@ -16,9 +16,6 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || true
 ```
 
 - state dir: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh" --create 2>/dev/null || echo unavailable`
-- 5h usage: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/usage-state.sh" 2>/dev/null || echo unknown`
-
-Usage downgrade (same rule as `review-harness` → Agent Spawning): if the `5h usage` value above is 80% or higher, ask once with `AskUserQuestion` before spawning — state the usage and reset time, options `Keep Fable` | `Opus for this run` (ask in the user's language). On Opus, pass `model: "opus"` to the Agent tool; otherwise pass no `model`. Below 80% or `unknown`: do not ask. If `review-harness` already asked in this run, reuse that answer.
 
 Focus (may be empty → whole active repo): `$ARGUMENTS`
 **Purpose**: Scan codebase for repeated patterns and produce refactoring proposal. Respect domain doc boundaries and shared-library upgrade paths.

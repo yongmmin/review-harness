@@ -25,7 +25,6 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || echo "de
 - run state: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" status 2>/dev/null || echo none`
 - knowledge: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/knowledge-has-content.sh" 2>/dev/null && echo "has content" || echo "empty — skip search-knowledge"`
 - strategy: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/strategy-file.sh" --status 2>/dev/null || echo none`
-- 5h usage: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/usage-state.sh" 2>/dev/null || echo unknown`
 - git: branch !`git branch --show-current 2>/dev/null || echo "(no git)"` · uncommitted paths: !`git status --porcelain 2>/dev/null | wc -l | tr -d " "`
 
 Plugin root for every hook call below: `${CLAUDE_PLUGIN_ROOT}` (never a cwd-relative `hooks/…` path — cwd is the consumer repo, not the plugin).
@@ -151,14 +150,9 @@ Intent is `feature`, `bugfix` or `refactor` and the Small change path is not tak
 
 Spawn specialists with the `Agent` tool. When installed as a plugin, the `subagent_type` is namespaced: `review-harness:developer`, `review-harness:reviewer`, etc. If the namespaced type is not listed (legacy `.claude/agents/` copy), fall back to the bare name. Never re-implement an agent's role inline because the type was not found — report it.
 
-**Usage downgrade**: the injected `5h usage` line reads `N% (resets HH:MM)` or `unknown`.
-
-- N is 80 or higher → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/usage-downgrade.md` before the first `reviewer` or `refactor-architect` spawn
-- If N is below 80 or the value is `unknown`, do not ask; pass no `model` so the frontmatter value applies
-
 **Developer effort**: before each `developer` spawn, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" --paths <plan Affected Files>`. `low` → spawn `developer` with `effort: "medium"`; `normal`, `high` or a script failure → no override. A `bugfix` plan never gets this override (root-cause work).
 
-**Risk tier**: before each `reviewer` spawn, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" [base]` (the base only when the change is committed) and put its output in the reviewer prompt as `risk: <tier>` plus its `reason:` lines; the script fails → `risk: normal`. `low` → spawn `reviewer` with `model: "opus"` and `effort: "medium"`; `normal` and `high` → no override (`high`: the reviewer runs probes). `Opus for this run` still sets `model: "opus"` on every tier; `Keep Fable` does not change `low`.
+**Risk tier**: before each `reviewer` spawn, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" [base]` (the base only when the change is committed) and put its output in the reviewer prompt as `risk: <tier>` plus its `reason:` lines; the script fails → `risk: normal`. `low` → spawn `reviewer` with `model: "opus"` and `effort: "medium"`; `normal` and `high` → no override (`high`: the reviewer runs probes).
 
 ## Context Budget
 
