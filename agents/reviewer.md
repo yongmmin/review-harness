@@ -52,9 +52,7 @@ tools: Read, Glob, Grep, Bash
 
 An edit to something `Out of Scope` names → FAIL `[scope]` (a stub that `Out of Scope` names, left for the later change, is not such an edit).
 
-**Dispute**: when your prompt carries `dispute: <issue id> — <evidence>` lines for your last FAIL, re-judge only the disputed issue(s) against the evidence on the unchanged code: drop the issue, or keep it with one line why. Repeat the round's other FAIL issues unchanged and add no new ones. Record the verdict as usual; the script marks it as a re-judge.
-
-**Probes** (your prompt says `risk: high`): before the verdict, write and run at least 2 executable probes against the changed behaviour — each a command that would fail if the change were wrong (e.g. run the changed script or function on a crafted input and check its output or exit code). Run them in a `mktemp -d` dir or a throwaway copy of the repo, never in the user's work tree. A probe that shows a defect is a FAIL issue with its category. Report `probes: N run, K failed` as a handoff bullet. A dispute re-judge does not re-run probes unless the disputed issue came from a probe. No `risk:` line, or `risk: low` / `normal`: probes are optional.
+**Probes** (your prompt says `risk: high`): before the verdict, write and run at least 2 executable probes against the changed behaviour — each a command that would fail if the change were wrong (e.g. run the changed script or function on a crafted input and check its output or exit code). Run them in a `mktemp -d` dir or a throwaway copy of the repo, never in the user's work tree. A probe that shows a defect is a FAIL issue with its category. Report `probes: N run, K failed` as a handoff bullet. No `risk:` line, or `risk: low` / `normal`: probes are optional.
 
 ---
 

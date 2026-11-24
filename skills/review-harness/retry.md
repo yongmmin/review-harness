@@ -5,7 +5,7 @@ run implementation agent
 run test-runner when applicable
 run reviewer
 
-every failed attempt (tests or reviewer FAIL; not a dispute re-judge):
+every failed attempt (tests or reviewer FAIL):
   append one line to `## Attempts` in plan.md (no plan: <state dir>/attempts.md):
     N. hypothesis → change → result   # what the attempt assumed, what it changed, which test/issue failed
 
@@ -21,10 +21,8 @@ if reviewer returns FAIL:
     patch  -> retry with only the patch / replan issues as the fix list
     defer  -> never retried; keep for the final report
 
-if developer answers `dispute: <issue id> — <evidence>` instead of patching (no code change):
-  run-state.sh dispute <issue id...>   # exit 2: this round's dispute is used — retry with the fix list
-  re-run reviewer with the dispute lines; its verdict is not an attempt
-  an issue it keeps goes back into the fix list and cannot be disputed again
+if the implementer reports `wrong: <issue id> — <evidence>` in blockers (no code change in that reply):
+  stop and show the user the issue and the evidence; the user decides: patch it, or commit anyway (run-state.sh override)
 
 if the script prints "LIMIT REACHED" (exit 2):
   record a repeatable failure pattern if appropriate (append to the `ledger:` path from extract-constraints.sh,
@@ -37,9 +35,9 @@ if the script prints "LIMIT REACHED" (exit 2):
   user decides whether to file a GitHub issue manually (plugin does not auto-create issues)
 ```
 
-Test failures and reviewer FAILs count against the same `MAX_ATTEMPTS`; disputes do not.
+Test failures and reviewer FAILs count against the same `MAX_ATTEMPTS`.
 
-Every retry runs `test-runner` again before `reviewer`, on the Small change path too: the tests record holds only for the work tree it was taken on. Only the dispute re-judge, which changes no code, skips it.
+Every retry runs `test-runner` again before `reviewer`, on the Small change path too: the tests record holds only for the work tree it was taken on.
 
 Retry context must contain only:
 - failing command

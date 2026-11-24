@@ -5,6 +5,7 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 ### Unreleased
 
 **Removed**
+- Dispute: the `run-state.sh dispute` subcommand, the re-judge mark on verdicts, the `disputes` field in `runs.jsonl`, and the dispute steps in `retry.md`, `agents/developer.md` and `agents/reviewer.md` — never used in 25 recorded runs. Every reviewer FAIL now counts an attempt. A developer with evidence that an issue is wrong reports `wrong: <issue id> — <evidence>` in `blockers`, and the run stops for the user's decision (patch, or `override`). `run-stats.sh` still skips `rejudge` verdicts in older run logs
 - Usage downgrade: `hooks/usage-state.sh`, `skills/review-harness/usage-downgrade.md` and the `5h usage` question in `/review-harness`, `/code-review` and `/refactor-scan` — inert unless a private status-line wrapper writes `usage-state.json`
 - Strategy check and `/strategy`: `hooks/strategy-file.sh`, `skills/strategy/`, `skills/review-harness/strategy-gate.md`, the `run-state.sh strategy` subcommand and its `status` / `runs.jsonl` field, the `run-stats.sh` `strategy check:` line and the plan template's `## Why` — advice on what to work on is outside the harness's job, and 0 suggestions were recorded
 - Web guidance: `skills/review-harness/web-guidance.md`, the `4.5. Web Guidance Search` step, the plan's `Web guidance:` input, the `guidance:` handoff line and the `web-frontend` profile's developer procedure and reviewer `legacy-scan` gate — its effect was never measured and it made a network call during planning

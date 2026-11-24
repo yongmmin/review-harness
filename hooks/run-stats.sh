@@ -37,7 +37,7 @@ jq -Rnr --arg repo "$REPO" --arg since "$SINCE" --argjson now "$(date +%s)" '
     passed: ([.[] | select(.verdicts | last | .v == "PASS")] | length),
     fail: pct([.[] | select(any(.verdicts[]; .v == "FAIL"))] | length; length),
     # one count per [category] tag on a FAIL verdict; a FAIL recorded without tags counts as "untagged";
-    # a re-judge after a dispute repeats the tags of its round, so it is skipped
+    # older run logs mark a re-judge after a dispute (removed); it repeats the tags of its round, so it is skipped
     cats: ([.[] | .verdicts[] | select(.v == "FAIL" and (.rejudge | not)) | (.cats // ["untagged"]) | if . == [] then ["untagged"] else . end | .[]]
       | group_by(.) | map({k: .[0], n: length}) | sort_by(-.n, .k) | map("\(.k) \(.n)") | join(", ")
       | if . == "" then "-" else . end),

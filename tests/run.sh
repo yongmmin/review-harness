@@ -771,21 +771,20 @@ has "test-runner: baseline mode skips steps 5–7" 'Except in baseline mode (ste
 has "skill: Small change has no baseline" 'It also has no test baseline' "$SC"
 has "readme: Small change has no baseline" 'It also has no test baseline' "$(cat "$ROOT/README.md")"
 
-# --- review triage: routes, disputes, issue count -------------------------------------------
+# --- review triage: routes, issue count -------------------------------------------
 RV=$(cat "$ROOT/agents/reviewer.md"); DV=$(cat "$ROOT/agents/developer.md")
 OF=$(sed -n '/^## Output Format/,/^## Static Review Gates/p' "$ROOT/agents/reviewer.md")
 has "reviewer: issue line carries a route" '-> [fix] (route: patch | replan | defer)' "$OF"
 has "reviewer: defer is not a FAIL reason" '`defer` issues never make a FAIL' "$OF"
 has "reviewer: every FAIL issue listed" 'List every `patch` / `replan` issue' "$OF"
 lacks "reviewer: no 5-issue cap" "Max 5 issues" "$OF"
-has "reviewer: dispute re-judges one issue" 're-judge only the disputed issue(s)' "$RV"
 HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK"; cat "$SKD/retry.md")
 for r in 'patch  ->' 'replan ->' 'defer  ->'; do has "skill: harness loop routes $r" "$r" "$HL"; done
 has "skill: replan needs re-approval" 'get the user'"'"'s re-approval' "$HL"
-has "skill: dispute command in the loop" 'run-state.sh dispute <issue id...>' "$HL"
+has "skill: a wrong issue stops for the user" 'stop and show the user the issue and the evidence' "$HL"
 has "skill: every retry re-runs test-runner" 'Every retry runs `test-runner` again before `reviewer`, on the Small change path too' "$HL"
 has "skill: defer items in the final report" 'reviewer'"'"'s `defer` issues' "$(sed -n '/^## Completion/,$p' "$SK")"
-has "developer: may dispute once per issue" '`dispute: <issue id> — <evidence>`' "$DV"
+has "developer: reports a wrong issue instead of patching it" '`wrong: <issue id> — <evidence>`' "$DV"
 has "code-review: FAIL list keeps routes" 'with each issue'"'"'s `route:`' "$(cat "$ROOT/skills/code-review/SKILL.md")"
 FE=$(sed -n '/^## #review/,/^Review scope:/p' "$ROOT/profiles/web-frontend.md")
 has "web-frontend: memo gates only on a hot path" 'only on a measured or obviously hot path' "$FE"
@@ -868,7 +867,6 @@ lacks "skill: LIMIT no longer writes constraints.md" "constraints.md #failure-pa
 has "skill: LIMIT appends to the ledger path" 'the `ledger:` path' "$HL"
 has "skill: LIMIT names the ledger format" 'entry format and scope of agents/reviewer.md step 5; a new file starts with `## #failure-patterns`' "$HL"
 has "skill: LIMIT replan on the Small change path" '(Small change: no plan — ask the user, or switch to the Feature path)' "$(sed -n '/prints "LIMIT REACHED"/,/^```$/p' "$SKD/retry.md")"
-has "skill: dispute re-judge is no attempt line" 'not a dispute re-judge' "$HL"
 has "skill: attempts line per retry" 'N. hypothesis → change → result' "$HL"
 has "skill: attempts in plan.md or attempts.md" '`## Attempts` in plan.md' "$HL"
 has "skill: attempts.md without a plan" '<state dir>/attempts.md' "$HL"
@@ -956,48 +954,15 @@ eq "verdict: unknown first word still exit 2" 2 "$(rc rl verdict MAYBE goal)"
 jq '.verdicts = ["FAIL"] + .verdicts' "$SD/run-state.json" > "$SD/x" && mv "$SD/x" "$SD/run-state.json"
 rl done >/dev/null
 eq "run log: old string verdicts read back" '[{"v":"FAIL"},{"v":"FAIL","cats":["goal","scope"],"by":"reviewer"},{"v":"FAIL","by":"reviewer"},{"v":"PASS","by":"reviewer"}]' "$(tail -n 1 "$LOG" | jq -c .verdicts)"
-eq "run log: no dispute → disputes 0" 0 "$(tail -n 1 "$LOG" | jq .disputes)"
-# disputes: one per review round, never an attempt
-R="$TMP/disputerepo"; new_repo "$R"; SD=$(REVIEW_HARNESS_HOME="$RH" bash "$H/state-dir.sh" "$R")
-eq "dispute: no active run → exit 1" 1 "$(rc rl dispute 1)"
+eq "run log: no disputes field" null "$(tail -n 1 "$LOG" | jq .disputes)"
+# the dispute subcommand is gone: every reviewer FAIL counts an attempt, also on an unchanged work tree
+R="$TMP/nodisputerepo"; new_repo "$R"; SD=$(REVIEW_HARNESS_HOME="$RH" bash "$H/state-dir.sh" "$R")
 rl start feature developer test-runner reviewer >/dev/null
-eq "dispute: no FAIL to dispute → exit 1" 1 "$(rc rl dispute 1)"
 rl verdict FAIL goal scope >/dev/null
-eq "dispute: no issue id → exit 2" 2 "$(rc rl dispute)"
-OUT=$(rl dispute 2); RC=$?
-eq "dispute: recorded → exit 0" 0 "$RC"
-has "dispute: not counted as an attempt" "not an attempt" "$OUT"
-eq "dispute: second in the same round → exit 2" 2 "$(rc rl dispute 1)"
-has "dispute: re-judge FAIL is not an attempt" "attempts: 1/3" "$(rl verdict FAIL scope)"
-eq "dispute: the re-judge opens no new round" 2 "$(rc rl dispute 1)"
-eq "dispute: re-judge marked in the verdicts" '{"v":"FAIL","cats":["scope"],"rejudge":true,"by":"reviewer"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
-echo h >> "$R/f.txt"; has "dispute: the next review counts again" "attempts: 2/3" "$(rl verdict FAIL scope)"
-rl dispute 1 >/dev/null; eq "dispute: allowed again in the next round" 0 "$?"
-rl tests pass >/dev/null; rl verdict PASS >/dev/null
-eq "dispute: upheld dispute → re-judge PASS passes check" 0 "$( (cd "$R" && REVIEW_HARNESS_HOME="$RH" bash "$H/run-state.sh" check >/dev/null 2>&1); echo $?)"
-eq "dispute: attempts unchanged by disputes" 2 "$(jq .attempts "$SD/run-state.json")"
-rl done >/dev/null
-eq "run log: disputes counted" 2 "$(tail -n 1 "$LOG" | jq .disputes)"
-eq "run log: re-judges kept in the verdicts" 'FAIL FAIL,rejudge FAIL PASS,rejudge' "$(tail -n 1 "$LOG" | jq -r '[.verdicts[] | .v + (if .rejudge then ",rejudge" else "" end)] | join(" ")')"
-# a dispute followed by a code change is a normal review round, not a re-judge
-rl start feature reviewer >/dev/null; rl verdict FAIL goal >/dev/null; rl dispute 1 >/dev/null
-echo i >> "$R/f.txt"
-has "dispute → edit → FAIL counts an attempt" "attempts: 2/3 — retry" "$(rl verdict FAIL scope)"
-eq "dispute → edit → FAIL is no re-judge" '{"v":"FAIL","cats":["scope"],"by":"reviewer"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
-eq "dispute → edit: pending cleared" false "$(jq '.dispute.pending' "$SD/run-state.json")"
-echo j >> "$R/f.txt"
-eq "dispute: code changed since the FAIL → exit 1" 1 "$(rc rl dispute 1)"
-has "dispute: code changed → reason" "code changed since the FAIL" "$(rl dispute 1)"
-rl verdict FAIL >/dev/null
-eq "dispute: at the limit → exit 1" 1 "$(rc rl dispute 1)"
-has "dispute: at the limit → stop and report" "limit reached — stop and report" "$(rl dispute 1)"
-rl done >/dev/null
-mkdir -p "$TMP/edhome/state"; tail -n 1 "$LOG" > "$TMP/edhome/state/runs.jsonl"
-has "run-stats: an edited-after-dispute FAIL keeps its categories" "FAIL categories: goal 1, scope 1, untagged 1" "$(REVIEW_HARNESS_HOME="$TMP/edhome" bash "$H/run-stats.sh")"
-# an older state with a FAIL but no verdicts array may still dispute
-rl start feature >/dev/null; rl verdict FAIL >/dev/null
-jq 'del(.verdicts)' "$SD/run-state.json" > "$SD/x" && mv "$SD/x" "$SD/run-state.json"
-eq "dispute: state without verdicts → allowed" 0 "$(rc rl dispute 1)"
+eq "dispute: subcommand removed → usage, exit 2" 2 "$(rc rl dispute 1)"
+has "no dispute: a second FAIL on the same work tree counts an attempt" "attempts: 2/3" "$(rl verdict FAIL scope)"
+eq "no dispute: verdict carries no rejudge mark" '{"v":"FAIL","cats":["scope"],"by":"reviewer"}' "$(jq -c '.verdicts[-1]' "$SD/run-state.json")"
+eq "no dispute: state holds no dispute record" null "$(jq -c '.dispute' "$SD/run-state.json")"
 rl abandon >/dev/null
 
 # --- run-stats -------------------------------------------------------------------------
@@ -1029,7 +994,7 @@ eq "run-stats: nothing matches → count only" "runs: 0 (repo: nope, since: all)
 eq "run-stats: bad --since → exit 2" 2 "$(rc st --since x)"
 eq "run-stats: unknown flag → exit 2" 2 "$(rc st --all)"
 has "run-stats: no log yet" "no runs recorded yet" "$(REVIEW_HARNESS_HOME="$TMP/nolog" bash "$H/run-stats.sh")"
-mkdir -p "$TMP/rjhome/state"   # a re-judge after a dispute repeats its round's categories: counted once
+mkdir -p "$TMP/rjhome/state"   # older logs: a re-judge after a dispute repeats its round's categories, counted once
 echo '{"repo":"r-1","workflow":"feature","attempts":1,"verdicts":[{"v":"FAIL","cats":["goal","scope"]},{"v":"FAIL","cats":["scope"],"rejudge":true},{"v":"PASS"}],"end":"done"}' > "$TMP/rjhome/state/runs.jsonl"
 has "run-stats: re-judge FAILs not counted in categories" "FAIL categories: goal 1, scope 1" "$(REVIEW_HARNESS_HOME="$TMP/rjhome" bash "$H/run-stats.sh")"
 mkdir -p "$TMP/nojq"
@@ -1893,7 +1858,6 @@ PR=$(sed -n '/^\*\*Probes\*\*/p' "$ROOT/agents/reviewer.md")
 has "reviewer: high risk → at least 2 executed probes" 'at least 2 executable probes' "$PR"
 has "reviewer: probes never in the work tree" "never in the user's work tree" "$PR"
 has "reviewer: probes handoff line" '`probes: N run, K failed`' "$PR"
-has "reviewer: a dispute re-judge re-runs probes only for a probe issue" 'does not re-run probes unless the disputed issue came from a probe' "$PR"
 has "reviewer: probes line is a 4th handoff bullet" 'plus `probes:` when your prompt says `risk: high`' "$OF"
 has "docs/hooks.md: risk-tier row" '| **`risk-tier.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
 has "readme: risk-tier example" 'bash hooks/risk-tier.sh' "$(cat "$ROOT/README.md")"
