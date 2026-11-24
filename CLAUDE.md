@@ -18,6 +18,7 @@ Maintainer file for working on this repository. Claude Code does not load a plug
 - Files in this repository must never contain organisation-specific names, paths or URLs. Such content goes to `~/.review-harness/org/` (rules) or `~/.review-harness/knowledge/` (repo registry, domain knowledge)
 - Organisation content lives outside the plugin folder: overlays in `~/.review-harness/org/`, repo registry and domain knowledge in `~/.review-harness/knowledge/` (`index.md`, `<org>/*.md` incl. `repos.md`). When absent, overlays are empty, `detect-repo.sh` prints nothing, knowledge reports empty, and the generic rules apply alone — never treat that as an error
 - Session start: compact summaries only (`hooks/session-start.sh`)
+- Lessons from past review failures on this repo's shell scripts, hooks and tests live in `.claude/rules/shell-hooks.md` (auto-loaded here, and listed by `hooks/repo-rules.sh` for agents). A lesson about this repo goes there, not into the per-user failure-pattern ledger, which every repo's agents receive
 
 ---
 
