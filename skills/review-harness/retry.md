@@ -26,7 +26,7 @@ if the implementer reports `wrong: <issue id> — <evidence>` in blockers (no co
 
 if the script prints "LIMIT REACHED" (exit 2):
   record a repeatable failure pattern if appropriate (append to the `ledger:` path from extract-constraints.sh,
-    in the entry format and scope of agents/reviewer.md step 5; a new file starts with `## #failure-patterns`)
+    in the entry format and scope of agents/reviewer.md → Ledger; a new file starts with `## #failure-patterns`)
   stop and report full failure context — including the remaining reviewer fix list — to user
   if the same test or issue failed in every attempt, ask the user whether the plan is wrong:
     Replan -> revise plan.md, re-approval, then run-state.sh abandon and start a new run

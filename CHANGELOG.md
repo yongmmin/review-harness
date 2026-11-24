@@ -4,6 +4,12 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Thinner agent instructions**
+- `agents/reviewer.md` (10.5 → 8.0 KB), `agents/developer.md` (7.3 → 5.1 KB), `agents/test-runner.md` (5.7 → 4.7 KB), `agents/refactor-architect.md` (5.6 → 4.1 KB) and `constraints.md` (4.6 → 2.5 KB) keep what a script reads, what gates the commit and what sets the FAIL threshold; generic engineering knowledge is removed (principles lists, the four-category walkthrough, the design-quality and logic-correctness FAIL lists, test structure and coverage checklists, UI-only implementation rules, refactor detection targets). The reviewer reads in three parts: evidence scripts first, the plan as the contract (goal, scope, reuse, contract, bugfix), probes on high risk
+- Kept on purpose: the verdict command and "no edit after recording", issue routes, the calibration lines (style-only and three similar lines pass; a preference-worded repo rule is a `defer` note; notes are never an automatic FAIL), every exception clause of the goal and contract gates
+- `constraints.md`: the `#completion` section is gone (the attempt limit belongs to the orchestrator). `extract-constraints.sh` no longer passes it, and passes the test-runner no ledger: only the reviewer appends to the failure-pattern ledger now, and not a rule the touched repo's own rule files already hold
+- Injected rules with all three profiles, same organisation overlay: reviewer base part 8,876 → 8,084 bytes (under the 8,192 warning), developer 7,395 → 6,822, test-runner 3,329 → 1,675
+- An organisation overlay that leaned on the removed generic lists (design quality, cross-app imports, surfacing API errors) needs its own copy of those rules
 **Repo rules for this repo**
 - New `.claude/rules/shell-hooks.md`: 14 standing rules for the plugin's shell scripts, hooks and tests, taken from past review failures here. They used to sit in the per-user failure-pattern ledger, which is passed to every agent in every repo; a lesson about one repo belongs in that repo's own rule files
 
