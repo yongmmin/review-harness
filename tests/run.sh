@@ -181,12 +181,12 @@ lacks "profile: none passed → no profile block" "## Profile —" "$BASE"
 lacks "profile: moved rules are absent without it" "React performance" "$BASE"
 OUT=$(bash "$H/extract-constraints.sh" reviewer web-frontend 2>/dev/null)
 has "profile: reviewer gets the block" "## Profile — web-frontend" "$OUT"
-has "profile: reviewer gets #review" "React performance — FAIL if any" "$OUT"
-lacks "profile: reviewer does not get #implementation" "### TanStack Query" "$OUT"
+has "profile: reviewer gets #review" "**React performance**" "$OUT"
+lacks "profile: reviewer does not get #code-rules" "**Tailwind**: check the repo" "$OUT"
 OUT=$(bash "$H/extract-constraints.sh" developer web-frontend 2>/dev/null)
-has "profile: developer gets #implementation" "### TanStack Query" "$OUT"
-lacks "profile: developer does not get the #review section, only its rule lines" "React performance — FAIL if any:" "$OUT"
-has "profile: refactor-architect gets #detection" "Same JSX structure" "$(bash "$H/extract-constraints.sh" refactor-architect web-frontend 2>/dev/null)"
+has "profile: developer gets #code-rules" "**Tailwind**: check the repo" "$OUT"
+lacks "profile: developer does not get the #review section, only its rule lines" "Static review gates — FAIL if any:" "$OUT"
+has "profile: refactor-architect gets #code-rules" "**Tailwind**: check the repo" "$(bash "$H/extract-constraints.sh" refactor-architect web-frontend 2>/dev/null)"
 eq "profile: test-runner has no profile section" "$(bash "$H/extract-constraints.sh" test-runner 2>/dev/null)" \
   "$(bash "$H/extract-constraints.sh" test-runner web-frontend 2>/dev/null)"
 OUT=$(bash "$H/extract-constraints.sh" reviewer nope 2>/dev/null); eq "profile: unknown → exit 2" 2 "$?"
@@ -203,10 +203,10 @@ eq "profile: empty argument = no profile" "$BASE" "$(bash "$H/extract-constraint
 # Real web-api / web-common profiles: per-agent routing, and web-frontend output unchanged by their presence.
 OUT=$(bash "$H/extract-constraints.sh" reviewer web-api 2>/dev/null)
 has "web-api: reviewer gets the block" "## Profile — web-api" "$OUT"
-has "web-api: reviewer gets #review (4xx rule)" "500-class exception" "$OUT"
+has "web-api: reviewer gets #review" "Global exception filter" "$OUT"
 lacks "web-api: reviewer does not get #implementation" "**Write after read**" "$OUT"
 OUT=$(bash "$H/extract-constraints.sh" developer web-api 2>/dev/null)
-has "web-api: developer gets #implementation" "**Write after read**" "$OUT"
+has "web-api: developer gets the #review rule lines in its checklist" "Global exception filter" "$OUT"
 lacks "web-api: developer does not get the #review section, only its rule lines" "Static review gates — FAIL if any:" "$OUT"
 has "web-common: reviewer gets the block" "## Profile — web-common" "$(bash "$H/extract-constraints.sh" reviewer web-common 2>/dev/null)"
 eq "web-api: test-runner has no profile section" "$(bash "$H/extract-constraints.sh" test-runner 2>/dev/null)" \
@@ -762,7 +762,7 @@ done
 has "skill: final report carries the Contract block" 'A plan with `## Contract`: end the final report with that block verbatim' "$(sed -n '/^## Completion/,$p' "$SK")"
 has "reviewer: breaking contract with no consumers FAILs" 'a `## Contract` marked `breaking` whose `Consumers` line names no repo and no `none — <reason>`' "$RV"
 has "reviewer: unaddressed consumer hits FAIL" 'a consumer repo listed there with hits that the diff does not change and `Out of Scope` does not name as a follow-up' "$RV"
-for l in 18 44; do has "web-api: line $l points to the plan's Contract" 'the plan'"'"'s `## Contract`' "$(sed -n "${l}p" "$ROOT/profiles/web-api.md")"; done
+has "web-api: the contract gate points to the plan's Contract" 'the plan'"'"'s `## Contract`' "$(grep -F 'Renamed or removed route' "$ROOT/profiles/web-api.md")"
 NH=$(ls "$H"/*.sh | wc -l | tr -d ' ')
 has "docs/hooks.md: hook count" "## $NH Hooks" "$(cat "$ROOT/docs/hooks.md")"
 has "readme: hook count" "the $NH hook scripts" "$(cat "$ROOT/README.md")"
@@ -818,8 +818,8 @@ CK=$(ckb web-frontend,web-api)
 has "checklist: developer gets the block" "$CKH" "$CK"
 eq "checklist: exactly one block" 1 "$(ec developer web-frontend,web-api 2>/dev/null | grep -c '^## Review checklist')"
 has "checklist: constraints #review rule line" "- Password/token/webhook URL in tracked env/config" "$CK"
-has "checklist: profile #review rule line" '- `useEffect` missing dep or unstable ref causing infinite loop' "$CK"
-has "checklist: second profile's #review rule line" "500-class exception" "$CK"
+has "checklist: profile #review rule line" '- `useMemo`/`useCallback` wrapping primitive' "$CK"
+has "checklist: second profile's #review rule line" "Global exception filter" "$CK"
 has "checklist: org profile #review rule line" "- org fe gate CK-ORG" "$CK"
 lacks "checklist: no org profile #implementation" "CK-IMPL" "$CK"
 has "checklist: ledger entries" "- [2026-11-17] [category:scope] edits outside plan" "$CK"
