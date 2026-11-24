@@ -35,7 +35,7 @@ tools: Read, Glob, Grep, Bash
    - **scope**: no out-of-scope edits, no speculative features
 3. Return PASS or FAIL
 4. On FAIL, provide compact fix list
-5. On FAIL, append a repeatable rule to the ledger path given in your prompt (`ledger:` line; Bash `>>`, a new file starts with `## #failure-patterns`) with format `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]` — only rules that no static gate, profile, `#review`/`#org` rule or ESLint/tsc already enforces; one-off mistakes do not belong
+5. On FAIL, append a repeatable rule to the ledger path given in your prompt (`ledger:` line; Bash `>>`, a new file starts with `## #failure-patterns`) with format `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt|convention] [pattern] - [rule]` — only rules that no static gate, profile, `#review`/`#org` rule or ESLint/tsc already enforces; one-off mistakes do not belong
 6. **Record the verdict** — as your last action, from the repo root, run the verdict command given in your prompt (`bash "<plugin>/hooks/run-state.sh" verdict PASS --by reviewer`, or `… verdict FAIL` followed by the `[category]` tags of your FAIL issues, e.g. `verdict FAIL goal scope --by reviewer`) and include its output line in your reply. The script stores the work-tree hash and counts attempts; never write those values yourself. If your prompt or org overlay asks for a tiered Critical/Warning/Suggestion format, Critical ≥ 1 is `FAIL`, otherwise `PASS`. Do not edit code after recording — any change invalidates the verdict
 
 **Design category gate**: if change touches UI/components/hooks, design review is mandatory. Skipping = missed verdict.
@@ -80,7 +80,7 @@ Rules:
 - The verdict is FAIL only when a `patch` or `replan` issue exists; `defer` issues never make a FAIL, and their categories are not passed to the verdict command
 - Tiered format: Critical = `patch` (or `replan`); Warning and Suggestion = `defer` (they never make the verdict FAIL — promote a Warning to Critical if it must be fixed)
 - List every `patch` / `replan` issue; at most 5 `defer` issues. On PASS, `Issues` holds only `defer` issues (omit it when none)
-- `[category]`: `correctness | performance | design | scope | goal | security | contract | ops | state-mgmt`
+- `[category]`: `correctness | performance | design | scope | goal | security | contract | ops | state-mgmt | convention`
 - Max 3 handoff bullets, plus `probes:` when your prompt says `risk: high`
 
 ---
@@ -92,6 +92,8 @@ Add these checks beyond the 4 generic categories (FAIL if any):
 **Script first** — from the repo root, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"` before reading the diff (pass the base branch as its argument when the change is already committed). Each `hard` line is a FAIL with its `[category]`, unless the plan's `Out of Scope` or `Design Check` names it as intended. Exit 2 means it could not run: put its stderr line in handoff `blockers` and check those rules by reading the diff. `note` hits feed the Goal gate judgement (TODO left, export with no caller), and a `note [security]` literal fallback for an env var whose name does not look like a secret is judged against the `#review` secret rule; notes are never an automatic FAIL.
 
 **Change context** — then run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/review-context.sh"` (same base argument) and start from its block: changed files, the symbols defined on added or removed lines, each symbol's callers, the changed tests. For each `removed` or `changed` symbol, every listed caller is either in the diff or checked; a caller of a removed symbol left unchanged → FAIL `[contract]` unless the plan's `Callers/Consumers` marks it `no change needed`. `+N more` or `… truncated` → grep the rest yourself. Exit 2 → its stderr line in `blockers`.
+
+**Repo rules** — then run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/repo-rules.sh" <plan Affected Files>` (no plan: the paths from the Change context `files:` block, which are repo-root-relative — pass them as absolute paths, prefixed with the repo root) from the directory you started in, before any `cd`, with other repos' files as absolute paths (`auto-loaded` marks the rule files of the repo containing `$PWD`, which you already have). It lists each touched repo's rule files and the docs they link to. Read every `rules:` file not marked `auto-loaded`, every `match` doc, and any other listed doc whose line covers what the change adds (a folder, store, route, API hook, endpoint, tool). A change that breaks a rule written there (placement, layering, naming, required reuse, required doc/QA update) → FAIL `[convention]` quoting the rule as `file:line`. A rule the plan's `Out of Scope` or `Design Check` explicitly overrides passes; taste not written in those files is not this gate, and a line worded as a preference (`prefer`, `consider`, an example) is a `defer` note, not a FAIL. Exit 2 → its stderr line in `blockers`.
 
 **Code conventions**
 - `--no-verify` in any commit message → FAIL

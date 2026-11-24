@@ -535,8 +535,8 @@ for f in "$SKD"/*.md; do
 done
 eq "skill split: one pointer line per situational file" "$SKN" "$(grep -cF "$SKP" "$SK")"
 eq "skill split: 10 situational files" 10 "$SKN"
-SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT')
-eq "skill split: hook calls stay in the core but the one Contract rules line" 1 "$(printf '%s' "$SKX" | grep -c .)"
+SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT' | grep -v 'hooks/repo-rules.sh"')
+eq "skill split: hook calls stay in the core but the one Contract rules line (and repo-rules.sh)" 1 "$(printf '%s' "$SKX" | grep -c .)"
 has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
 INTENTS=$(sed -n 's/^| `\([a-z-]*\)` | .*| .* |$/\1/p' "$SK" | tr '\n' ' ')
 eq "skill: intent table rows" "feature refactor bugfix review " "$INTENTS"
@@ -2363,6 +2363,164 @@ has "docs/hooks.md: strategy-file row" '| **`strategy-file.sh`** |' "$(cat "$ROO
 has "docs/hooks.md: run-state strategy" 'strategy aligned|suggested-followed|suggested-declined' "$(cat "$ROOT/docs/hooks.md")"
 has "CLAUDE.md: sibling list names strategy-gate.md" 'strategy-gate.md' "$(sed -n '/^## Where Consumer Rules Live/,/^## Repo Rules/p' "$ROOT/CLAUDE.md")"
 has "changelog: strategy entry" 'hooks/strategy-file.sh' "$(sed -n '/^### Unreleased/,/^### v0\.7\.0/p' "$ROOT/CHANGELOG.md")"
+
+# --- repo-rules: each touched repo's rule files and the docs they link to --------------------
+rr() { (cd "$1" && shift && bash "$H/repo-rules.sh" "$@" 2>&1); }
+rrx() { (cd "$1" && shift && bash "$H/repo-rules.sh" "$@" >/dev/null 2>&1); echo $?; }
+sz() { wc -c < "$1" | tr -d ' '; }
+R1="$TMP/rr-fe"; R2="$TMP/rr-be"; new_repo "$R1"; new_repo "$R2"
+P1=$(cd "$R1" && pwd -P); P2=$(cd "$R2" && pwd -P)
+mkdir -p "$R1/docs" "$R1/.claude/rules" "$R1/src/feature" "$R1/src/render" "$R1/src/api" "$R2/docs"
+for d in data-fetching render architecture api feature; do echo "# $d" > "$R1/docs/$d.md"; done
+echo x > "$TMP/rr-outside.md"; echo x > "$R1/docs/pic.png"
+# files where a skipped http/mailto link would resolve, so the skip is observable
+mkdir -p "$R1/https:/example.com"; echo x > "$R1/https:/example.com/x.md"; echo x > "$R1/mailto:m.md"
+cat > "$R1/CLAUDE.md" <<'MD'
+# FE rules
+Data   fetching: see [data](docs/data-fetching.md) for `src/hooks/queries/` hooks.
+Render: [render](./docs/render.md#pipeline) covers `src/render/*.ts`.
+Arch: [arch](docs/architecture.md) and again [arch2](docs/architecture.md "title").
+Web: [ext](https://example.com/x.md) [mail](mailto:m.md)
+Missing: [gone](docs/missing.md) Outside: [out](../rr-outside.md) Image: [img](docs/pic.png)
+MD
+printf 'API calls: [api](../../docs/api.md) go through `src/api/client.ts`.\n' > "$R1/.claude/rules/a.md"
+printf '# b\n' > "$R1/.claude/rules/b.md"
+printf 'Feature folder: [feat](../../docs/feature.md)\n' > "$R1/src/feature/CLAUDE.md"
+echo '# be' > "$R2/AGENTS.md"; echo x > "$R2/docs/tools.md"
+printf 'Tools: [tools](docs/tools.md) live in `src/tools/`.\n' > "$R2/CLAUDE.md"
+OUT=$(rr "$R1" src/hooks/queries/useX.ts 'src/render/*' '`src/api/client.ts`, ./src/feature/new/thing.ts' "$R2/src/tools/newtool.ts")
+eq "repo-rules: two repos in one call exit 0" 0 "$(rrx "$R1" src/x.ts "$R2/src/tools/newtool.ts")"
+eq "repo-rules: repos in order of first appearance" "repo: $P1|repo: $P2" "$(printf '%s\n' "$OUT" | grep '^repo: ' | tr '\n' '|' | sed 's/|$//')"
+has "repo-rules: cwd repo root CLAUDE.md is auto-loaded" "rules: $P1/CLAUDE.md ($(sz "$R1/CLAUDE.md") B) · auto-loaded" "$OUT"
+has "repo-rules: .claude/rules sorted and auto-loaded" "rules: $P1/.claude/rules/a.md ($(sz "$R1/.claude/rules/a.md") B) · auto-loaded"$'\n'"rules: $P1/.claude/rules/b.md (4 B) · auto-loaded" "$OUT"
+has "repo-rules: nested CLAUDE.md on a new path's way, not auto-loaded" "rules: $P1/src/feature/CLAUDE.md ($(sz "$R1/src/feature/CLAUDE.md") B)"$'\n' "$OUT"
+has "repo-rules: the other repo's CLAUDE.md is not auto-loaded" "rules: $P2/CLAUDE.md ($(sz "$R2/CLAUDE.md") B)"$'\n' "$OUT"
+has "repo-rules: AGENTS.md listed, never auto-loaded" "rules: $P2/AGENTS.md ($(sz "$R2/AGENTS.md") B)"$'\n' "$OUT"
+has "repo-rules: link count, dedup, skips (http, mailto, missing, outside, not .md)" "docs: 5 linked · 3 match the change" "$OUT"
+has "repo-rules: dir token matches a new file under it, blanks collapsed" "- match $P1/docs/data-fetching.md — Data fetching: see [data](docs/data-fetching.md) for \`src/hooks/queries/\` hooks." "$OUT"
+has "repo-rules: ./ and #anchor dropped; glob tail in token and argument" "- match $P1/docs/render.md — " "$OUT"
+has "repo-rules: exact file token, ../ link from .claude/rules" "- match $P1/docs/api.md — " "$OUT"
+has "repo-rules: non-matching doc listed plain" "- $P1/docs/architecture.md — Arch: " "$OUT"
+has "repo-rules: nested CLAUDE.md link resolved from its folder" "- $P1/docs/feature.md — Feature folder: " "$OUT"
+eq "repo-rules: a doc linked twice is listed once" 1 "$(printf '%s\n' "$OUT" | grep -c 'docs/architecture.md —')"
+for x in missing.md rr-outside.md pic.png example.com/x.md mailto:m.md; do lacks "repo-rules: skips $x" "$x —" "$OUT"; done
+eq "repo-rules: match lines first" "match|match|match|plain|plain|" \
+  "$(printf '%s\n' "$OUT" | awk -v r="repo: $P1" '$0 == r { f = 1; next } /^repo: / { f = 0 } f && /^- / { printf "%s|", ($2 == "match" ? "match" : "plain") }')"
+has "repo-rules: second repo's doc matches its own change" "docs: 1 linked · 1 match the change"$'\n'"- match $P2/docs/tools.md — Tools: [tools](docs/tools.md) live in \`src/tools/\`." "$OUT"
+OUT=$(rr "$R1" src/other.ts)
+has "repo-rules: no match when the change misses every token; nested CLAUDE.md off the path not read" "docs: 4 linked · 0 match the change" "$OUT"
+R3="$TMP/rr-bare"; new_repo "$R3"
+eq "repo-rules: no rule files → rules: none" "repo: $(cd "$R3" && pwd -P)|rules: none|docs: 0 linked · 0 match the change|" "$(rr "$R3" f.txt | tr '\n' '|')"
+mkdir -p "$TMP/rr-nogit"
+OUT=$(rr "$R1" "$TMP/rr-nogit/a.ts" src/x.ts)
+has "repo-rules: a path outside any repo gets its line" "outside a git repo: $TMP/rr-nogit/a.ts" "$OUT"
+has "repo-rules: the other path still reports its repo" "repo: $P1" "$OUT"
+eq "repo-rules: only paths outside repos → exit 2" 2 "$(rrx "$R1" "$TMP/rr-nogit/a.ts")"
+eq "repo-rules: no arguments outside a repo → exit 2" 2 "$(rrx "$TMP/rr-nogit")"
+eq "repo-rules: all-empty arguments → exit 2" 2 "$(rrx "$R1" ' , `` ,' '*' './')"
+# no arguments: the diff against HEAD plus untracked files
+echo a > "$R1/src/render/scene.ts"; git -C "$R1" add -A
+git -C "$R1" -c user.name=t -c user.email=t@t.t commit -qm rules
+echo b >> "$R1/src/render/scene.ts"; echo x > "$R1/src/api/client.ts"
+OUT=$(rr "$R1")
+has "repo-rules: no arguments → diff + untracked match" "docs: 4 linked · 2 match the change" "$OUT"
+has "repo-rules: no arguments, tracked edit matches" "- match $P1/docs/render.md" "$OUT"
+has "repo-rules: no arguments, untracked file matches" "- match $P1/docs/api.md" "$OUT"
+R5="$TMP/rr-nocommit"; mkdir -p "$R5/docs" && git -C "$R5" init -q && echo x > "$R5/docs/x.md"
+printf '[x](docs/x.md) `src/x/`\n' > "$R5/CLAUDE.md"; git -C "$R5" add CLAUDE.md; mkdir -p "$R5/src/x"; echo x > "$R5/src/x/a.ts"
+has "repo-rules: repo without commits → ls-files + untracked" "docs: 1 linked · 1 match the change" "$(rr "$R5")"
+# a multibyte line under the C locale: cut at 200 bytes, whole characters only (15 + 61 × 3 bytes)
+R6="$TMP/rr-mb"; new_repo "$R6"; mkdir -p "$R6/docs"; echo x > "$R6/docs/x.md"
+K100=$(i=0; while [ $i -lt 100 ]; do printf '가'; i=$((i + 1)); done)
+K61=$(i=0; while [ $i -lt 61 ]; do printf '가'; i=$((i + 1)); done)
+printf '[x](docs/x.md) %s\n' "$K100" > "$R6/CLAUDE.md"
+OUT=$(cd "$R6" && LC_ALL=C bash "$H/repo-rules.sh" f.txt 2>&1)
+has "repo-rules: multibyte line cut at 200 bytes, whole characters" "- $(cd "$R6" && pwd -P)/docs/x.md — [x](docs/x.md) $K61"$'\n' "$OUT"$'\n'
+eq "repo-rules: multibyte line, C locale → valid UTF-8" 0 "$(printf '%s' "$OUT" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; echo $?)"
+# the same cut under a UTF-8 locale: bash 4+ `read` must not swallow the newline after a split character
+# (only bash 4+ shows it, so this can go red on Linux only; skipped when no UTF-8 locale exists)
+UL=$(locale -a 2>/dev/null | grep -ixE 'c\.utf-?8|en_US\.utf-?8' | head -n 1)
+if [ -n "$UL" ]; then
+  eq "repo-rules: multibyte cut line under $UL → still 1 linked" 1 \
+    "$(cd "$R6" && LC_ALL=$UL LANG=$UL bash "$H/repo-rules.sh" f.txt 2>&1 | grep -c '^docs: 1 linked')"
+  printf '[gone](docs/missing.md)\n' >> "$R6/CLAUDE.md"
+  OUT=$(cd "$R6" && LC_ALL=$UL LANG=$UL bash "$H/repo-rules.sh" f.txt 2>&1)
+  has "repo-rules: under $UL the next record keeps its own checks" "docs: 1 linked · 0 match the change" "$OUT"
+  lacks "repo-rules: under $UL a missing doc after a cut line is not listed" "missing.md" "$OUT"
+fi
+# at most 30 doc lines, then +N more
+R7="$TMP/rr-cap"; new_repo "$R7"; mkdir -p "$R7/docs"
+i=1; while [ $i -le 35 ]; do echo x > "$R7/docs/d$i.md"; echo "- [d$i](docs/d$i.md)" >> "$R7/CLAUDE.md"; i=$((i + 1)); done
+OUT=$(rr "$R7" f.txt)
+has "repo-rules: 35 docs counted" "docs: 35 linked · 0 match the change" "$OUT"
+eq "repo-rules: at most 30 doc lines" 30 "$(printf '%s\n' "$OUT" | grep -c '^- ')"
+has "repo-rules: the rest as +N more" "+5 more" "$OUT"
+if [ "$(id -u)" != 0 ]; then
+  chmod 000 "$R7/CLAUDE.md"; eq "repo-rules: unreadable rule file → exit 2" 2 "$(rrx "$R7" f.txt)"
+  eq "repo-rules: unreadable rule file → one stderr line, no stdout" "1 0" \
+    "$( (cd "$R7" && bash "$H/repo-rules.sh" f.txt 2>&1 >/dev/null) | wc -l | tr -d ' ') $( (cd "$R7" && bash "$H/repo-rules.sh" f.txt 2>/dev/null) | wc -l | tr -d ' ')"
+  chmod 644 "$R7/CLAUDE.md"
+fi
+# auto-loaded follows $PWD: run from the second repo, its own files are the auto-loaded ones
+OUT=$(rr "$R2" src/tools/a.ts "$R1/src/x.ts")
+has "repo-rules: run from the second repo → its CLAUDE.md is auto-loaded" "rules: $P2/CLAUDE.md ($(sz "$R2/CLAUDE.md") B) · auto-loaded" "$OUT"
+has "repo-rules: run from the second repo → the first repo's CLAUDE.md is not" "rules: $P1/CLAUDE.md ($(sz "$R1/CLAUDE.md") B)"$'\n' "$OUT"
+# match docs are never capped; only the rest is, at 30
+R8="$TMP/rr-capm"; new_repo "$R8"; mkdir -p "$R8/docs"
+i=1; while [ $i -le 32 ]; do echo x > "$R8/docs/m$i.md"; echo "- [m$i](docs/m$i.md) \`src/m/\`" >> "$R8/CLAUDE.md"; i=$((i + 1)); done
+i=1; while [ $i -le 35 ]; do echo x > "$R8/docs/d$i.md"; echo "- [d$i](docs/d$i.md)" >> "$R8/CLAUDE.md"; i=$((i + 1)); done
+OUT=$(rr "$R8" src/m/x.ts)
+has "repo-rules: 67 docs, 32 match" "docs: 67 linked · 32 match the change" "$OUT"
+eq "repo-rules: every match doc listed" 32 "$(printf '%s\n' "$OUT" | grep -c '^- match ')"
+eq "repo-rules: the rest capped at 30" 30 "$(printf '%s\n' "$OUT" | grep '^- ' | grep -vc '^- match ')"
+has "repo-rules: +N more counts only the uncapped rest" "+5 more" "$OUT"
+# a change under .claude/ lists .claude/CLAUDE.md once
+mkdir -p "$R8/.claude/rules"; echo '# c' > "$R8/.claude/CLAUDE.md"
+eq "repo-rules: .claude/CLAUDE.md listed once for a change under .claude/" 1 \
+  "$(rr "$R8" .claude/rules/new.md .claude/CLAUDE.md | grep -c '/\.claude/CLAUDE\.md ')"
+# iconv present but printing nothing → the raw docs block stays
+mkdir -p "$TMP/rr-fakebin"; printf '#!/bin/sh\ncat >/dev/null\n' > "$TMP/rr-fakebin/iconv"; chmod +x "$TMP/rr-fakebin/iconv"
+has "repo-rules: silent iconv keeps the docs block" "docs: 67 linked · 32 match the change" "$(cd "$R8" && PATH="$TMP/rr-fakebin:$PATH" bash "$H/repo-rules.sh" src/m/x.ts 2>&1)"
+# ~3,000 untracked files with long paths (over 128 KB of names) in no-argument mode
+R9="$TMP/rr-many"; new_repo "$R9"; LD=src/a-fairly-long-directory-name/another-long-directory-name
+mkdir -p "$R9/$LD" "$R9/docs"; echo x > "$R9/docs/many.md"
+printf 'Many: [many](../../../docs/many.md) `src/a-fairly-long-directory-name/`\n' > "$R9/$LD/CLAUDE.md"
+(cd "$R9/$LD" && awk 'BEGIN { for (i = 1; i <= 3000; i++) printf "file-number-%04d-with-padding.ts\n", i }' | xargs touch)
+S0=$SECONDS; OUT=$(rr "$R9"); S1=$SECONDS
+has "repo-rules: 3,000 untracked files → nested CLAUDE.md found" "rules: $(cd "$R9" && pwd -P)/$LD/CLAUDE.md (" "$OUT"
+has "repo-rules: 3,000 untracked files → its doc matches" "docs: 1 linked · 1 match the change" "$OUT"
+eq "repo-rules: 3,000 untracked files in under 10 s" yes "$([ $((S1 - S0)) -lt 10 ] && echo yes || echo "no: $((S1 - S0)) s")"
+# one line holding 1,000 links: quick, and each listed line cut to 200 bytes
+R10="$TMP/rr-links"; new_repo "$R10"; mkdir -p "$R10/docs"
+(cd "$R10/docs" && awk 'BEGIN { for (i = 1; i <= 1000; i++) printf "l%d.md\n", i }' | xargs touch)
+awk 'BEGIN { for (i = 1; i <= 1000; i++) printf "[l%d](docs/l%d.md) ", i, i; print "" }' > "$R10/CLAUDE.md"
+S0=$SECONDS; OUT=$(rr "$R10" f.txt); S1=$SECONDS
+has "repo-rules: 1,000 links on one line counted" "docs: 1000 linked · 0 match the change" "$OUT"
+eq "repo-rules: 1,000 links on one line in under 5 s" yes "$([ $((S1 - S0)) -lt 5 ] && echo yes || echo "no: $((S1 - S0)) s")"
+eq "repo-rules: listed line at most 200 bytes" "" "$(printf '%s\n' "$OUT" | grep '^- ' | sed 's/^- [^ ]* — //' | LC_ALL=C awk 'length($0) > 200')"
+# the agents run it themselves; the plan and small-change paths name it
+DV=$(cat "$ROOT/agents/developer.md"); RV=$(cat "$ROOT/agents/reviewer.md")
+has "developer: runs repo-rules.sh on the plan's Affected Files" 'hooks/repo-rules.sh" <plan Affected Files>' "$DV"
+has "developer: repo rules outrank generic constraints" 'repo rules outrank' "$DV"
+has "developer: handoff names the docs followed" 'repo-rules: ' "$DV"
+has "reviewer: runs repo-rules.sh" 'hooks/repo-rules.sh" <plan Affected Files>' "$RV"
+has "reviewer: no plan → the Change context files" 'no plan: the paths from the Change context `files:` block' "$RV"
+has "reviewer: preference wording is a defer note" 'a line worded as a preference' "$RV"
+for f in "$ROOT/agents/developer.md" "$ROOT/agents/reviewer.md" "$SKD/small-change.md"; do
+  has "$(basename "$f"): run repo-rules.sh before any cd" 'from the directory you started in, before any `cd`' "$(cat "$f")"
+done
+has "docs/hooks.md: auto-loaded meaning" 'the repo containing `$PWD`' "$(cat "$ROOT/docs/hooks.md")"
+has "repo-rules.sh: header states auto-loaded meaning" 'the repo containing $PWD' "$(head -n 20 "$H/repo-rules.sh")"
+has "readme: repo-rules token cost estimate" 'estimate' "$(grep "Each repo's own rules" "$ROOT/README.md")"
+has "changelog: repo-rules token cost estimate" 'estimate' "$(sed -n '/^\*\*Repo rules\*\*/,/^$/p' "$ROOT/CHANGELOG.md")"
+has "reviewer: Repo rules gate" '**Repo rules**' "$RV"
+has "reviewer: [convention] FAIL quotes the rule" 'FAIL `[convention]` quoting the rule as `file:line`' "$RV"
+has "plan-gate: Design Check Repo rules line" '- Repo rules: [docs from repo-rules.sh <Affected Files>' "$(cat "$SKD/plan-gate.md")"
+has "small-change: runs repo-rules.sh before the edit" 'hooks/repo-rules.sh" <files>' "$(cat "$SKD/small-change.md")"
+has "docs/hooks.md: repo-rules row" '| **`repo-rules.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
+has "readme: repo-rules line" 'repo-rules.sh' "$(cat "$ROOT/README.md")"
+has "changelog: repo-rules entry" 'hooks/repo-rules.sh' "$(sed -n '/^### Unreleased/,/^### v0\.7\.0/p' "$ROOT/CHANGELOG.md")"
+has "CLAUDE.md: agent rules line names repo-rules.sh" 'hooks/repo-rules.sh' "$(grep '^- Agent rules' "$ROOT/CLAUDE.md")"
 
 echo "passed: $PASS  failed: $FAIL"
 [ "$FAIL" -eq 0 ]

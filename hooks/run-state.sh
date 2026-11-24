@@ -41,7 +41,7 @@
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAX_ATTEMPTS=3
-CATEGORIES="correctness performance design scope goal security contract ops state-mgmt"   # = agents/reviewer.md
+CATEGORIES="correctness performance design scope goal security contract ops state-mgmt convention"   # = agents/reviewer.md
 ORG_CATEGORIES=$(grep -xE '[a-z-]+' "${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/org/categories.txt" 2>/dev/null | tr '\n' ' ')
 STALE_SECONDS="${REVIEW_HARNESS_RUN_STALE_SECONDS:-86400}"
 

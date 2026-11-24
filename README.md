@@ -108,6 +108,7 @@ bash hooks/risk-tier.sh                                  # from a repo: low / no
 bash hooks/review-context.sh                             # from a repo: changed files, changed symbols, their callers, changed tests (reads only)
 bash hooks/audit-rules.sh                                # rule drift: stale registry versions, version-bound or duplicate rules, budget, ledger (reads only)
 bash hooks/strategy-file.sh --status                     # from a repo: none, or the strategy file's Goal (reads only)
+bash hooks/repo-rules.sh src/a.ts ../api/src/b.ts         # each touched repo's rule files and the docs they link to (reads only)
 ```
 
 Knowledge gained during work can be added to the same folders with `/save-knowledge`. When the folders are empty, overlays print nothing and only the generic rules apply, with no repo matching and no organisation rules.
@@ -152,6 +153,7 @@ Review         reviewer
 - The baseline run records tests that already fail before the change; afterwards only new failures count, and you are told in one line if there were any. After the tests, test-runner also runs the repo's `check_cmd` (or `tsc --noEmit` when there is a `tsconfig.json`) once and reports it.
 - In a repo with no test command, you are shown the manual checks from `Done When` and asked to confirm them before the commit.
 - Before handoff, the developer runs a self-check and reports it as a `self-check:` line. It holds the diff against the review checklist, which holds the reviewer's `#review` rules, the profile rules and your failure-pattern ledger. It also runs `static-gates.sh`, fixing every `hard` hit, and `review-context.sh`, updating or justifying every caller of a changed or removed symbol. The reviewer starts from the same two scripts. A `hard` hit, or an unchanged caller of a removed symbol, is a FAIL unless the plan names it.
+- **Each repo's own rules**: the developer and the reviewer run `repo-rules.sh` on the planned files themselves, on every spawn and retry. It lists each touched repo's `CLAUDE.md`, `AGENTS.md` and `.claude/rules/*.md` and the docs they link to, marking the docs whose line names a path the change touches; both read the files the session did not auto-load and the matching docs. The reviewer FAILs a change that breaks a rule written there as `[convention]`, quoting it as `file:line`; a rule worded as a preference is only a note. Token cost (an estimate, not measured): each spawn reads the other repos' rule files and the matching docs; the session repo's auto-loaded `CLAUDE.md` is skipped. That is about (the sizes of the `rules:` files not auto-loaded + the matching docs) ÷ 4 tokens per developer or reviewer spawn, e.g. a 57 KB `CLAUDE.md` ≈ 15K tokens.
 - Test failures and reviewer FAILs share a limit of 3 retries. At the limit it stops and reports what is still wrong.
 - Each reviewer issue carries a route: `patch` (fixed in the next retry), `replan` (the plan is wrong: `plan.md` is updated and you approve it again before the retry) or `defer` (outside this change: listed in the final report, never retried, and not a reason to FAIL). Every FAIL reason is listed at once. The developer may dispute an issue once with evidence instead of patching it; the reviewer re-judges that issue only, and a dispute does not use up a retry. Every retry re-runs the tests before the reviewer.
 - **Changes across repos**: when a change adds, changes or removes a route, socket event or request/response field another repo may use, the plan gets a `## Contract` (producer, consumer repos, `additive` or `breaking`, deploy order). For a breaking one, `find-consumers.sh` searches the other registered repos for each renamed or removed name and the hits go into the plan; the reviewer FAILs a breaking contract with no consumers listed, or a consumer repo with hits that is neither changed nor named as a follow-up in `Out of Scope`. Run the producer repo first: its final report ends with the `## Contract` block, which you paste into the consumer repo's run as its API spec.
@@ -248,7 +250,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 ## More documentation
 
 - [docs/skills.md](docs/skills.md) — the 13 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 23 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/hooks.md](docs/hooks.md) — the 24 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime; the parts one path needs (plan template, bugfix, retry loop, …) sit in sibling `skills/review-harness/*.md` files it reads only on that path
 - [constraints.md](constraints.md) — agent rules

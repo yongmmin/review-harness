@@ -10,7 +10,7 @@ Maintainer file for working on this repository. Claude Code does not load a plug
 - Injected session context and org overlay → each `skills/*/SKILL.md`
 - Strategy file (show, set, update with consent) → `skills/strategy/SKILL.md`; its path → `hooks/strategy-file.sh`
 - rtk modes, resolution order, no global install → `skills/rtk-toggle/SKILL.md`; rtk wrapping inside agents → `agents/test-runner.md`, `agents/developer.md`, `agents/reviewer.md`
-- Agent rules → `agents/*.md`, plus the `hooks/extract-constraints.sh` output passed at spawn (`constraints.md` and `profiles/*.md` tagged sections, `#org`, agent overlay)
+- Agent rules → `agents/*.md` (developer and reviewer read the touched repos' own rules via `hooks/repo-rules.sh` themselves), plus the `hooks/extract-constraints.sh` output passed at spawn (`constraints.md` and `profiles/*.md` tagged sections, `#org`, agent overlay)
 
 ---
 

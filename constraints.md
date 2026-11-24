@@ -13,7 +13,7 @@
 > | `#failure-patterns` | reviewer, test-runner — the per-user ledger `~/.review-harness/failure-patterns.md` (honours `REVIEW_HARNESS_HOME`), not this file; its path reaches those agents as a `ledger: <path>` line. Developer gets its entries in the checklist, without the path |
 > | `#org` | developer, reviewer, refactor-architect — organisation-specific rules, read from `~/.review-harness/org/constraints.md` (absent when no organisation overlay is installed) |
 >
-> **Ledger** (`failure-patterns.md`): reviewer, test-runner and the orchestrator's LIMIT step append repeatable AI mistakes under its `## #failure-patterns` heading (a new file starts with that heading). Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt] [pattern] - [rule]`. It holds ONLY patterns not caught anywhere else.
+> **Ledger** (`failure-patterns.md`): reviewer, test-runner and the orchestrator's LIMIT step append repeatable AI mistakes under its `## #failure-patterns` heading (a new file starts with that heading). Format: `- [YYYY-MM-DD] [category:correctness|performance|design|scope|goal|security|contract|ops|state-mgmt|convention] [pattern] - [rule]`. It holds ONLY patterns not caught anywhere else.
 >
 > **GC rule**: if `#failure-patterns` exceeds 3072 bytes (watch the `[token-budget]` stderr line from `extract-constraints.sh`), merge similar rules and drop entries older than 90 days. Never re-add a rule that is already a static gate in `agents/reviewer.md` or a profile (`profiles/*.md`), a rule in `#review`/`#org`, or enforced by ESLint/tsc — the ledger is only for gaps those layers miss.
 
