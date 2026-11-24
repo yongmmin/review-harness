@@ -273,7 +273,7 @@ Next steps (user-driven):
 
 Use retry loop for `feature`, `bugfix` and `refactor` implementation steps (Small change: the main session is the implementer).
 
-Tests fail, `reviewer` returns FAIL, `developer` answers `dispute:`, or `run-state.sh` prints `LIMIT REACHED` → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/retry.md` before the retry or the stop report
+Tests fail, `reviewer` returns FAIL, `developer` reports an issue as `wrong:`, or `run-state.sh` prints `LIMIT REACHED` → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/retry.md` before the retry or the stop report
 
 ---
 
