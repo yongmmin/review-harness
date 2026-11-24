@@ -254,8 +254,6 @@ reviewer -> run-state.sh done
 
 The plugin does **NOT** auto-create branches or submit PRs. Both are the user's explicit action.
 
-The user asks for a branch, a push or a PR → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/git-ops.md` before answering
-
 After the workflow chain reaches `[DONE]`, the plugin reports:
 
 ```

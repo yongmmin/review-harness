@@ -227,7 +227,7 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 
 ## More documentation
 
-- [docs/skills.md](docs/skills.md) — the 12 skills, the `/review-harness` flow, `/git-pr` output, agents
+- [docs/skills.md](docs/skills.md) — the 10 skills, the `/review-harness` flow, `/git-pr` output, agents
 - [docs/hooks.md](docs/hooks.md) — the 22 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime; the parts one path needs (plan template, bugfix, retry loop, …) sit in sibling `skills/review-harness/*.md` files it reads only on that path
