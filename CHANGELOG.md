@@ -4,6 +4,9 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Repo rules for this repo**
+- New `.claude/rules/shell-hooks.md`: 14 standing rules for the plugin's shell scripts, hooks and tests, taken from past review failures here. They used to sit in the per-user failure-pattern ledger, which is passed to every agent in every repo; a lesson about one repo belongs in that repo's own rule files
+
 **Removed**
 - Dispute: the `run-state.sh dispute` subcommand, the re-judge mark on verdicts, the `disputes` field in `runs.jsonl`, and the dispute steps in `retry.md`, `agents/developer.md` and `agents/reviewer.md` — never used in 25 recorded runs. Every reviewer FAIL now counts an attempt. A developer with evidence that an issue is wrong reports `wrong: <issue id> — <evidence>` in `blockers`, and the run stops for the user's decision (patch, or `override`). `run-stats.sh` still skips `rejudge` verdicts in older run logs
 - Usage downgrade: `hooks/usage-state.sh`, `skills/review-harness/usage-downgrade.md` and the `5h usage` question in `/review-harness`, `/code-review` and `/refactor-scan` — inert unless a private status-line wrapper writes `usage-state.json`
