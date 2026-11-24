@@ -6,7 +6,7 @@ Maintainer file for working on this repository. Claude Code does not load a plug
 
 ## Where Consumer Rules Live
 
-- Entry, intent routing, API Spec Check, Plan Gate / Design Check, agent spawning, context budget, handoff schema, run state, review gate, harness loop, skip rules, git ops policy → `skills/review-harness/SKILL.md` (canonical runtime spec). The parts one path needs sit in sibling files the core points to with a `→ read` line and reads only on that path: `register-offer.md`, `api-spec.md`, `plan-gate.md` (plan template, Design Check / Done When / Contract rules), `small-change.md`, `bugfix.md`, `git-ops.md`, `retry.md` (harness loop body, retry context)
+- Entry, intent routing, API Spec Check, Plan Gate / Design Check, agent spawning, context budget, handoff schema, run state, review gate, harness loop, skip rules, git ops policy → `skills/review-harness/SKILL.md` (canonical runtime spec). The parts one path needs sit in sibling files the core points to with a `→ read` line and reads only on that path: `register-offer.md`, `api-spec.md`, `plan-gate.md` (plan template, Design Check / Done When / Contract rules), `small-change.md`, `bugfix.md`, `retry.md` (harness loop body, retry context)
 - Injected session context and org overlay → each `skills/*/SKILL.md`
 - rtk modes, resolution order, no global install → `skills/rtk-toggle/SKILL.md`; rtk wrapping inside agents → `agents/test-runner.md`, `agents/developer.md`, `agents/reviewer.md`
 - Agent rules → `agents/*.md` (developer and reviewer read the touched repos' own rules via `hooks/repo-rules.sh` themselves), plus the `hooks/extract-constraints.sh` output passed at spawn (`constraints.md` and `profiles/*.md` tagged sections, `#org`, agent overlay)

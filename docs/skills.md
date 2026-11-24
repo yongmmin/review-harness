@@ -11,9 +11,9 @@ Detailed description moved out of the [README](../README.md). The reference docu
 5. **Workflow execution** — a different chain per intent (feature/bugfix/refactor/review) or the Small change path. A bugfix reproduces the failure and records its cause before any fix, and never takes the Small change path. UI work is handled as feature
 6. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
 
-The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `plan-gate.md` (step 4: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 5: Small change, Bugfix, retries after a failure), `git-ops.md` (branch, push or PR requests).
+The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `plan-gate.md` (step 4: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 5: Small change, Bugfix, retries after a failure).
 
-## 12 Skills
+## 10 Skills
 
 The entry point + auxiliary commands. All can be called as `/<skill-name>`. Every skill has the organisation overlay injected at load via `hooks/org-overlay.sh skills <name>` (if absent, only the generic rules apply).
 
@@ -28,17 +28,9 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 - **`/save-knowledge`** — routes organisation-specific learnings to `~/.review-harness/knowledge/<org>/*.md` and only truly cross-project ones to `~/.review-harness/wisdom/*.md`
 - **`/search-knowledge`** — returns only 3 or fewer bullets per source from `~/.review-harness/knowledge/` (`index.md`, `<org>/*.md`) and global wisdom. If knowledge is empty, the call itself is skipped
 
-### TDD (1)
-
-- **`/tdd`** — RED→GREEN for repos with a test framework configured; for repos without one, a graceful skip followed by the implementation + manual verification path
-
 ### Review (1)
 
 - **`/code-review`** — 4 general categories (correctness/performance/design/scope). Outputs PASS/FAIL. The organisation overlay can add FAIL gates
-
-### Refactor (1)
-
-- **`/refactor-scan`** — scans codebase patterns → proposes a refactor `plan.md`. No code changes before approval
 
 ### Git (3) — **all user-driven**
 
@@ -56,7 +48,7 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 After the work is complete, the user explicitly:
 
 ```
-/git-branch              # or "create a branch"
+/git-branch
 ```
 → The plugin lists the current branches → selects a base via AskUserQuestion (main/stage/production, etc.) → asks for the new name → prints the command (the user runs it themselves)
 
@@ -66,7 +58,7 @@ git push -u origin <branch>
 → The user does this themselves
 
 ```
-/git-pr                  # or "write the PR body"
+/git-pr
 ```
 → The plugin prints the title + body + `gh pr create ...` command + prefilled GitHub compare URL (the user copies and runs it)
 

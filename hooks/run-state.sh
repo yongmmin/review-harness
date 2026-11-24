@@ -234,7 +234,7 @@ case "${1:-}" in
     echo "ok: reviewer PASS matches the current work tree ($h)"
     ;;
   done|abandon)
-    rm -f "$STATE_DIR/baseline.txt"   # so /tdd or /refactor-scan never read this run's baseline
+    rm -f "$STATE_DIR/baseline.txt"   # so a later run never reads this run's baseline
     [ -f "$FILE" ] || { echo "run-state: none"; exit 0; }
     [ "$1" = done ] && new=done || new=abandoned
     [ "$(st)" = active ] && log_run "$new"

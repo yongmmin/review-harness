@@ -43,7 +43,7 @@ Anything printed above is organisation-specific and is part of this skill; where
    - Verify no `.env*` file is staged
    - Verify no secrets in diff (basic regex: `API_KEY=`, `SECRET=`, `password=`, `BEGIN PRIVATE KEY`)
    - Verify no `.npmrc` is staged
-   - Verify `plan.md` and `.front-harness-cache/` are NOT staged (legacy leftovers from < 0.4.0 — the plugin now keeps them in `~/.review-harness/state/`)
+   - Verify `plan.md` is NOT staged (a legacy leftover from < 0.4.0 — the plugin now keeps it in `~/.review-harness/state/`)
 5. **Generate Conventional Commit message** (see format below)
 6. **Run `git commit`** with the message (this is the auto-chained step that DOES execute)
 7. After the last commit of the run, close it: `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" done`
@@ -73,7 +73,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - `ui` — UI/visual changes
 
 ### Scope (optional but recommended)
-- Use the domain name from `docs/{domain}/` if applicable
+- Use the module or domain the change touches
 - e.g. `feat(events): add capture event filter`
 - e.g. `refactor(tools): extract useToolInteraction hook`
 
@@ -81,7 +81,6 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - ≤ 70 chars
 - Imperative mood ("add", not "added")
 - No trailing period
-- Korean OK for the subject if the team convention uses it; English preferred for cross-repo consistency
 
 ### Body
 - Wrap at 72 chars
@@ -112,10 +111,7 @@ Message: <first line of commit message>
 
 ## Constraints
 
-- Stage only intended files (`git add <path>` per file). Never `git add .` / `git add -A`
-- Never commit secrets, `.npmrc`, or `.env*` files
 - Never commit with failing tests (or, for no-test repos, without the user's confirmation of the manual checks)
 - Never use `--no-verify` to bypass hooks
 - Route `git` inspection beyond the injected block (`diff`, `log`) through `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" git ...`
-- Never stage `plan.md`, `.front-harness-cache/`, `.env*`, `.npmrc`
 - Never push — that's user-driven

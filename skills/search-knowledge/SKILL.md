@@ -53,7 +53,7 @@ All `knowledge/...` paths below are relative to `~/.review-harness/`. Organisati
 
 ## Fast-Skip Rules
 
-- **Pre-spawn skip**: the injected `knowledge:` line already ran `knowledge-has-content.sh`. EMPTY → return `No relevant entries found` inline and stop — no agent spawn, no file reads
+- **Empty skip**: the injected `knowledge:` line already ran `knowledge-has-content.sh`. EMPTY → return `No relevant entries found` inline and stop — no file reads
 - Summaries contain only placeholders or no relevant matches → stop early
 - Do not open detail files unless summary/index suggests relevant hit
 - Do not load unrelated domains "just in case"

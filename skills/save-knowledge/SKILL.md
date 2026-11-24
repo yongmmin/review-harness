@@ -41,7 +41,7 @@ Classify the learning:
 | Type | Destination |
 |------|-------------|
 | Organisation-specific knowledge (repo registration / metadata, architecture / cross-repo invariant, convention, stack pattern, design system primitive, QA process) | `knowledge/<org>/<topic>.md` — the existing file for that topic |
-| **Truly cross-project** wisdom (works in any React/Next codebase, not organisation-specific) | `~/.review-harness/wisdom/<learnings\|decisions\|issues>.md` |
+| **Truly cross-project** wisdom (works in any codebase on that stack, not organisation-specific) | `~/.review-harness/wisdom/<learnings\|decisions\|issues>.md` |
 | Component pattern reusable across THIS active repo only | The repo's own docs (plugin doesn't touch — flag for user) |
 
 If unsure → ask user. Don't default to global wisdom for organisation-specific info.
@@ -94,7 +94,7 @@ Match existing structure. Use markdown subheadings, tables, code blocks.
 - Failure mode is repo-specific
 
 ### Save to global wisdom when:
-- Learning applies to ANY React/Next.js codebase (e.g. "useEffect cleanup is necessary for subscriptions")
+- Learning applies to ANY codebase on that stack (e.g. "a subscription needs a cleanup when its owner is torn down")
 - Not tied to the organisation's stack choices
 - Could be useful if user worked on a totally unrelated personal project
 

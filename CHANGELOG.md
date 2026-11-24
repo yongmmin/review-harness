@@ -9,6 +9,7 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - Usage downgrade: `hooks/usage-state.sh`, `skills/review-harness/usage-downgrade.md` and the `5h usage` question in `/review-harness`, `/code-review` and `/refactor-scan` — inert unless a private status-line wrapper writes `usage-state.json`
 - Strategy check and `/strategy`: `hooks/strategy-file.sh`, `skills/strategy/`, `skills/review-harness/strategy-gate.md`, the `run-state.sh strategy` subcommand and its `status` / `runs.jsonl` field, the `run-stats.sh` `strategy check:` line and the plan template's `## Why` — advice on what to work on is outside the harness's job, and 0 suggestions were recorded
 - Web guidance: `skills/review-harness/web-guidance.md`, the `4.5. Web Guidance Search` step, the plan's `Web guidance:` input, the `guidance:` handoff line and the `web-frontend` profile's developer procedure and reviewer `legacy-scan` gate — its effect was never measured and it made a network call during planning
+- `/tdd`, `/refactor-scan` and `skills/review-harness/git-ops.md` — the first two were second orchestration paths for work `/review-harness` already does (the `developer` agent works test-first; the Refactor flow spawns `refactor-architect`), and `git-ops.md` repeated `/git-branch` and `/git-pr`. A developer that finds 3+ similar patterns reports it in the handoff
 
 **Run stats**
 - `run-stats.sh`: a `weighted cost per run (subagents only)` line after the tokens line — median of `in + cr×0.1 + cw×1.25 + out×5` per run, in input-equivalent tokens; the raw total is about 90% cache reads and overstates cost about threefold
@@ -41,6 +42,9 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - New `bench/dev-score.sh <case-dir> <out-dir>`: one JSON line per run — hidden tests passed, regressions, base tests the run edited, cost, tokens, turns, wall time, user replies, harness attempts / verdicts / end, plan sections present, test runs and a contamination flag; `solved` needs all hidden tests, no regression, no abort, no `limit`/`abandoned` end and a clean transcript
 - First developer-side case on a zero-dependency Node 20 skeleton (new `bench_node` in `bench/lib.sh`), with a correct and a plausible wrong patch that `tests/run.sh` checks against the hidden tests
 - `tests/run.sh`: the case (clean base, base tests pass, hidden tests fail at base, both patches, no revealing words), the scorer, and the driver against a stub `claude`; skipped with one line when node 20+ is missing
+
+**Fixed**
+- Skill text that contradicted the code: `/git-branch` and `/git-pr` no longer claim `/review-harness` runs them on a natural-language request (only the user can invoke them), `/code-review` no longer claims to be auto-chained and diffs against the repository's default branch (`origin/HEAD`, else `main`) instead of a hardcoded `main`, the plan template's `## Intent` no longer lists `review` (a review run writes no plan), the Design Check rules' sentence fragment is a sentence, and `/search-knowledge` no longer calls its empty-knowledge skip "pre-spawn". Frontend-era wording is gone from `/git-commit` (`.front-harness-cache/`, `docs/{domain}/`, the Korean-subject note, a doubled block of checks), the Active Repo Gate (Tailwind version) and `/save-knowledge` (React/Next)
 
 ### v0.7.0 (2026-11-19)
 

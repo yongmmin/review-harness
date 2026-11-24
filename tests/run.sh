@@ -186,7 +186,7 @@ OUT=$(bash "$H/extract-constraints.sh" reviewer nope 2>/dev/null); eq "profile: 
 eq "profile: unknown → empty stdout" "" "$OUT"
 bash "$H/extract-constraints.sh" reviewer ../constraints >/dev/null 2>&1; eq "profile: rejects path traversal" 2 "$?"
 N=$(grep -h 'hooks/extract-constraints.sh"' "$ROOT"/skills/*/SKILL.md | wc -l | tr -d ' ')
-[ "$N" -ge 4 ]; eq "profile: skill call sites found (>= 4, got $N)" 0 "$?"
+[ "$N" -ge 2 ]; eq "profile: skill call sites found (>= 2, got $N)" 0 "$?"
 eq "profile: every skill call site uses detect-profile.sh" "" \
   "$(grep -h 'hooks/extract-constraints.sh"' "$ROOT"/skills/*/SKILL.md | grep -v 'hooks/detect-profile.sh')"
 OUT=$(bash "$H/extract-constraints.sh" reviewer web-frontend,nope 2>/dev/null); eq "profile: list with an unknown name → exit 2" 2 "$?"
@@ -534,7 +534,7 @@ for f in "$SKD"/*.md; do
   eq "skill split: one pointer to $b" 1 "$(grep -cF "$SKP$b\` before " "$SK")"
 done
 eq "skill split: one pointer line per situational file" "$SKN" "$(grep -cF "$SKP" "$SK")"
-eq "skill split: 7 situational files" 7 "$SKN"
+eq "skill split: 6 situational files" 6 "$SKN"
 SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT' | grep -v 'hooks/repo-rules.sh"')
 eq "skill split: hook calls stay in the core but the one Contract rules line (and repo-rules.sh)" 1 "$(printf '%s' "$SKX" | grep -c .)"
 has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
@@ -543,7 +543,8 @@ eq "skill: intent table rows" "feature refactor bugfix review " "$INTENTS"
 WFLIST=$(grep -o '`<workflow>` = `[^`]*`' "$SK"); TMPL=$(grep '^\[feature' "$SKD/plan-gate.md")
 for i in $INTENTS; do
   has "skill: run-state workflow list names $i" "$i" "$WFLIST"
-  has "skill: plan template Intent names $i" "$i" "$TMPL"
+  if [ "$i" = review ]; then lacks "skill: plan template Intent omits review (no plan)" "$i" "$TMPL"
+  else has "skill: plan template Intent names $i" "$i" "$TMPL"; fi
   eq "skill: ### section for $i" 1 "$(grep -ci "^### $i\$" "$SK")"
 done
 has "skill: description names bug fix" "bug fix" "$(sed -n 's/^description: //p' "$SK")"
@@ -603,7 +604,7 @@ for s in 'Done When' 'Out of Scope'; do
 done
 has "skill: Done When item names its check" '- [observable outcome] — check: [test name, command, or manual step]' "$PLAN"
 has "skill: Done When / Out of Scope required for feature, bugfix, refactor" \
-  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes' "$(cat "$SKD/plan-gate.md")"
+  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`. `Done When` lists 2–5 observable outcomes' "$(cat "$SKD/plan-gate.md")"
 cats() { tr -d ' ' | tr '|' '\n'; }
 C1=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/agents/reviewer.md" | cats)
 C2=$(sed -n 's/^- `\[category\]`: `\([a-z |-]*\)`$/\1/p' "$ROOT/agents/reviewer.md" | cats)
@@ -717,8 +718,6 @@ lacks "developer: no 'code only' rule" "code only" "$DV"
 has "developer: handoff may carry assumptions" '`assumptions:`' "$DV"
 has "skill: handoff schema allows assumptions" "- assumptions: <" "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 lacks "constraints: no 'Output code only'" "Output code only" "$(cat "$ROOT/constraints.md")"
-has "tdd: RED points at the developer rule" 'agents/developer.md` → Workflow' "$(cat "$ROOT/skills/tdd/SKILL.md")"
-lacks "tdd: RED wording not duplicated" "Confirm they fail for the intended reason" "$(cat "$ROOT/skills/tdd/SKILL.md")"
 has "git-commit: tests reasons named" "manual confirmation" "$(cat "$ROOT/skills/git-commit/SKILL.md")"
 
 # --- planning discovery and task decomposition --------------------------------------------
