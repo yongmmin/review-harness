@@ -6,12 +6,12 @@ Detailed description moved out of the [README](../README.md). The reference docu
 
 1. **RTK Mode Gate** — no question: `standard` when the `rtk` binary is installed, else `off`; an inline `--rtk=<mode>`, `REVIEW_HARNESS_RTK` or `/rtk-toggle` overrides it (off/standard/aggressive/git-only)
 2. **Active Repo Gate** — `hooks/detect-repo.sh` matches cwd → repo. If there is no registry (`~/.review-harness/knowledge/<org>/repos.md`) it proceeds with the generic rules; for code work in a repo that is not registered (or with no registry at all) it offers `/register-repo` once per work tree; choosing to continue records `register-declined` in the state dir so it is not asked again
-3. **Ambiguity Check** — up to 2 questions when ambiguous. Detects requests whose target is unclear, such as demonstratives ("that", "this"), and asks for clarification. The organisation overlay can add detection items
+3. **Intent** — `review`, `bugfix`, `refactor` or `feature`. When what to change or where is unclear, up to 2 questions before planning. The organisation overlay can add items
 4. **Plan Gate** — writes `plan.md` to `~/.review-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
 5. **Workflow execution** — a different chain per intent (feature/bugfix/refactor/review) or the Small change path. A bugfix reproduces the failure and records its cause before any fix, and never takes the Small change path. UI work is handled as feature
 6. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
 
-The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `plan-gate.md` (step 4: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 5: Small change, Bugfix, retries after a failure).
+The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (step 4: an API whose shape is unknown, or a pasted `## Contract` block), `plan-gate.md` (step 4: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 5: Small change, Bugfix, retries after a failure).
 
 ## 10 Skills
 
@@ -19,7 +19,7 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 
 ### Entry point (1)
 
-- **`/review-harness`** — the single public entry point. RTK Mode Gate → Active Repo Gate → Ambiguity Check → Intent Classification → API Spec Check → Plan Gate → workflow execution
+- **`/review-harness`** — the single public entry point. Unfinished Run Gate → Active Repo Gate → Intent → Plan Gate → workflow execution
 
 ### Context / knowledge (3)
 

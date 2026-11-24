@@ -546,7 +546,7 @@ SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE
 eq "skill split: hook calls stay in the core but the one Contract rules line (and repo-rules.sh)" 1 "$(printf '%s' "$SKX" | grep -c .)"
 has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
 INTENTS=$(sed -n 's/^| `\([a-z-]*\)` | .*| .* |$/\1/p' "$SK" | tr '\n' ' ')
-eq "skill: intent table rows" "feature refactor bugfix review " "$INTENTS"
+eq "skill: intent table rows" "review bugfix refactor feature " "$INTENTS"
 WFLIST=$(grep -o '`<workflow>` = `[^`]*`' "$SK"); TMPL=$(grep '^\[feature' "$SKD/plan-gate.md")
 for i in $INTENTS; do
   has "skill: run-state workflow list names $i" "$i" "$WFLIST"
@@ -555,16 +555,16 @@ for i in $INTENTS; do
   eq "skill: ### section for $i" 1 "$(grep -ci "^### $i\$" "$SK")"
 done
 has "skill: description names bug fix" "bug fix" "$(sed -n 's/^description: //p' "$SK")"
-has "skill: review needs a diff and no symptom" "no failure symptom is described" "$(grep '^| `review`' "$SK")"
+has "skill: review needs a diff and no symptom" "a diff to judge, and no failure described" "$(grep '^| `review`' "$SK")"
 has "skill: Small change excludes bugfix" 'not a `refactor` or `bugfix` intent' "$(cat "$SK")"
 has "skill: Small change allows 3 files, 1 new test file" 'the change touches at most 3 files, of which at most 1 is a new test file and the rest already exist' "$(cat "$SK")"
 lacks "skill: Small change 2-file rule is gone" 'at most 2 existing files' "$(cat "$SK")"
 has "small-change.md: names the 3-file limit" 'at most 3 files, at most 1 of them a new test file' "$(cat "$SKD/small-change.md")"
 has "readme: Small change allows 3 files" 'touches at most 3 files, at most 1 of them a new test file,' "$(cat "$ROOT/README.md")"
 lacks "readme: Small change 2-file rule is gone" 'at most 2 existing files' "$(cat "$ROOT/README.md")"
-RG=$(sed -n '/^### 0\. RTK Mode Gate/,/^### 0\.5/p' "$SK")
+RG=$(grep -F 'hooks/rtk-wrap.sh" --set <mode>' "$SK")
 lacks "skill: rtk gate asks no question" 'AskUserQuestion' "$RG"
-has "skill: rtk default applies with no question" 'no question: the default applies (`standard` when the `rtk` binary is installed, else `off`); `/rtk-toggle` changes it' "$RG"
+has "skill: rtk default applies with no question" 'otherwise the injected mode applies and nothing is asked' "$RG"
 has "rtk-toggle: default is standard when rtk is installed" 'Default: `standard` when the `rtk` binary is on PATH, else `off`' "$(cat "$ROOT/skills/rtk-toggle/SKILL.md")"
 lacks "readme: no first-use rtk question" 'On first use it asks' "$(cat "$ROOT/README.md")"
 has "readme: rtk default" 'rtk is on by default (`standard`) when the `rtk` binary is installed' "$(cat "$ROOT/README.md")"
@@ -590,9 +590,8 @@ has "developer: bugfix may run an existing test" 'or run the existing test named
 has "skill: handoff schema has optional red:" '- red: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: bugfix passes red: to reviewer" 'red:` line to `reviewer`' "$BF"
 has "skill: cause loop-back counts an attempt" 'run `run-state.sh attempt` (stop and report at `LIMIT REACHED`), then redo reproduce' "$BF"
-has "skill: plain review keyword unchanged" '| Keywords: `review`; `check`, `verify` only when a diff exists' "$(grep '^| `review`' "$SK")"
-has "skill: no intent match → one question" 'If no intent matches, ask one clarifying question.' "$(cat "$SK")"
-has "skill: trivial typo fix stays Small change" '"fix this typo") is not `bugfix` and stays on the Small change path' "$(cat "$SK")"
+has "skill: unclear request → at most 2 questions before planning" 'ask before planning: max 2 questions, only what blocks planning' "$(cat "$SK")"
+has "skill: trivial typo fix is not a bugfix" '"fix this typo") is not `bugfix`' "$(cat "$SK")"
 has "reviewer: bugfix cause gate" '`Cause` line does not explain → FAIL `[scope]`' "$(cat "$ROOT/agents/reviewer.md")"
 has "developer: bugfix RED line in handoff" '`red: <line>`' "$(cat "$ROOT/agents/developer.md")"
 # The documented start command works as written.
@@ -604,14 +603,14 @@ rs step reproduce >/dev/null; rs verdict PASS >/dev/null
 eq "run-state: bugfix PASS passes check" 0 "$( (cd "$R" && bash "$H/run-state.sh" check >/dev/null 2>&1); echo $?)"
 
 # --- definition of done: plan sections, goal gate, one category list --------------------
-PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SKD/plan-gate.md")
+PLAN=$(sed -n '/^# Plan: /,/^```$/p' "$SKD/plan-gate.md")
 for s in 'Done When' 'Out of Scope'; do
   eq "skill: plan template has ## $s" 1 "$(printf '%s\n' "$PLAN" | grep -c "^## $s\$")"
   eq "refactor-architect: plan format has ## $s" 1 "$(grep -c "^## $s\$" "$ROOT/agents/refactor-architect.md")"
 done
 has "skill: Done When item names its check" '- [observable outcome] — check: [test name, command, or manual step]' "$PLAN"
 has "skill: Done When / Out of Scope required for feature, bugfix, refactor" \
-  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`. `Done When` lists 2–5 observable outcomes' "$(cat "$SKD/plan-gate.md")"
+  '**Done When / Out of Scope**: `Done When` lists 2–5 observable outcomes' "$(cat "$SKD/plan-gate.md")"
 cats() { tr -d ' ' | tr '|' '\n'; }
 C1=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/agents/reviewer.md" | cats)
 C2=$(sed -n 's/^- `\[category\]`: `\([a-z |-]*\)`$/\1/p' "$ROOT/agents/reviewer.md" | cats)
@@ -645,7 +644,7 @@ has "skill: test-runner gets the Done When checks" 'for `test-runner`, include t
 SC=$(cat "$SKD/small-change.md")
 has "skill: Small change states a done-when line" '`Done when: <observable outcome> — check: <test, command, or manual step>`' "$SC"
 has "skill: Small change passes it to reviewer" 'Put that `Done when:` line in the `reviewer` prompt.' "$SC"
-has "skill: handoff max bullets allows red:" 'max 6 bullets plus `red:` for bugfix' "$(cat "$SK")"
+has "skill: handoff carries red: for a bugfix" '- red: <regression test'"'"'s failing output line before the fix> (bugfix only)' "$(cat "$SK")"
 has "skill: retries carry the first red: line" "bugfix: the first developer run's \`red:\` line — carry it through every retry" \
   "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SKD/retry.md")"
 has "developer: retry keeps the given red: line" 'On a retry, keep the `red:` line given in your prompt' "$(cat "$ROOT/agents/developer.md")"
@@ -726,16 +725,13 @@ lacks "constraints: no 'Output code only'" "Output code only" "$(cat "$ROOT/cons
 has "git-commit: tests reasons named" "manual confirmation" "$(cat "$ROOT/skills/git-commit/SKILL.md")"
 
 # --- planning discovery and task decomposition --------------------------------------------
-PLAN=$(sed -n '/^# Plan: /,/^## Commit Units/p' "$SKD/plan-gate.md")
+PLAN=$(sed -n '/^# Plan: /,/^```$/p' "$SKD/plan-gate.md")
 DC=$(printf '%s\n' "$PLAN" | sed -n '/^## Design Check$/,/^$/p')
-for l in Callers/Consumers Pattern Tests; do
+for l in Reuse Callers/Consumers 'Repo rules'; do
   eq "skill: Design Check has $l" 1 "$(printf '%s\n' "$DC" | grep -c "^- $l: ")"
 done
-has "skill: discovery lines filled from grep before approval" '`Callers/Consumers`, `Pattern`, `Tests` are also filled by the main session before approval, from grep' "$(cat "$SKD/plan-gate.md")"
-OR=$(printf '%s\n' "$PLAN" | sed -n '/^## Only When Relevant/,/^$/p')
-for l in Migration 'Dependency upgrade' Performance; do
-  eq "skill: Only When Relevant has $l" 1 "$(printf '%s\n' "$OR" | grep -c "^- $l: ")"
-done
+has "skill: discovery lines filled from the repo before approval" 'is filled by the main session before approval, from the repo and not from memory' "$(cat "$SKD/plan-gate.md")"
+has "skill: migration, upgrade and performance checks go into Done When" 'A schema or data migration, a dependency upgrade or a performance goal: say in `Done When` how it is checked' "$(cat "$SKD/plan-gate.md")"
 has "skill: Execution Steps tasks over 6 files" '(more than 6 Affected Files) Task 1: [file group] — tests:' "$PLAN"
 has "skill: task rule" 'More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines' "$(cat "$SKD/plan-gate.md")"
 has "developer: works task by task" 'With `Task N` steps, work task by task' "$DV"
@@ -880,7 +876,7 @@ has "skill: third failure of the same test or issue asks about the plan" 'whethe
 has "skill: orchestrator may write attempts.md" '`attempts.md`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
 has "skill: handoff schema allows root cause:" '- root cause: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: handoff schema has the developer self-check: line" '- self-check: <rule hit → fixed>; … | clean (developer only)' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
-has "skill: handoff Rules line names self-check:" '`root cause:` and `self-check:`' "$(grep '^Rules: omit empty fields' "$SK")"
+has "skill: handoff schema names self-check:" '- self-check: <rule hit → fixed>; … | clean (developer only)' "$(cat "$SK")"
 has "developer: root cause on the second failure" '`root cause: <file:line' "$(cat "$ROOT/agents/developer.md")"
 README_STATE=$(cat "$ROOT/README.md")
 has "readme: attempts.md in the state table" '| `attempts.md` |' "$README_STATE"
