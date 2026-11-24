@@ -72,7 +72,7 @@ Valid modes: `off | standard | aggressive | git-only`. Reject others with one-li
 
 If the injected `run state` line is not `none`, a previous run in this work tree did not finish. Show that line and ask with `AskUserQuestion`: `Resume` | `Start new`.
 
-- `Resume` → continue from the first `pending` step. Do not call `start` again
+- `Resume` → run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" resume`, then continue from the first `pending` step. Do not call `start` again
 - `Start new` → run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" abandon`, then proceed as a new request
 - A `STALE` run (not updated for over 24h) is asked the same way — the commit hook does not enforce it until the user decides
 

@@ -29,20 +29,19 @@ fi
 
 if [ ! -f "$KNOWLEDGE_INDEX" ]; then
   echo "No project knowledge found (optional). Running with the generic rules."
-  exit 0
-fi
+else
+  LINE_COUNT=$(wc -l < "$KNOWLEDGE_INDEX")
+  if [ "$LINE_COUNT" -gt 300 ]; then
+    echo "Warning: knowledge/index.md exceeds 300 lines ($LINE_COUNT). Split into domain files."
+  fi
 
-LINE_COUNT=$(wc -l < "$KNOWLEDGE_INDEX")
-if [ "$LINE_COUNT" -gt 300 ]; then
-  echo "Warning: knowledge/index.md exceeds 300 lines ($LINE_COUNT). Split into domain files."
+  echo "=== Project Knowledge Summary ==="
+  echo "- Source: $KNOWLEDGE_INDEX ($(printf '%s' "$LINE_COUNT" | tr -d ' ') lines)"
+  grep -E '^- \*\*[^*]+\*\*:' "$KNOWLEDGE_INDEX" | head -n 5
+  echo "- Details: load on demand through search-knowledge"
+  echo "=== End Project Knowledge Summary ==="
+  echo ""
 fi
-
-echo "=== Project Knowledge Summary ==="
-echo "- Source: $KNOWLEDGE_INDEX ($(printf '%s' "$LINE_COUNT" | tr -d ' ') lines)"
-grep -E '^- \*\*[^*]+\*\*:' "$KNOWLEDGE_INDEX" | head -n 5
-echo "- Details: load on demand through search-knowledge"
-echo "=== End Project Knowledge Summary ==="
-echo ""
 
 # Detect active registered repo for current cwd
 DETECT_SCRIPT="$PLUGIN_DIR/hooks/detect-repo.sh"

@@ -128,6 +128,13 @@ has "detect-repo: sibling with the same prefix is not matched" "not registered" 
 OUT=$(bash "$H/detect-repo.sh" "$TMP/my-app-api")   # no org/detect-repo-hint.txt exists yet
 has "detect-repo: unmatched, no hint file → default hint" "- hint: register the repo in" "$OUT"
 eq "detect-repo: unmatched, no hint file → end marker" "=== End Active Repo ===" "$(printf '%s\n' "$OUT" | tail -n 1)"
+# A registry without knowledge/index.md still gets the Active Repo block; with neither, only the one line.
+mkdir -p "$TMP/ssreg/knowledge/acme" "$TMP/ssnone" && cp "$REVIEW_HARNESS_HOME/knowledge/acme/repos.md" "$TMP/ssreg/knowledge/acme/"
+OUT=$(cd "$TMP/my-app" && HOME="$TMP/emptyhome" REVIEW_HARNESS_HOME="$TMP/ssreg" bash "$H/session-start.sh")
+has "session-start: registry, no index → no-knowledge line" "No project knowledge found (optional)." "$OUT"
+has "session-start: registry, no index → Active Repo block" "- name: my-app" "$OUT"
+eq "session-start: neither registry nor index → one line" "No project knowledge found (optional). Running with the generic rules." \
+  "$(cd "$TMP/my-app" && HOME="$TMP/emptyhome" REVIEW_HARNESS_HOME="$TMP/ssnone" bash "$H/session-start.sh")"
 
 # --- detect-test-cmd -------------------------------------------------------------------
 REG="$TMP/reg-app"; mkdir -p "$REG/app" && git -C "$REG" init -q && echo 'x = 1' > "$REG/app/x.py"
@@ -1110,7 +1117,12 @@ OUT=$(au SubagentStart s1); RC=$?
 eq "agent-usage: stale run → silent, exit 0" "0:" "$RC:$OUT"
 eq "agent-usage: stale run → check --active-only still exit 4" 4 "$(rc rs check --active-only)"
 eq "agent-usage: stale run → nothing recorded, run-state.json untouched" "false $G0" "$(exists "$AG") $(gatefields)"
+eq "resume: stale run → check --active-only exit 4 (before)" 4 "$(rc rs check --active-only)"
+has "resume: names the workflow" "run-state: resumed 'feature'" "$(rs resume)"
+RC=$(rc rs check --active-only); [ "$RC" != 4 ] && RC=not4
+eq "resume: stale run → check --active-only no longer exit 4 (after)" not4 "$RC"
 rs abandon >/dev/null
+eq "resume: no active run → exit 1" 1 "$(rc rs resume)"
 AM='^(review-harness:)?(developer|test-runner|reviewer|refactor-architect)$'
 eq "hooks.json: SubagentStart/Stop matcher" "$AM $AM" "$(jq -r '[.hooks.SubagentStart[0].matcher, .hooks.SubagentStop[0].matcher] | join(" ")' "$H/hooks.json")"
 eq "hooks.json: both run agent-usage.sh" 2 "$(jq '[.hooks.SubagentStart[0].hooks[0].command, .hooks.SubagentStop[0].hooks[0].command] | map(select(test("hooks/agent-usage.sh"))) | length' "$H/hooks.json")"
