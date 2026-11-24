@@ -10,6 +10,8 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - `constraints.md`: the `#completion` section is gone (the attempt limit belongs to the orchestrator). `extract-constraints.sh` no longer passes it, and passes the test-runner no ledger: only the reviewer appends to the failure-pattern ledger now, and not a rule the touched repo's own rule files already hold
 - Injected rules with all three profiles, same organisation overlay: reviewer base part 8,876 → 8,084 bytes (under the 8,192 warning), developer 7,395 → 6,822, test-runner 3,329 → 1,675
 - An organisation overlay that leaned on the removed generic lists (design quality, cross-app imports, surfacing API errors) needs its own copy of those rules
+**Repo rules for this repo**
+- New `.claude/rules/shell-hooks.md`: 14 standing rules for the plugin's shell scripts, hooks and tests, taken from past review failures here. They used to sit in the per-user failure-pattern ledger, which is passed to every agent in every repo; a lesson about one repo belongs in that repo's own rule files
 
 **Removed**
 - Dispute: the `run-state.sh dispute` subcommand, the re-judge mark on verdicts, the `disputes` field in `runs.jsonl`, and the dispute steps in `retry.md`, `agents/developer.md` and `agents/reviewer.md` — never used in 25 recorded runs. Every reviewer FAIL now counts an attempt. A developer with evidence that an issue is wrong reports `wrong: <issue id> — <evidence>` in `blockers`, and the run stops for the user's decision (patch, or `override`). `run-stats.sh` still skips `rejudge` verdicts in older run logs
