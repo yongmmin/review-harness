@@ -21,6 +21,8 @@
 #   check [--active-only]       commit gate. exit 0 ok · 1 blocked · 3 nothing to enforce · 4 stale run
 #   done | abandon              close the run (and delete its baseline.txt); an active run also appends one
 #                               summary line to <state root>/runs.jsonl (read by run-stats.sh), never rewritten
+#   resume                      mark an active run (stale or not) as touched now, so a run the user chose to resume
+#                               is no longer stale; exit 1 when no run is active
 #   status                      one-line summary ("none" when there is nothing to resume)
 #   hash                        print the current work-tree hash
 #   agent-start <id> <type>     (agent-usage.sh) open an active-time span for a subagent in agents.jsonl; active,
@@ -241,6 +243,10 @@ case "${1:-}" in
     rm -rf "$AGENTS" "$STATE_DIR/agents.json" "$STATE_DIR/agents.json.lock"
     update --arg s "$new" '.status = $s' && echo "run-state: $new"
     ;;
+  resume)
+    [ "$(st)" = active ] || { echo "run-state: no active run to resume" >&2; exit 1; }
+    update '.' && echo "run-state: resumed '$(get .workflow)' ($("$0" status))"
+    ;;
   status)
     [ "$(st)" = active ] || { echo none; exit 0; }
     stale=""; is_stale && stale=" STALE(>$((STALE_SECONDS / 3600))h)"
@@ -280,5 +286,5 @@ case "${1:-}" in
       + ([$m[] | .model | strings | select(. != "<synthetic>")] | if . == [] then {} else {model: last} end)' "$4" 2>/dev/null)
     printf '%s\n' "$(jq -nc --arg id "$2" --argjson ts "$(now)" --argjson u "${u:-null}" '{e: "stop", id: $id, ts: $ts, u: $u}')" >> "$AGENTS"
     ;;
-  *) echo "usage: run-state.sh start|step|attempt|verdict|tests|override|check|done|abandon|status|hash|agents|agent-start|agent-stop" >&2; exit 2 ;;
+  *) echo "usage: run-state.sh start|step|attempt|verdict|tests|override|check|done|abandon|resume|status|hash|agents|agent-start|agent-stop" >&2; exit 2 ;;
 esac

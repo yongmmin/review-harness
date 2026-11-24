@@ -45,6 +45,8 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 **Fixed**
 - Skill text that contradicted the code: `/git-branch` and `/git-pr` no longer claim `/review-harness` runs them on a natural-language request (only the user can invoke them), `/code-review` no longer claims to be auto-chained and diffs against the repository's default branch (`origin/HEAD`, else `main`) instead of a hardcoded `main`, the plan template's `## Intent` no longer lists `review` (a review run writes no plan), the Design Check rules' sentence fragment is a sentence, and `/search-knowledge` no longer calls its empty-knowledge skip "pre-spawn". Frontend-era wording is gone from `/git-commit` (`.front-harness-cache/`, `docs/{domain}/`, the Korean-subject note, a doubled block of checks), the Active Repo Gate (Tailwind version) and `/save-knowledge` (React/Next)
+- The Unfinished Run Gate's `Resume` answer now runs the new `run-state.sh resume`, which touches the active run so a resumed stale run is gated again instead of getting advice only until some later state write
+- Session start skipped the `=== Active Repo ===` block when `knowledge/index.md` was missing, even with a repo registry; it now prints the no-knowledge line and still runs the active-repo detection
 
 ### v0.7.0 (2026-11-19)
 
