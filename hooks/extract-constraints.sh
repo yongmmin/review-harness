@@ -36,11 +36,11 @@ fi
 # Section tag → target agents (mirrors the tables in constraints.md and profiles/*.md)
 case "$AGENT" in
   developer)
-    SECTIONS="code-rules filesystem completion org"
+    SECTIONS="code-rules filesystem org"
     PROFILE_SECTIONS="code-rules implementation"
     ;;
   test-runner)
-    SECTIONS="completion failure-patterns"
+    SECTIONS=""
     PROFILE_SECTIONS=""
     ;;
   reviewer)

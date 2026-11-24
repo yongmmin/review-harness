@@ -585,7 +585,7 @@ has "skill: bugfix harness loop" '`feature`, `bugfix` and `refactor`' "$(cat "$S
 RV=$(cat "$ROOT/agents/reviewer.md")
 has "reviewer: bugfix regression gate" 'none named in the plan'"'"'s `Regression test` line, and no `Regression test: none — <reason>` → FAIL `[correctness]`' "$RV"
 has "reviewer: bugfix gate reads red:" 'no `red:` line' "$RV"
-has "reviewer: bugfix gate keys on ## Intent" 'plan `## Intent` is `bugfix`' "$RV"
+has "reviewer: bugfix gate keys on ## Intent" '`## Intent` is `bugfix`' "$RV"
 has "developer: bugfix may run an existing test" 'or run the existing test named there' "$(cat "$ROOT/agents/developer.md")"
 has "skill: handoff schema has optional red:" '- red: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: bugfix passes red: to reviewer" 'red:` line to `reviewer`' "$BF"
@@ -615,33 +615,31 @@ has "skill: Done When / Out of Scope required for feature, bugfix, refactor" \
 cats() { tr -d ' ' | tr '|' '\n'; }
 C1=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/agents/reviewer.md" | cats)
 C2=$(sed -n 's/^- `\[category\]`: `\([a-z |-]*\)`$/\1/p' "$ROOT/agents/reviewer.md" | cats)
-C3=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/constraints.md" | cats)
 has "reviewer: category list names goal" "goal" "$C1"
 eq "reviewer: Output Format categories = failure-pattern categories" "$C1" "$C2"
-eq "constraints: failure-pattern categories = reviewer's" "$C1" "$C3"
 eq "run-state: verdict categories = reviewer's" "$(printf '%s\n' $C1 | sort | tr '\n' ' ')" \
   "$(sed -n 's/^CATEGORIES="\([^"]*\)".*/\1/p' "$H/run-state.sh" | tr ' ' '\n' | sort | tr '\n' ' ')"
 has "reviewer: verdict FAIL carries its categories" '`… verdict FAIL` followed by the `[category]` tags of your FAIL issues' "$RV"
 for f in review-harness code-review; do
   has "skill $f: verdict command takes FAIL categories" 'verdict <PASS|FAIL> [FAIL issue categories...]' "$(cat "$ROOT/skills/$f/SKILL.md")"
 done
-GG=$(sed -n '/^\*\*Goal gate\*\*/,/^---$/p' "$ROOT/agents/reviewer.md")
-has "reviewer: goal gate reads the plan sections" 'also read `## Intent`, `## Done When` and `## Out of Scope`' "$GG"
+GG=$(sed -n '/^## The Plan Is the Contract/,/^## Probes/p' "$ROOT/agents/reviewer.md")
+has "reviewer: goal gate reads the plan sections" 'read `## Intent`, `## Done When`, `## Out of Scope`' "$GG"
 lacks "reviewer: goal gate reads no unused ## Goal" '## Goal' "$GG"
 has "reviewer: goal gate uses the Small change line" 'the `Done when:` line in your prompt is the only Done When item' "$GG"
-has "reviewer: goal gate skip" 'With neither a plan_path nor a Small change `Done when:` line, skip this gate.' "$GG"
-has "reviewer: goal gate FAILs [goal]" 'FAIL `[goal]` if any:' "$GG"
-has "reviewer: missing Done When keyed on ## Intent" '`Done When` missing or empty when `## Intent` is `feature`, `bugfix` or `refactor`' "$GG"
-has "reviewer: unmet item judged from test output" 'Judge a test or command check from `test_status` / the test-runner output; when that evidence is missing, run the command yourself.' "$GG"
-has "reviewer: manual step never FAILs" 'A manual-step item never FAILs — list it in handoff `blockers` as `manual: <step>`' "$GG"
+has "reviewer: goal gate skip" 'With neither a plan_path nor a `Done when:` line, skip this section.' "$GG"
+has "reviewer: goal gate FAILs [goal]" '→ FAIL `[goal]`:' "$GG"
+has "reviewer: missing Done When keyed on ## Intent" '`Done When` missing or empty' "$GG"
+has "reviewer: unmet item judged from test output" 'judge a test or command check from `test_status` / the test-runner output, and run the command yourself when that evidence is missing' "$GG"
+has "reviewer: manual step never FAILs" 'a manual-step item never FAILs — list it in handoff `blockers` as `manual: <step>`' "$GG"
 has "reviewer: stub rule only where Done When expects work" 'placeholder return (hardcoded or empty value where the logic should be) in something a Done When item expects to work' "$GG"
-has "reviewer: stub exception — abstract/overridable, Out of Scope" 'Abstract/overridable members and stubs that `Out of Scope` names pass' "$GG"
-has "reviewer: export rule" 'A new export with no caller in the change or the repo' "$GG"
+has "reviewer: stub exception — abstract/overridable, Out of Scope" 'abstract/overridable members and stubs that `Out of Scope` names pass' "$GG"
+has "reviewer: export rule" 'a new export with no caller in the change or the repo' "$GG"
 for x in "exported from the package's public entry (index or \`package.json\` exports)" 'is a file-routed, decorator/DI-registered or CLI entry point' 'is used only by tests' 'or `Out of Scope` names the later change that calls it'; do
   has "reviewer: export exception — $x" "$x" "$GG"
 done
-has "reviewer: Out of Scope edit is [scope]" 'An edit to something `Out of Scope` names → FAIL `[scope]` (' "$GG"
-has "reviewer: Out of Scope [scope] rule excepts named stubs" 'a stub that `Out of Scope` names' "$(sed -n '/^An edit to something `Out of Scope` names/p' "$ROOT/agents/reviewer.md")"
+has "reviewer: Out of Scope edit is [scope]" 'an edit to something `Out of Scope` names (' "$GG"
+has "reviewer: Out of Scope [scope] rule excepts named stubs" 'a stub that `Out of Scope` names' "$(sed -n '/^- \*\*Scope\*\*/p' "$ROOT/agents/reviewer.md")"
 eq "refactor-architect: plan format has ## Intent refactor" "refactor" "$(sed -n '/^## Intent$/{n;p;}' "$ROOT/agents/refactor-architect.md")"
 has "skill: test-runner gets the Done When checks" 'for `test-runner`, include the `Done When` test/command checks (or the Small change `Done when:` check) so it runs them' "$(cat "$SK")"
 SC=$(cat "$SKD/small-change.md")
@@ -742,7 +740,7 @@ has "skill: Execution Steps tasks over 6 files" '(more than 6 Affected Files) Ta
 has "skill: task rule" 'More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines' "$(cat "$SKD/plan-gate.md")"
 has "developer: works task by task" 'With `Task N` steps, work task by task' "$DV"
 has "developer: updates or marks callers" 'Update every file in `Callers/Consumers`, or append `no change needed: <reason>`' "$DV"
-has "reviewer: contract gate" 'neither in the diff nor marked there `no change needed: <reason>` → FAIL `[contract]`' "$RV"
+has "reviewer: contract gate" 'neither in the diff nor marked `no change needed: <reason>`' "$RV"
 
 # --- changes across repos: plan Contract, consumer search, producer first, reviewer gate ------
 CT=$(printf '%s\n' "$PLAN" | sed -n '/^## Contract (only when another repo may use what changes)$/,/^$/p')
@@ -762,8 +760,8 @@ for x in 'type changed' 'an existing optional request field made required' '(a r
   has "skill: breaking definition — $x" "$x" "$CR"
 done
 has "skill: final report carries the Contract block" 'A plan with `## Contract`: end the final report with that block verbatim' "$(sed -n '/^## Completion/,$p' "$SK")"
-has "reviewer: breaking contract with no consumers FAILs" 'A `## Contract` marked `breaking` whose `Consumers` line names no repo and no `none — <reason>` → FAIL `[contract]`' "$RV"
-has "reviewer: unaddressed consumer hits FAIL" 'a consumer repo listed in that breaking contract with hits that the diff does not change and `Out of Scope` does not name as a follow-up → FAIL `[contract]`' "$RV"
+has "reviewer: breaking contract with no consumers FAILs" 'a `## Contract` marked `breaking` whose `Consumers` line names no repo and no `none — <reason>`' "$RV"
+has "reviewer: unaddressed consumer hits FAIL" 'a consumer repo listed there with hits that the diff does not change and `Out of Scope` does not name as a follow-up' "$RV"
 for l in 18 44; do has "web-api: line $l points to the plan's Contract" 'the plan'"'"'s `## Contract`' "$(sed -n "${l}p" "$ROOT/profiles/web-api.md")"; done
 NH=$(ls "$H"/*.sh | wc -l | tr -d ' ')
 has "docs/hooks.md: hook count" "## $NH Hooks" "$(cat "$ROOT/docs/hooks.md")"
@@ -779,7 +777,7 @@ has "readme: Small change has no baseline" 'It also has no test baseline' "$(cat
 
 # --- review triage: routes, issue count -------------------------------------------
 RV=$(cat "$ROOT/agents/reviewer.md"); DV=$(cat "$ROOT/agents/developer.md")
-OF=$(sed -n '/^## Output Format/,/^## Static Review Gates/p' "$ROOT/agents/reviewer.md")
+OF=$(sed -n '/^## Output Format/,/^## Record the Verdict/p' "$ROOT/agents/reviewer.md")
 has "reviewer: issue line carries a route" '-> [fix] (route: patch | replan | defer)' "$OF"
 has "reviewer: defer is not a FAIL reason" '`defer` issues never make a FAIL' "$OF"
 has "reviewer: every FAIL issue listed" 'List every `patch` / `replan` issue' "$OF"
@@ -798,15 +796,15 @@ lacks "web-frontend: no unconditional inline-literal gate" $'\n- Inline object/f
 
 # --- retry memory and the failure-pattern ledger --------------------------------------------
 LEDGER="$REVIEW_HARNESS_HOME/failure-patterns.md"
-for a in reviewer test-runner; do
+for a in reviewer; do
   has "ledger: $a gets the absolute ledger path" "ledger: $LEDGER" "$(ec $a 2>/dev/null)"
 done
-for a in developer refactor-architect; do lacks "ledger: $a gets no ledger line" "ledger: " "$(ec $a 2>/dev/null)"; done
+for a in developer refactor-architect test-runner; do lacks "ledger: $a gets no ledger line" "ledger: " "$(ec $a 2>/dev/null)"; done
 lacks "ledger: absent file → no section" "## #failure-patterns" "$(ec reviewer 2>/dev/null)"
 eq "constraints.md: no #failure-patterns section left" 0 "$(grep -c '^## #failure-patterns' "$ROOT/constraints.md")"
 RV_NO_LEDGER=$(ec reviewer 2>&1 >/dev/null)
 printf 'ledger preamble LP-X\n\n## #failure-patterns\n\n- [2026-11-17] [category:scope] edits outside plan - stay in Affected Files\n' > "$LEDGER"
-for a in reviewer test-runner; do
+for a in reviewer; do
   has "ledger: $a gets its entries" "- [2026-11-17] [category:scope] edits outside plan" "$(ec $a 2>/dev/null)"
   lacks "ledger: $a never gets the preamble" "LP-X" "$(ec $a 2>/dev/null)"
 done
@@ -819,7 +817,7 @@ printf '## #implementation\n\n- org fe do CK-IMPL\n\n## #review\n\nOrg prose CK-
 CK=$(ckb web-frontend,web-api)
 has "checklist: developer gets the block" "$CKH" "$CK"
 eq "checklist: exactly one block" 1 "$(ec developer web-frontend,web-api 2>/dev/null | grep -c '^## Review checklist')"
-has "checklist: constraints #review rule line" "- Property access on nullable without guard" "$CK"
+has "checklist: constraints #review rule line" "- Password/token/webhook URL in tracked env/config" "$CK"
 has "checklist: profile #review rule line" '- `useEffect` missing dep or unstable ref causing infinite loop' "$CK"
 has "checklist: second profile's #review rule line" "500-class exception" "$CK"
 has "checklist: org profile #review rule line" "- org fe gate CK-ORG" "$CK"
@@ -845,13 +843,13 @@ rm -f "$REVIEW_HARNESS_HOME/org/profiles/web-frontend.md"
 eq "ledger: entries count in the budget" 0 "$?"
 rm -f "$LEDGER"
 lacks "checklist: absent ledger → no ledger entries" "edits outside plan" "$(ckb)"
-has "checklist: absent ledger → constraints rule lines stay" "- Property access on nullable without guard" "$(ckb)"
+has "checklist: absent ledger → constraints rule lines stay" "- Password/token/webhook URL in tracked env/config" "$(ckb)"
 # A non-UTF-8 byte in the ledger: GNU grep in a UTF-8 locale would print "Binary file matches" instead of the lines.
 printf '## #failure-patterns\n\n- [2026-11-18] [category:scope] bad \377 byte NB-1\n- [2026-11-18] [category:goal] after it NB-2\n' > "$LEDGER"
 CK=$(LC_ALL=C.UTF-8 ec developer 2>/dev/null | LC_ALL=C sed -n '/^## Review checklist/,$p')   # the helper awk would trip on the byte too
 has "checklist: line with a non-UTF-8 byte kept" "NB-1" "$CK"
 has "checklist: line after a non-UTF-8 byte kept" "- [2026-11-18] [category:goal] after it NB-2" "$CK"
-has "checklist: non-UTF-8 ledger → constraints rule lines stay" "- Property access on nullable without guard" "$CK"
+has "checklist: non-UTF-8 ledger → constraints rule lines stay" "- Password/token/webhook URL in tracked env/config" "$CK"
 lacks "checklist: non-UTF-8 ledger → no binary-file message" "Binary file" "$CK"
 has "checklist: filter reads bytes as text (BSD grep only flags NUL)" "grep -a '^- '" "$(cat "$H/extract-constraints.sh")"
 rm -f "$LEDGER"
@@ -861,17 +859,18 @@ lacks "checklist: no rule lines → no block" "## Review checklist" "$(bash "$NC
 lacks "checklist: no rule lines → no stderr note" "checklist" "$(bash "$NC/hooks/extract-constraints.sh" developer 2>&1 >/dev/null)"
 has "developer: self-check line in the handoff" '`self-check: <rule hit → fixed>; …` or `self-check: clean`' "$(cat "$ROOT/agents/developer.md")"
 has "developer: Output rule allows self-check:" '`self-check:`' "$(grep -F '**Output**' "$ROOT/agents/developer.md")"
-for f in reviewer test-runner; do
+lacks "test-runner: no ledger append left" "failure-patterns" "$(cat "$ROOT/agents/test-runner.md")"
+for f in reviewer; do
   AG=$(cat "$ROOT/agents/$f.md")
   lacks "$f: no constraints.md ledger" "constraints.md #failure-patterns" "$AG"
   has "$f: appends to the ledger path in its prompt" "ledger path given in your prompt" "$AG"
-  has "$f: ledger scope clause" 'only rules that no static gate, profile, `#review`/`#org` rule or ESLint/tsc already enforces; one-off mistakes do not belong' "$AG"
+  has "$f: ledger scope clause" 'only rules that no static gate, profile, `#review`/`#org` rule, ESLint/tsc or the touched repo'"'"'s own rule files already enforce; one-off mistakes do not belong' "$AG"
   lacks "$f: no Edit tool left" "Bash, Edit" "$(sed -n 's/^tools: //p' "$ROOT/agents/$f.md")"
 done
 HL=$(sed -n '/^## Harness Loop/,/^## Completion/p' "$SK"; cat "$SKD/retry.md")
 lacks "skill: LIMIT no longer writes constraints.md" "constraints.md #failure-patterns" "$HL"
 has "skill: LIMIT appends to the ledger path" 'the `ledger:` path' "$HL"
-has "skill: LIMIT names the ledger format" 'entry format and scope of agents/reviewer.md step 5; a new file starts with `## #failure-patterns`' "$HL"
+has "skill: LIMIT names the ledger format" 'entry format and scope of agents/reviewer.md → Ledger; a new file starts with `## #failure-patterns`' "$HL"
 has "skill: LIMIT replan on the Small change path" '(Small change: no plan — ask the user, or switch to the Feature path)' "$(sed -n '/prints "LIMIT REACHED"/,/^```$/p' "$SKD/retry.md")"
 has "skill: attempts line per retry" 'N. hypothesis → change → result' "$HL"
 has "skill: attempts in plan.md or attempts.md" '`## Attempts` in plan.md' "$HL"
@@ -1670,8 +1669,8 @@ eq "static-gates: no HEAD → exit 1" 1 "$(sgx)"
 eq "static-gates: no HEAD with a base → exit 2" 2 "$(sgx main)"
 lacks "static-gates: never runs npx" "npx" "$(grep -v '^#' "$H/static-gates.sh")"
 has "developer: self-check runs static-gates.sh" 'run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"`' "$(cat "$ROOT/agents/developer.md")"
-has "reviewer: static gates run the script first" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"`' "$(sed -n '/^## Static Review Gates/,/^## Constraints/p' "$ROOT/agents/reviewer.md")"
-has "reviewer: note hits are never an automatic FAIL" '`note` hits feed the Goal gate' "$(cat "$ROOT/agents/reviewer.md")"
+has "reviewer: static gates run the script first" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/static-gates.sh"`' "$(sed -n '/^## Evidence First/,/^## The Plan Is the Contract/p' "$ROOT/agents/reviewer.md")"
+has "reviewer: note hits are never an automatic FAIL" '`note` hits are never an automatic FAIL' "$(cat "$ROOT/agents/reviewer.md")"
 has "docs/hooks.md: static-gates row" '| **`static-gates.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
 has "docs/hooks.md: torn line skipped and the next append can be lost" \
   'a torn line is skipped, and a writer killed mid-line can also lose the next append' "$(cat "$ROOT/docs/hooks.md")"
@@ -1865,7 +1864,7 @@ has "skill: risk line in the reviewer prompt" '`risk: <tier>`' "$AS"
 has "skill: low risk → opus, medium effort" '`low` → spawn `reviewer` with `model: "opus"` and `effort: "medium"`' "$AS"
 has "skill: risk-tier failure → normal" 'fails → `risk: normal`' "$AS"
 has "code-review: risk tier for a diff target" 'hooks/risk-tier.sh' "$(cat "$ROOT/skills/code-review/SKILL.md")"
-PR=$(sed -n '/^\*\*Probes\*\*/p' "$ROOT/agents/reviewer.md")
+PR=$(sed -n '/^## Probes/,/^---$/p' "$ROOT/agents/reviewer.md")
 has "reviewer: high risk → at least 2 executed probes" 'at least 2 executable probes' "$PR"
 has "reviewer: probes never in the work tree" "never in the user's work tree" "$PR"
 has "reviewer: probes handoff line" '`probes: N run, K failed`' "$PR"
@@ -1987,7 +1986,7 @@ R="$TMP/rc-short"; mkdir -p "$R/tests"; git -C "$R" init -q
 i=1000; while [ "$i" -lt 1500 ]; do echo x > "$R/tests/t$i"; i=$((i + 1)); done
 RCW=$(rc | LC_ALL=C wc -c | tr -d ' ')
 eq "review-context: short lines → cut between 4080 and 4096 bytes" yes "$([ "$RCW" -ge 4080 ] && [ "$RCW" -le 4096 ] && echo yes || echo "no ($RCW)")"
-RVG=$(sed -n '/^## Static Review Gates/,/^## Constraints/p' "$ROOT/agents/reviewer.md")
+RVG=$(sed -n '/^## Evidence First/,/^## The Plan Is the Contract/p' "$ROOT/agents/reviewer.md")
 has "reviewer: runs review-context.sh after static-gates" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/review-context.sh"`' "$RVG"
 has "reviewer: unchanged caller of a removed symbol → contract FAIL" 'FAIL `[contract]` unless the plan' "$RVG"
 has "developer: self-check runs review-context.sh" '`bash "${CLAUDE_PLUGIN_ROOT}/hooks/review-context.sh"`' "$(sed -n '/^6\. Self-check/p' "$ROOT/agents/developer.md")"
@@ -1998,10 +1997,9 @@ has "changelog: review-context entry" 'hooks/review-context.sh' "$(sed -n '/^###
 # --- small doc items ----------------------------------------------------------------------
 has "refactor-architect: rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$RA"
 has "skill: main session rtk-wrap line" 'via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
-has "test-runner: description names baseline.txt" "Writes only to baseline.txt and to append to the failure-pattern ledger" "$(sed -n 's/^description: //p' "$ROOT/agents/test-runner.md")"
-RVW=$(sed -n '/^## #review/,/^Logic correctness/p' "$ROOT/constraints.md")
+has "test-runner: description names baseline.txt" "Writes only to baseline.txt." "$(sed -n 's/^description: //p' "$ROOT/agents/test-runner.md")"
+RVW=$(sed -n '/^## #review/,$p' "$ROOT/constraints.md")
 lacks "constraints #review: no #failure-patterns append rule" "append to \`#failure-patterns\`" "$RVW"
-has "constraints #review: points to reviewer step 5" "agents/reviewer.md\` step 5" "$RVW"
 has "find-consumers: header names every breaking kind" "renamed/removed/retyped/now-optional/now-required" "$(sed -n 3p "$H/find-consumers.sh")"
 lacks "find-consumers: no 'same hygiene as scan-repo.sh'" "same hygiene as scan-repo.sh" "$(cat "$H/find-consumers.sh")"
 
@@ -2145,7 +2143,7 @@ has "audit-rules: ledger over 3072 bytes" "ledger-size failure-patterns.md — $
 OUT=$(REVIEW_HARNESS_BUDGET_WARN_BYTES=100 au)
 has "audit-rules: budget over the threshold" "budget reviewer — extract-constraints: " "$OUT"
 has "audit-rules: budget names the threshold" "over the 100 budget (non-profile part)" "$OUT"
-eq "audit-rules: one budget line per agent" 4 "$(printf '%s\n' "$OUT" | grep -c '^budget ')"
+eq "audit-rules: one budget line per agent with rules (test-runner has none)" 3 "$(printf '%s\n' "$OUT" | grep -c '^budget ')"
 eq "audit-rules: no here-string or heredoc (bash 3.2 writes them to a temp file)" 0 "$(grep -c '<<' "$H/audit-rules.sh")"
 UH="$TMP/audit-unloaded"; mkdir -p "$UH"
 printf -- '- [2026-05-01] [category:scope] a pattern - a rule\n- [2026-05-02] [category:scope] b pattern - b rule\n' > "$UH/failure-patterns.md"
@@ -2330,7 +2328,7 @@ eq "repo-rules: listed line at most 200 bytes" "" "$(printf '%s\n' "$OUT" | grep
 # the agents run it themselves; the plan and small-change paths name it
 DV=$(cat "$ROOT/agents/developer.md"); RV=$(cat "$ROOT/agents/reviewer.md")
 has "developer: runs repo-rules.sh on the plan's Affected Files" 'hooks/repo-rules.sh" <plan Affected Files>' "$DV"
-has "developer: repo rules outrank generic constraints" 'repo rules outrank' "$DV"
+has "developer: repo rules outrank generic constraints" 'Repo rules outrank' "$DV"
 has "developer: handoff names the docs followed" 'repo-rules: ' "$DV"
 has "reviewer: runs repo-rules.sh" 'hooks/repo-rules.sh" <plan Affected Files>' "$RV"
 has "reviewer: no plan → the Change context files" 'no plan: the paths from the Change context `files:` block' "$RV"
@@ -2342,7 +2340,7 @@ has "docs/hooks.md: auto-loaded meaning" 'the repo containing `$PWD`' "$(cat "$R
 has "repo-rules.sh: header states auto-loaded meaning" 'the repo containing $PWD' "$(head -n 20 "$H/repo-rules.sh")"
 has "readme: repo-rules token cost estimate" 'estimate' "$(grep "Each repo's own rules" "$ROOT/README.md")"
 has "changelog: repo-rules token cost estimate" 'estimate' "$(sed -n '/^\*\*Repo rules\*\*/,/^$/p' "$ROOT/CHANGELOG.md")"
-has "reviewer: Repo rules gate" '**Repo rules**' "$RV"
+has "reviewer: evidence scripts come first" '## Evidence First' "$RV"
 has "reviewer: [convention] FAIL quotes the rule" 'FAIL `[convention]` quoting the rule as `file:line`' "$RV"
 has "plan-gate: Design Check Repo rules line" '- Repo rules: [docs from repo-rules.sh <Affected Files>' "$(cat "$SKD/plan-gate.md")"
 has "small-change: runs repo-rules.sh before the edit" 'hooks/repo-rules.sh" <files>' "$(cat "$SKD/small-change.md")"
