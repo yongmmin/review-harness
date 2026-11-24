@@ -38,6 +38,7 @@ Risk tier: [first line of `risk-tier.sh --paths <these files>`]
 - Callers/Consumers: [each changed export / route / event → files that use it, or "none — new"]
 - Pattern: [one neighbouring file to imitate]
 - Tests: [existing test files covering the area; new tests to add]
+- Repo rules: [docs from repo-rules.sh <Affected Files> this change follows (file → section), or "none found"]
 
 ## Contract (only when another repo may use what changes)
 - Producer: [this repo]
@@ -68,6 +69,7 @@ Risk tier: [first line of `risk-tier.sh --paths <these files>`]
 - If `Reuse` says "new primitive", justification must be one concrete reason — not vague "for flexibility"
 - `Reuse` is filled at plan time by the main session — no agent does it for you. Before writing the plan, search the repo and the shared packages it depends on for an existing component/hook/util that covers the request, and use project knowledge
 - `Reuse` must never be empty: name what is reused, or write "none — new primitive justified because X". `reviewer` FAILs a plan whose `Reuse` line is empty
+- `Repo rules` is filled by the main session before writing the plan, from the output of the plugin's `hooks/repo-rules.sh <Affected Files>` (the docs the change must follow)
 - `Callers/Consumers`, `Pattern`, `Tests` are also filled by the main session before approval, from grep (not memory). `Callers/Consumers` names every file that uses each changed exported symbol, route or event; a file the change will leave alone gets `no change needed: <reason>` — `reviewer` FAILs a listed file that is neither changed nor marked
 - More than 6 Affected Files → `Execution Steps` become ordered `Task N` lines (file group + that task's tests); `developer` runs each task's tests before the next
 - `developer` reads `plan.md` as the canonical Design Check. The Reuse line is the single source of truth
