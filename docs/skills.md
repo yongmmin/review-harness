@@ -48,7 +48,7 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 After the work is complete, the user explicitly:
 
 ```
-/git-branch              # or "create a branch"
+/git-branch
 ```
 → The plugin lists the current branches → selects a base via AskUserQuestion (main/stage/production, etc.) → asks for the new name → prints the command (the user runs it themselves)
 
@@ -58,7 +58,7 @@ git push -u origin <branch>
 → The user does this themselves
 
 ```
-/git-pr                  # or "write the PR body"
+/git-pr
 ```
 → The plugin prints the title + body + `gh pr create ...` command + prefilled GitHub compare URL (the user copies and runs it)
 

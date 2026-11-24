@@ -1,6 +1,6 @@
 ---
 name: git-branch
-description: Suggest a task branch name with explicit base-branch selection ("create a branch", in any language). Lists existing branches, asks which base, prints the create command. Never executes git — the user runs it.
+description: Suggest a task branch name with explicit base-branch selection. Lists existing branches, asks which base, prints the create command. Never executes git — the user runs it.
 argument-hint: "[new-branch-name]"
 disable-model-invocation: true
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh *) Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/org-overlay.sh *) Bash(git branch *) Bash(git status *) Bash(git log *) Bash(git remote *) Bash(git rev-parse *)
@@ -8,7 +8,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh *) Bash(bash $
 
 # Skill: git-branch
 
-**Trigger**: user-invoked only — `/git-branch [name]` or natural language like "create a branch" (`review-harness` routes the phrase here; this skill is hidden from model auto-invocation)
+**Trigger**: user-invoked only — the user runs `/git-branch [name]` (this skill is hidden from model invocation)
 **Purpose**: Help the user create a task branch by **first discovering existing branches**, then asking which base to fork from, then suggesting a name. **Plugin does NOT execute git commands** — it prints the command the user runs themselves.
 
 ## Org Overlay

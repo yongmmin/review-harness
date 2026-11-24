@@ -84,7 +84,7 @@ Project knowledge is optional: if `knowledge/index.md` under `$REVIEW_HARNESS_HO
 
 The `=== Active Repo ===` block is already injected above — do not re-run `detect-repo.sh`. Three branches:
 
-- **Matched** → compact repo block becomes part of agent context. Apply repo-specific rules: path alias, layout (`src/` vs `app/`), env source, Tailwind version
+- **Matched** → compact repo block becomes part of agent context. Apply the repo-specific rules the block names (stack, layout, path alias, commands)
 - **Unmatched** AND user request implies code work → the register offer below
 - **Unmatched** AND user request is generic (e.g. "/review-harness explain yourself") → continue without repo context
 - **No Active Repo block at all** (no repo registry installed, no `~/.review-harness/knowledge/<org>/repos.md`) → continue with the generic rules; only the register offer below may ask

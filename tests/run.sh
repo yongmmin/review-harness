@@ -543,7 +543,8 @@ eq "skill: intent table rows" "feature refactor bugfix review " "$INTENTS"
 WFLIST=$(grep -o '`<workflow>` = `[^`]*`' "$SK"); TMPL=$(grep '^\[feature' "$SKD/plan-gate.md")
 for i in $INTENTS; do
   has "skill: run-state workflow list names $i" "$i" "$WFLIST"
-  has "skill: plan template Intent names $i" "$i" "$TMPL"
+  if [ "$i" = review ]; then lacks "skill: plan template Intent omits review (no plan)" "$i" "$TMPL"
+  else has "skill: plan template Intent names $i" "$i" "$TMPL"; fi
   eq "skill: ### section for $i" 1 "$(grep -ci "^### $i\$" "$SK")"
 done
 has "skill: description names bug fix" "bug fix" "$(sed -n 's/^description: //p' "$SK")"
@@ -603,7 +604,7 @@ for s in 'Done When' 'Out of Scope'; do
 done
 has "skill: Done When item names its check" '- [observable outcome] — check: [test name, command, or manual step]' "$PLAN"
 has "skill: Done When / Out of Scope required for feature, bugfix, refactor" \
-  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`; omit for `review`. `Done When` lists 2–5 observable outcomes' "$(cat "$SKD/plan-gate.md")"
+  '**Done When / Out of Scope rules**: required for `feature`, `bugfix`, `refactor`. `Done When` lists 2–5 observable outcomes' "$(cat "$SKD/plan-gate.md")"
 cats() { tr -d ' ' | tr '|' '\n'; }
 C1=$(sed -n 's/.*\[category:\([a-z|-]*\)\].*/\1/p' "$ROOT/agents/reviewer.md" | cats)
 C2=$(sed -n 's/^- `\[category\]`: `\([a-z |-]*\)`$/\1/p' "$ROOT/agents/reviewer.md" | cats)

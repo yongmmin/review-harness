@@ -43,6 +43,9 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - First developer-side case on a zero-dependency Node 20 skeleton (new `bench_node` in `bench/lib.sh`), with a correct and a plausible wrong patch that `tests/run.sh` checks against the hidden tests
 - `tests/run.sh`: the case (clean base, base tests pass, hidden tests fail at base, both patches, no revealing words), the scorer, and the driver against a stub `claude`; skipped with one line when node 20+ is missing
 
+**Fixed**
+- Skill text that contradicted the code: `/git-branch` and `/git-pr` no longer claim `/review-harness` runs them on a natural-language request (only the user can invoke them), `/code-review` no longer claims to be auto-chained and diffs against the repository's default branch (`origin/HEAD`, else `main`) instead of a hardcoded `main`, the plan template's `## Intent` no longer lists `review` (a review run writes no plan), the Design Check rules' sentence fragment is a sentence, and `/search-knowledge` no longer calls its empty-knowledge skip "pre-spawn". Frontend-era wording is gone from `/git-commit` (`.front-harness-cache/`, `docs/{domain}/`, the Korean-subject note, a doubled block of checks), the Active Repo Gate (Tailwind version) and `/save-knowledge` (React/Next)
+
 ### v0.7.0 (2026-11-19)
 
 Highlights:

@@ -2,12 +2,12 @@
 name: code-review
 description: Compact PASS/FAIL code review of uncommitted or branch changes via the reviewer agent ("review this", "check this" in any language, before push/PR). Applies the org overlay's FAIL gates and pre-push review format when one is installed and the active repo is registered.
 argument-hint: "[path-or-scope] [--base <branch>]"
-allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git log *) Bash(git branch *)
+allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/*) Bash(git status *) Bash(git diff *) Bash(git log *) Bash(git branch *) Bash(git symbolic-ref *)
 ---
 
 # Skill: code-review
 
-**Trigger**: `/code-review [scope]`, "review this" (any language), or auto-chained after implementation
+**Trigger**: `/code-review [scope]`, "review this" (any language)
 
 ## Injected Context (at load — do not re-run)
 
@@ -16,14 +16,16 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || true
 echo "branch: $(git branch --show-current 2>/dev/null)"
 echo "--- uncommitted (stat) ---"; git diff --stat 2>/dev/null | tail -25 || true
 echo "--- staged (stat) ---"; git diff --cached --stat 2>/dev/null | tail -25 || true
-echo "--- ahead of main (name-status) ---"; git diff main...HEAD --name-status 2>/dev/null | head -60 || true
+b=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null); b=${b#origin/}; b=${b:-main}
+echo "default branch: $b"
+echo "--- ahead of $b (name-status) ---"; git diff "$b"...HEAD --name-status 2>/dev/null | head -60 || true
 ```
 
-Risk tier (same rule as `review-harness` → Agent Spawning): when the review target is a diff (not an explicit path), run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" [base]` (the `--base` branch, or `main`, when the target is the branch diff) before spawning and pass its output as `risk: <tier>` plus its `reason:` lines; the script fails → `risk: normal`. `low` → pass `model: "opus"` and `effort: "medium"`; `normal` / `high` → no override. An explicit path target gets no `risk:` line.
+Risk tier (same rule as `review-harness` → Agent Spawning): when the review target is a diff (not an explicit path), run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" [base]` (the `--base` branch, or the default branch above, when the target is the branch diff) before spawning and pass its output as `risk: <tier>` plus its `reason:` lines; the script fails → `risk: normal`. `low` → pass `model: "opus"` and `effort: "medium"`; `normal` / `high` → no override. An explicit path target gets no `risk:` line.
 
 Scope hint from user (may be empty): `$ARGUMENTS`
 
-Review target precedence: explicit `$ARGUMENTS` path → uncommitted + staged diff → if both empty, the branch diff vs `main` (or `--base`). If all are empty, say so and stop — never review the whole repo.
+Review target precedence: explicit `$ARGUMENTS` path → uncommitted + staged diff → if both empty, the branch diff vs the default branch above (or `--base`). If all are empty, say so and stop — never review the whole repo.
 
 **Purpose**: Produce compact PASS/FAIL review with actionable findings. Apply the org overlay's FAIL gates when active repo is registered.
 

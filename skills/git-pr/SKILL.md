@@ -1,6 +1,6 @@
 ---
 name: git-pr
-description: Generate a PR title, body, copy-pasteable `gh pr create` command and prefilled GitHub compare URL from the current branch ("create a PR", "write the PR body", in any language). Never pushes or runs gh — the user submits.
+description: Generate a PR title, body, copy-pasteable `gh pr create` command and prefilled GitHub compare URL from the current branch. Never pushes or runs gh — the user submits.
 argument-hint: "[base-branch]"
 disable-model-invocation: true
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh *) Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/org-overlay.sh *) Bash(git log *) Bash(git diff *) Bash(git branch *) Bash(git remote *) Bash(git rev-parse *) Bash(git status *)
@@ -8,7 +8,7 @@ allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh *) Bash(bash $
 
 # Skill: git-pr
 
-**Trigger**: user-invoked only — `/git-pr [base]` or natural language like "write the PR body", "get the PR ready"
+**Trigger**: user-invoked only — the user runs `/git-pr [base]` (this skill is hidden from model invocation)
 **Purpose**: Produce a reviewable PR title and body for the user to copy/paste. **Plugin does NOT push, does NOT call `gh pr create`** — user runs it themselves.
 
 ---

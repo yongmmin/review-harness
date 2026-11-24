@@ -35,8 +35,8 @@ Detailed description moved out of the [README](../README.md). The reference docu
 
 | User input | Plugin response |
 |---|---|
-| `"create a branch"`, `/git-branch` | Lists existing branches → selects a base → asks for the name → prints the command |
-| `"create a PR"`, `"write the PR body"`, `"get the PR ready"`, `/git-pr` | Prints the body + URL |
+| `/git-branch` | Lists existing branches → selects a base → asks for the name → prints the command |
+| `/git-pr` | Prints the body + URL |
 | `"push it"` | Politely declines + shows only the recommended command |
 
 ## 22 Hooks
