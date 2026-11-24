@@ -570,7 +570,7 @@ lacks "readme: no first-use rtk question" 'On first use it asks' "$(cat "$ROOT/R
 has "readme: rtk default" 'rtk is on by default (`standard`) when the `rtk` binary is installed' "$(cat "$ROOT/README.md")"
 lacks "docs/hooks.md: no rtk picker on first use" 'picker is shown automatically' "$(cat "$ROOT/docs/hooks.md")"
 has "docs/hooks.md: rtk default" '`standard` when the `rtk` binary is installed, else `off`' "$(cat "$ROOT/docs/hooks.md")"
-has "docs/skills.md: RTK Mode Gate states the default" '**RTK Mode Gate** — no question: `standard` when the `rtk` binary is installed, else `off`' "$(cat "$ROOT/docs/skills.md")"
+has "docs/skills.md: the rtk default needs no question" 'The rtk mode needs no question: `standard` when the `rtk` binary is installed, else `off`' "$(cat "$ROOT/docs/skills.md")"
 for f in README.md CLAUDE.md CHANGELOG.md docs/skills.md docs/hooks.md skills/review-harness/SKILL.md; do
   lacks "$f: no model-routing.md" 'model-routing.md' "$(cat "$ROOT/$f")"
 done

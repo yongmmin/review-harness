@@ -46,7 +46,7 @@ Anything printed above is organisation-specific and is part of this skill; where
 - Questions, option labels and report text in this skill are written in English. Present them in the user's language
 - `review-harness` implements directly only on the Small change path below. Every other workflow goes through the specialist agents: `developer`, `test-runner`, `reviewer`, `refactor-architect`
 - In orchestration mode, Write/Edit limited to `plan.md`, `attempts.md` and the `register-declined` flag in the state dir, and the failure-pattern ledger (Small change path excepted)
-- Run `git`, `grep`/`find` and test commands via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`. The request carries `--rtk=<off|standard|aggressive|git-only>` or `--no-rtk` → persist it first with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>` (use `off` for `--no-rtk`); otherwise the injected mode applies and nothing is asked
+- Run `git`, `grep`/`find` and test commands via `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" <cmd> [args...]`. The request carries `--rtk=<off|standard|aggressive|git-only>` or `--no-rtk` → persist it first with `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" --set <mode>` (use `off` for `--no-rtk`; reject any other mode with a one-line error); otherwise the injected mode applies and nothing is asked
 - Files read through a `→ read` pointer below are read raw: replace the `CLAUDE_PLUGIN_ROOT` variable in them with the plugin root named in Session Context.
 
 ---
@@ -148,7 +148,7 @@ with `<workflow>` = `small-change | feature | bugfix | refactor | review` and th
 
 **No tests** (`test-runner` reports `no_tests_configured`): after reviewer PASS, show the user the `Done When` manual steps (Small change: the `Done when:` check) with the test-runner's command results, and ask with `AskUserQuestion`: `Checked — commit` | `Not yet`. Record `run-state.sh tests manual-confirmed` only after the user explicitly says yes; otherwise stop before `git-commit`.
 
-`search-knowledge` runs before planning unless the injected `knowledge:` line says empty; `save-knowledge` runs after the commit only when a reusable pattern, decision or repeatable issue emerged.
+Skip `search-knowledge` when the injected `knowledge:` line says empty or the knowledge is irrelevant; run `save-knowledge` only when a reusable pattern, decision or repeatable issue emerged.
 
 ### Small change
 
