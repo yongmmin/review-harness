@@ -27,6 +27,8 @@ jq -Rnr --arg repo "$REPO" --arg since "$SINCE" --argjson now "$(date +%s)" '
     | if $n % 2 == 1 then $s[($n - 1) / 2] else ($s[$n / 2 - 1] + $s[$n / 2]) / 2 end;
   def r0: . + 0.5 | floor;
   def tok: (.in // 0) + (.out // 0) + (.cr // 0) + (.cw // 0);
+  # input-equivalent cost: cache read x0.1, cache write x1.25, output x5
+  def wtok: (.in // 0) + (.cr // 0) / 10 + (.cw // 0) * 1.25 + (.out // 0) * 5;
   # attempts = test failures + reviewer FAILs before the run ended; counted over runs whose last verdict is PASS
   def stats: {
     runs: length,
@@ -61,6 +63,7 @@ jq -Rnr --arg repo "$REPO" --arg since "$SINCE" --argjson now "$(date +%s)" '
       # agents = one entry per agent type of a run (run-state.sh log_run); main-session tokens are not measured
       if $ag == [] then empty else
         "tokens per run (subagents only): median \(median($ag | map([.agents[] | tok] | add)) | r0) total, \(median($ag | map([.agents[].out // 0] | add)) | r0) output (\($ag | length) runs with agent data)",
+        "weighted cost per run (subagents only): median \(median($ag | map([.agents[] | wtok] | add | r0)) | r0) input-equivalent tokens (cache read x0.1, cache write x1.25, output x5)",
         "active minutes per run (subagents only): median \(median($ag | map([.agents[].s // 0] | add / 60)) * 10 | r0 / 10)",
         ([$ag[].agents[]] | (map(tok) | add) as $total
           | "per agent (subagents only): " + (group_by(.type) | map({t: .[0].type, tok: (map(tok) | add), s: median(map(.s // 0))})

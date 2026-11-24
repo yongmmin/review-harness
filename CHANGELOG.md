@@ -4,6 +4,9 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Run stats**
+- `run-stats.sh`: a `weighted cost per run (subagents only)` line after the tokens line — median of `in + cr×0.1 + cw×1.25 + out×5` per run, in input-equivalent tokens; the raw total is about 90% cache reads and overstates cost about threefold
+
 **Repo rules**
 - New `hooks/repo-rules.sh [path...]`: per touched repo, its rule files (`CLAUDE.md`, `.claude/CLAUDE.md`, `AGENTS.md`, `.claude/rules/*.md`, and a `CLAUDE.md` between the root and a changed path; the cwd repo's auto-loaded ones marked `· auto-loaded`) and the `.md` docs they link to, inside the repo, with the linking line; `match` marks a doc whose line has a backticked path token equal to or a folder of a changed path; every `match` doc, the rest at most 30, then `+N more`. No arguments: the current change (diff against HEAD plus untracked). Reads only; exit 2 on a usage error, no path in a repo, or an unreadable rule file. Subagents load only the cwd repo's `CLAUDE.md` and never follow its links; in a two-repo trial no developer or reviewer read the linked design docs, and the second repo's `CLAUDE.md` reached no reviewer. Token cost (estimate): each developer and reviewer spawn reads the other repos' rule files and the matching docs; the session repo's auto-loaded `CLAUDE.md` is skipped; about (sizes of the non-auto-loaded `rules:` files + matching docs) ÷ 4 tokens per spawn, e.g. a 57 KB `CLAUDE.md` ≈ 15K tokens. The script runs under `LC_ALL=C` (a cut character no longer breaks line reading in bash 4+ under a UTF-8 locale)
 - `agents/developer.md`: runs it on the plan's Affected Files before writing code, reads the rule files not auto-loaded, the `match` docs and any doc whose line covers what the change adds; repo rules outrank the generic constraints; handoff `repo-rules:` line; the self-check holds the diff against them
