@@ -19,7 +19,6 @@ How it keeps the first review passing and the review honest:
 
 - **The developer sees the reviewer's rules.** It gets the review checklist and your past failure patterns, and checks its own diff before handoff with two scripts: `static-gates.sh` (grep-decidable rules such as `console.log`, `.env` files, secret fallbacks) and `review-context.sh` (changed symbols and every file that calls them).
 - **Review strength follows risk.** `risk-tier.sh` scores each change. A small or docs-only change gets a cheaper reviewer. A risky one (auth, payment, migrations, concurrency, hooks/CI, 10+ files) makes the reviewer run executable probes instead of only reading code.
-- **Web UI follows current platform guidance.** [modern-web-guidance](#modern-web-guidance) is searched at plan time, read by the developer and scanned by the reviewer.
 - **The commit gate is a hook.** It is not a promise in a prompt. See [Rules you need to know](#rules-you-need-to-know).
 - **Every run is measured**: first-review PASS rate, retries, and tokens and time per agent. See [Measuring runs](#measuring-runs).
 
@@ -107,7 +106,6 @@ bash hooks/static-gates.sh                               # from a repo: grep-dec
 bash hooks/risk-tier.sh                                  # from a repo: low / normal / high for the current change, with reasons (reads only)
 bash hooks/review-context.sh                             # from a repo: changed files, changed symbols, their callers, changed tests (reads only)
 bash hooks/audit-rules.sh                                # rule drift: stale registry versions, version-bound or duplicate rules, budget, ledger (reads only)
-bash hooks/strategy-file.sh --status                     # from a repo: none, or the strategy file's Goal (reads only)
 bash hooks/repo-rules.sh src/a.ts ../api/src/b.ts         # each touched repo's rule files and the docs they link to (reads only)
 ```
 
@@ -126,7 +124,6 @@ Open Claude Code in your project directory:
 | `/git-pr` | Write the PR title, body and `gh pr create` command (you run it) |
 | `/rtk-toggle` | Change the output-compression mode for the plugin's internal commands |
 | `/audit-rules` | Find rules that drifted from your repos (stale versions, version-bound or duplicate rules, budget, ledger) and apply the fixes you approve |
-| `/strategy` | Show, set or update this repo's goal, metrics and hypotheses; plans are checked against it (see [Strategy](#strategy)) |
 
 Requests can be written in any language. Output compression: rtk is on by default (`standard`) when the `rtk` binary is installed, otherwise off, with no question; `/rtk-toggle` changes it.
 
@@ -159,18 +156,6 @@ Review         reviewer
 - **Changes across repos**: when a change adds, changes or removes a route, socket event or request/response field another repo may use, the plan gets a `## Contract` (producer, consumer repos, `additive` or `breaking`, deploy order). For a breaking one, `find-consumers.sh` searches the other registered repos for each renamed or removed name and the hits go into the plan; the reviewer FAILs a breaking contract with no consumers listed, or a consumer repo with hits that is neither changed nor named as a follow-up in `Out of Scope`. Run the producer repo first: its final report ends with the `## Contract` block, which you paste into the consumer repo's run as its API spec.
 - Everything after `DONE` (branch, push, PR) is yours to do.
 
-## Modern web guidance
-
-For web UI work (the `web-frontend` profile, a change to markup, CSS/layout, forms, dialogs, tables, a11y or client-side JS), the flow uses GoogleChrome's [modern-web-guidance](https://github.com/GoogleChrome/modern-web-guidance) CLI, pinned to `modern-web-guidance@1.0.1`. Each use is a visible Bash call:
-
-| When | Who | Command | Token cost (estimate, not measured) |
-|---|---|---|---|
-| Planning (only when a `plan.md` is written) | main session | `search "<2–5 word query>"`, at most 3, stopping at the first failure; the matching guide ids go to `plan.md → Inputs.Web guidance` | a few hundred tokens per UI plan |
-| Implementation | developer | `retrieve` of exactly the ids the plan names (again on a retry only when the fix list names a guide or finding); reports `guidance: <id> applied \| not applied — <reason>`. Its self-check runs the same `legacy-scan` as the reviewer | about 3–15K per guide, plus the scan output |
-| Review | reviewer | `legacy-scan` on each added or modified UI file on its own (at most 5, the ones with the most added lines); a surviving finding on an added line is a FAIL `[design]`, on unchanged lines a deferred note | the scan output; each retry repeats the reviewer's scan |
-
-The plan, a stated browser policy, your repo's and design system's components, the profile's rules and the organisation rules win over a guide; a guide's CSS is written in the repo's styling system and tokens, and a guide never adds a dependency or polyfill unless the plan says so. Guides assume Baseline Widely Available; to state another browser policy, add a line such as `- Browser support: <policy>` to your organisation overlay (`~/.review-harness/org/`). When `npx`, the network or the permission is missing, or the CLI errors or times out, the step records `unavailable` and the run continues — never a FAIL and never a question. To run it without permission prompts, allowlist `Bash(npx -y modern-web-guidance@1.0.1 *)` in your Claude Code settings. Hooks never run it: they stay offline.
-
 ## Agents and models
 
 | Agent | Role | model | effort |
@@ -182,7 +167,7 @@ The plan, a stated browser policy, your repo's and design system's components, t
 
 The model is the `model:` value in each `agents/*.md` frontmatter.
 
-The review is matched to the change: before each reviewer spawn, `hooks/risk-tier.sh` scores it `low`, `normal` or `high`. A `low` change (docs or tests only, or at most 2 files with at most 30 added lines, no dependency file such as a lockfile, and no risky path or code word; words in `*.md`/`*.mdx`/`*.rst`/`*.txt` docs do not count) is reviewed with `opus` at `medium` effort; a `high` change (auth, payment, migrations, concurrency, parsers, hooks/CI/gates, or 10+ files) makes the reviewer write and run at least 2 executable probes in a temp dir. The usage-limit answer below still applies.
+The review is matched to the change: before each reviewer spawn, `hooks/risk-tier.sh` scores it `low`, `normal` or `high`. A `low` change (docs or tests only, or at most 2 files with at most 30 added lines, no dependency file such as a lockfile, and no risky path or code word; words in `*.md`/`*.mdx`/`*.rst`/`*.txt` docs do not count) is reviewed with `opus` at `medium` effort; a `high` change (auth, payment, migrations, concurrency, parsers, hooks/CI/gates, or 10+ files) makes the reviewer write and run at least 2 executable probes in a temp dir.
 
 The developer is matched to the plan the same way: before each developer spawn, `hooks/risk-tier.sh --paths <plan Affected Files>` scores the planned paths alone. A `low` plan (at most 3 paths, no risky path, no dependency file) spawns the developer at `medium` effort; `normal`, `high` and bugfix plans keep the frontmatter effort.
 
@@ -191,8 +176,7 @@ The developer is matched to the plan the same way: before each developer spawn, 
 1. **You run the git operations.** The plugin commits automatically, but for branches, pushes and PRs it only writes the commands and text.
 2. **No commit without a reviewer PASS.** The verdict is stored in a file together with a hash of the work tree at review time. If you change code after the review, it must be reviewed again (`git add` does not count as a change). A failed test run, a test run older than the current code, or a repo without tests whose manual checks you have not confirmed, also blocks the commit. While a run is active, Claude's `merge`, `cherry-pick`, `revert`, `am` and `rebase --continue` are held to the same check. To commit anyway, say so explicitly; it is recorded as an override.
 3. **An organisation overlay can add rules.** Example: a gate that requires QA documents to be updated when behaviour changes.
-4. **At 80% of the 5-hour usage limit it asks which model to use.** Before starting reviewer / refactor-architect it asks once: `Keep Fable` / `Opus for this run`. Usage is read from `~/.claude/usage-state.json`, written by your status line; if the file is missing or older than 10 minutes it does not ask.
-5. **Editing `package.json`, `next.config.*`, `tsconfig*.json`, lock files (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`, `go.sum`, …) or `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`) needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
+4. **Editing `package.json`, `next.config.*`, `tsconfig*.json`, lock files (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`, `go.sum`, …) or `.env` / `.env.*` (except `.env.example`, `.env.sample`, `.env.template`) needs your approval.** After `install.sh`, `.env*` files cannot be edited, in every project (the deny rules go into your global `~/.claude/settings.json`).
 
 ## Measuring runs
 
@@ -208,15 +192,8 @@ The output covers:
 - the override rate and how many runs hit the limit;
 - median tokens and active minutes per run, and each agent's share of tokens;
 - median weighted cost per run in input-equivalent tokens (cache read x0.1, cache write x1.25, output x5), since the raw total is mostly cheap cache reads. These come from the `SubagentStart`/`SubagentStop` hook and cover subagents only; they start with the first session opened after installing or updating.
-- when runs recorded it, the [strategy check](#strategy): runs checked, how many got a suggestion, and how many followed it.
 
 Use it to check whether a rule change, a profile or an overlay actually helps.
-
-## Strategy
-
-Each request is otherwise planned on its own. A strategy file ties it to the larger goal: one file per repo, `~/.review-harness/strategy/<repo>-<hash>.md` (shared by all git worktrees of the repo, about 1,000 bytes at most), holding the goal, metrics, open hypotheses, decisions, kill criteria and non-goals. `/strategy` shows it, `/strategy set` writes it from at most 3 questions (goal, metric, non-goals), and `/strategy update <what>` changes one field; every write waits for your yes.
-
-When the file exists and a `plan.md` will be written, `/review-harness` first judges whether the request is the highest-leverage move for that goal. If it is, the plan's `## Why` line names the goal or metric it moves. If not, it names one concrete alternative and asks once: `Proceed as asked` or `Do the alternative`. It never blocks, and Small change and review runs skip it. The outcome (`aligned`, `suggested-followed`, `suggested-declined`) goes into `runs.jsonl`, so `run-stats.sh` shows whether the check ever changes a plan. After a run that settled a hypothesis, it proposes a `/strategy update` line for you to run.
 
 ## Where state is stored
 
@@ -238,7 +215,7 @@ One file sits directly in `~/.review-harness/state/`, shared by all repos:
 
 | File | Content |
 |---|---|
-| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories and who recorded them (`by`: `reviewer`, else `unknown`; re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed, the strategy check outcome when recorded, and per agent type (spawns, active seconds, tokens, tool calls) plus run token totals when the `SubagentStart`/`SubagentStop` hook recorded them (subagents only). `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it, including the first-review PASS rate and median tokens / active minutes per run |
+| `runs.jsonl` | One line per finished run (appended by `run-state.sh done` / `abandon`, never rewritten): workflow, attempts, reviewer verdicts with their FAIL categories and who recorded them (`by`: `reviewer`, else `unknown`; re-judges after a dispute marked), disputes, test result, override reason, end (`done` / `abandoned` / `limit`), duration, files changed, and per agent type (spawns, active seconds, tokens, tool calls) plus run token totals when the `SubagentStart`/`SubagentStop` hook recorded them (subagents only). `bash <plugin folder>/hooks/run-stats.sh [--repo <name>] [--since <days>]` summarises it, including the first-review PASS rate and median tokens / active minutes per run |
 
 One file sits directly in `~/.review-harness/`, also shared by all repos:
 
@@ -250,8 +227,8 @@ If a run is interrupted, the next `/review-harness` asks whether to resume it or
 
 ## More documentation
 
-- [docs/skills.md](docs/skills.md) — the 13 skills, the `/review-harness` flow, `/git-pr` output, agents
-- [docs/hooks.md](docs/hooks.md) — the 24 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
+- [docs/skills.md](docs/skills.md) — the 12 skills, the `/review-harness` flow, `/git-pr` output, agents
+- [docs/hooks.md](docs/hooks.md) — the 22 hook scripts, git policy, config-file protection and how to remove it, constraints, RTK, overlay and knowledge layout
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [skills/review-harness/SKILL.md](skills/review-harness/SKILL.md) — the workflow definition used at runtime; the parts one path needs (plan template, bugfix, retry loop, …) sit in sibling `skills/review-harness/*.md` files it reads only on that path
 - [constraints.md](constraints.md) — agent rules

@@ -23,14 +23,10 @@
 #                               (the user's yes to the manual checks) only replaces none; pass and
 #                               manual-confirmed hold only for the work tree they were recorded on
 #   override <reason>           record an explicit user override for the current work tree
-#   strategy aligned|suggested-followed|suggested-declined
-#                               record the strategy check's outcome (active run only); kept for the run log, never
-#                               read by check
 #   check [--active-only]       commit gate. exit 0 ok · 1 blocked · 3 nothing to enforce · 4 stale run
 #   done | abandon              close the run (and delete its baseline.txt); an active run also appends one
 #                               summary line to <state root>/runs.jsonl (read by run-stats.sh), never rewritten
-#   status                      one-line summary ("none" when there is nothing to resume; adds
-#                               " · strategy <value>" once the strategy check was recorded)
+#   status                      one-line summary ("none" when there is nothing to resume)
 #   hash                        print the current work-tree hash
 #   agent-start <id> <type>     (agent-usage.sh) open an active-time span for a subagent in agents.jsonl; active,
 #                               non-stale run only, else no-op
@@ -123,7 +119,6 @@ log_run() {
      tests: .tests.status, override: .override.reason,
      end: (if .attempts >= .max_attempts then "limit" else $end end)}
     + (if $files == "" then {} else {files_changed: ($files | tonumber)} end)
-    + (if .strategy then {strategy} else {} end)
     + ([$ag[]] | if . == [] then {} else
         {agents: (group_by(.type) | map({type: .[0].type, n: length, s: (map(.s) | add), in: (map(.in) | add),
                   out: (map(.out) | add), cr: (map(.cr) | add), cw: (map(.cw) | add), tools: (map(.tools) | add)})),
@@ -233,13 +228,6 @@ case "${1:-}" in
     h=$(tree_hash)
     update --arg r "$2" --arg h "$h" '.override = {reason: $r, tree: $h, at: $now}' && echo "override recorded for work tree $h: $2"
     ;;
-  strategy)
-    case "${2:-}" in aligned|suggested-followed|suggested-declined) ;;
-      *) echo "usage: run-state.sh strategy aligned|suggested-followed|suggested-declined" >&2; exit 2 ;; esac
-    [ "$(st)" = active ] || { echo "run-state: no active run — record the strategy outcome after run-state.sh start" >&2; exit 1; }
-    # a synchronous main-session write like `step`, so it may bump updated_at; check never reads it
-    update --arg s "$2" '.strategy = $s' && echo "strategy: $2 recorded"
-    ;;
   check)
     s=$(st)
     case "$s" in none|abandoned) echo "run-state: none"; exit 3 ;; esac
@@ -289,7 +277,6 @@ case "${1:-}" in
       + " · tests: \(.tests.status // "-")"
       + " · review: \(if .review == null then "none" elif .review.verdict == "FAIL" then "FAIL" elif .review.tree == $h then "PASS(current)" else "PASS(outdated — code changed)" end)\(if .review.by then " by \(.review.by)" else "" end)"
       + " · updated \((($now - .updated_at) / 60) | floor)m ago"
-      + (if .strategy then " · strategy \(.strategy)" else "" end)
       + ($ag | length | if . > 0 then " · agents \(.)" else "" end)' "$FILE"
     ;;
   hash) tree_hash ;;
@@ -317,5 +304,5 @@ case "${1:-}" in
       + ([$m[] | .model | strings | select(. != "<synthetic>")] | if . == [] then {} else {model: last} end)' "$4" 2>/dev/null)
     printf '%s\n' "$(jq -nc --arg id "$2" --argjson ts "$(now)" --argjson u "${u:-null}" '{e: "stop", id: $id, ts: $ts, u: $u}')" >> "$AGENTS"
     ;;
-  *) echo "usage: run-state.sh start|step|attempt|verdict|dispute|tests|override|strategy|check|done|abandon|status|hash|agents|agent-start|agent-stop" >&2; exit 2 ;;
+  *) echo "usage: run-state.sh start|step|attempt|verdict|dispute|tests|override|check|done|abandon|status|hash|agents|agent-start|agent-stop" >&2; exit 2 ;;
 esac

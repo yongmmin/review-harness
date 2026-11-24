@@ -1,3 +1,0 @@
-- If N is 80 or higher, ask once with `AskUserQuestion` before the first `reviewer` or `refactor-architect` spawn. Put the current usage N% and the reset time in the question. Options: `Keep Fable` | `Opus for this run`
-- Keep the answer until this skill run ends, including skills it chains into. Do not ask again per spawn
-- `Opus for this run` → spawn both agents with the Agent tool's `model: "opus"` parameter (it overrides the agent's frontmatter). `Keep Fable` → pass no `model`

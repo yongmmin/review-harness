@@ -46,6 +46,6 @@ Retry context must contain only:
 - failing file/test identifier
 - shortest useful error excerpt, or the reviewer's `patch` / `replan` issues
 - the Attempts lines so far, so the retry does not repeat an idea that already failed; on the second failure of the same test or issue the developer gives `root cause:` before editing
-- bugfix: the first developer run's `red:` line — carry it through every retry so a re-spawned developer's handoff, and the `reviewer` prompt, never drop it; the same for the developer's `guidance:` line whenever `Inputs.Web guidance` lists ids (any intent)
+- bugfix: the first developer run's `red:` line — carry it through every retry so a re-spawned developer's handoff, and the `reviewer` prompt, never drop it
 
 Never resend full previous transcript.

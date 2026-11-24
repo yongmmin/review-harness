@@ -534,7 +534,7 @@ for f in "$SKD"/*.md; do
   eq "skill split: one pointer to $b" 1 "$(grep -cF "$SKP$b\` before " "$SK")"
 done
 eq "skill split: one pointer line per situational file" "$SKN" "$(grep -cF "$SKP" "$SK")"
-eq "skill split: 10 situational files" 10 "$SKN"
+eq "skill split: 7 situational files" 7 "$SKN"
 SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT' | grep -v 'hooks/repo-rules.sh"')
 eq "skill split: hook calls stay in the core but the one Contract rules line (and repo-rules.sh)" 1 "$(printf '%s' "$SKX" | grep -c .)"
 has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
@@ -581,8 +581,6 @@ has "reviewer: bugfix gate keys on ## Intent" 'plan `## Intent` is `bugfix`' "$R
 has "developer: bugfix may run an existing test" 'or run the existing test named there' "$(cat "$ROOT/agents/developer.md")"
 has "skill: handoff schema has optional red:" '- red: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: bugfix passes red: to reviewer" 'red:` line to `reviewer`' "$BF"
-has "skill: first pass passes guidance: to reviewer (any intent)" 'Pass the developer'"'"'s `guidance:` line to `reviewer` when `Inputs.Web guidance` lists ids' \
-  "$(sed -n '/^### Shared Skip Rules/,/^### Small change/p' "$SK")"
 has "skill: cause loop-back counts an attempt" 'run `run-state.sh attempt` (stop and report at `LIMIT REACHED`), then redo reproduce' "$BF"
 has "skill: plain review keyword unchanged" '| Keywords: `review`; `check`, `verify` only when a diff exists' "$(grep '^| `review`' "$SK")"
 has "skill: no intent match → one question" 'If no intent matches, ask one clarifying question.' "$(cat "$SK")"
@@ -879,7 +877,7 @@ has "skill: third failure of the same test or issue asks about the plan" 'whethe
 has "skill: orchestrator may write attempts.md" '`attempts.md`' "$(sed -n '/^## Canonical Rules/,/^---$/p' "$SK")"
 has "skill: handoff schema allows root cause:" '- root cause: <' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
 has "skill: handoff schema has the developer self-check: line" '- self-check: <rule hit → fixed>; … | clean (developer only)' "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
-has "skill: handoff Rules line names self-check: and guidance:" '`root cause:`, `self-check:` and `guidance:`' "$(grep '^Rules: omit empty fields' "$SK")"
+has "skill: handoff Rules line names self-check:" '`root cause:` and `self-check:`' "$(grep '^Rules: omit empty fields' "$SK")"
 has "developer: root cause on the second failure" '`root cause: <file:line' "$(cat "$ROOT/agents/developer.md")"
 README_STATE=$(cat "$ROOT/README.md")
 has "readme: attempts.md in the state table" '| `attempts.md` |' "$README_STATE"
@@ -889,58 +887,10 @@ rs start small-change test-runner reviewer >/dev/null
 eq "run-state: start clears the previous run's attempts.md" absent "$([ -f "$SD/attempts.md" ] && echo present || echo absent)"
 rs abandon >/dev/null
 
-# --- modern web guidance: plan search, developer retrieve, reviewer legacy-scan ----------------
-PINS=$(grep -rhoE 'modern-web-guidance@[A-Za-z0-9.-]*[A-Za-z0-9]' "$ROOT/skills" "$ROOT/agents" "$ROOT/profiles" "$ROOT/README.md" "$ROOT/docs" | sort -u)
-eq "web guidance: one pinned version in skills, agents, profiles, README and docs" 1 "$(printf '%s\n' "$PINS" | grep -c .)"
-case "$PINS" in modern-web-guidance@[0-9]*.[0-9]*.[0-9]*) PASS=$((PASS + 1)) ;; *) eq "web guidance: pin is x.y.z" x.y.z "$PINS" ;; esac
-PIN=${PINS#modern-web-guidance@}
-eq "web guidance: no @latest" "" "$(grep -rl 'modern-web-guidance@latest' "$ROOT/skills" "$ROOT/agents" "$ROOT/profiles" "$ROOT/README.md" "$ROOT/docs")"
-eq "web guidance: no hook runs it" "" "$(grep -rl 'modern-web-guidance' "$H")"
-has "skill: plan Inputs has Web guidance" '- Web guidance: [guide ids, none, or unavailable]' "$(sed -n '/^## Inputs/,/^$/p' "$SKD/plan-gate.md")"
-WG=$(sed -n '/^### 4\.5\. Web Guidance Search/,/^### 5\./p' "$SK"; cat "$SKD/web-guidance.md")
-has "skill: search step sits after the API Spec Check" "### 4.5. Web Guidance Search" "$(sed -n '/^### 4\. API Spec Check/,/^### 5\./p' "$SK")"
-has "skill: search trigger is the web-frontend profile" '`detect-profile.sh` on the planned Affected Files includes `web-frontend`' "$WG"
-has "skill: search only when a plan.md is written" 'a `plan.md` will be written (never on the Small change path or for `review`)' "$WG"
-has "skill: search trigger skips non-UI work" 'not 3D/canvas-only, styling-token-only or tooling' "$WG"
-has "skill: search command pinned" "npx -y modern-web-guidance@$PIN search \"<2–5 word action query>\"" "$WG"
-has "skill: at most 3 searches" 'at most 3' "$WG"
-has "skill: search unavailable never blocks" 'or any other CLI error or timeout → stop searching at that first one, write `unavailable` and continue. Never ask the user, never retry in a loop' "$WG"
-has "skill: retries and reviewer carry guidance:" 'the same for the developer'"'"'s `guidance:` line whenever `Inputs.Web guidance` lists ids' "$(sed -n '/^Retry context must contain only:/,/^$/p' "$SKD/retry.md")"
-has "skill: handoff schema has guidance:" '- guidance: <id> applied | <id> not applied — <reason> (developer only, when Inputs.Web guidance lists ids)' \
-  "$(sed -n '/^### Compact Handoff Schema/,/^Rules:/p' "$SK")"
-DEVO=$(ec developer web-frontend 2>/dev/null); REVO=$(ec reviewer web-frontend 2>/dev/null)
-has "web guidance: developer retrieves the plan's ids" "npx -y modern-web-guidance@$PIN retrieve" "$DEVO"
-has "web guidance: developer reads a saved temp file in full" 'read that file in full' "$DEVO"
-EXEMPT="the plan, a stated browser policy, an existing repo or design-system component, this profile's rules, or an org rule"
-has "web guidance: developer precedence list" "Precedence: $EXEMPT win over a guide" "$DEVO"
-has "web guidance: guide CSS in the repo styling system" "write a guide's CSS in the repo's styling system and tokens (this profile's rules win)" "$DEVO"
-has "web guidance: retry keeps guidance:" 'On a retry, keep the `guidance:` line from the prompt; `retrieve` again only when the fix list names a guide or a `legacy-scan` finding' "$DEVO"
-has "web guidance: no dependency or polyfill" 'never adds a dependency or a polyfill unless the plan says so' "$DEVO"
-has "web guidance: Baseline default" 'Baseline Widely Available unless the org overlay or the repo states a browser policy' "$DEVO"
-has "web guidance: developer reports guidance:" '`guidance: <id> applied | <id> not applied — <reason>`' "$DEVO"
-has "web guidance: developer self-check scans each file, bounded" "run \`npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each added or modified UI file on its own (at most 5: the 5 with the most added lines)" "$DEVO"
-has "web guidance: developer scan unavailable goes to self-check" '`legacy-scan: unavailable` in the `self-check:` line, not `blockers`' "$DEVO"
-has "web guidance: developer checklist has the legacy-scan gate" '- `legacy-scan` finding on an ADDED line' "$DEVO"
-lacks "web guidance: reviewer's unavailable → blockers rule stays out of the developer checklist" \
-  '`legacy-scan: unavailable` in handoff `blockers`' "$(ckb web-frontend)"
+# --- profiles: #review reaches the developer checklist --------------------------------
 for f in web-frontend web-api web-common; do
   has "$f: header table — #review reaches the developer checklist" '| `#review` | reviewer; developer (as its review checklist) |' "$(cat "$ROOT/profiles/$f.md")"
 done
-lacks "web guidance: reviewer never retrieves" "retrieve" "$REVO"
-has "web guidance: reviewer scans each UI file, never a directory" "npx -y modern-web-guidance@$PIN legacy-scan <file> --json\` on each added or modified UI file on its own, never on a directory" "$REVO"
-has "web guidance: reviewer scans at most 5 files" 'at most 5 files — with more, scan the 5 with the most added lines and put `legacy-scan: 5 of N files` in handoff `blockers`' "$REVO"
-has "web guidance: reviewer UI file types" '`.tsx .jsx .vue .svelte .html .css .scss`' "$REVO"
-has "web guidance: added-line finding → FAIL [design]" "rubric → FAIL \`[design]\`, unless $EXEMPT requires that pattern; on unchanged lines → a \`defer\` issue" "$REVO"
-has "web guidance: unavailable is no FAIL" 'or any other CLI error or timeout) → `legacy-scan: unavailable` in handoff `blockers`, never a FAIL' "$REVO"
-has "web guidance: missing guidance: → FAIL [goal]" 'the developer handoff has no `guidance:` line → FAIL `[goal]` (patch)' "$REVO"
-README_WG=$(sed -n '/^## Modern web guidance/,/^## /p' "$ROOT/README.md")
-has "readme: Modern web guidance section" "## Modern web guidance" "$README_WG"
-has "readme: allowlist entry" "Bash(npx -y modern-web-guidance@$PIN *)" "$README_WG"
-has "readme: hooks never run it" 'Hooks never run it' "$README_WG"
-has "readme: token costs are estimates" 'Token cost (estimate, not measured)' "$README_WG"
-has "readme: each retry repeats the reviewer scan" "each retry repeats the reviewer's scan" "$README_WG"
-has "docs: flow names Web Guidance Search" 'Web Guidance Search' "$(cat "$ROOT/docs/skills.md")"
-has "changelog: names modern-web-guidance" 'modern-web-guidance' "$(sed -n '/^### v0\.7\.0/,/^### v0\.6/p' "$ROOT/CHANGELOG.md")"
 
 # --- post-tool-use: tsc count of errors in other files -------------------------------
 TP="$TMP/tsproj"; mkdir -p "$TP/src" "$TMP/fakebin"; echo '{}' > "$TP/package.json"; echo '{}' > "$TP/tsconfig.json"
@@ -1944,13 +1894,10 @@ has "reviewer: high risk → at least 2 executed probes" 'at least 2 executable 
 has "reviewer: probes never in the work tree" "never in the user's work tree" "$PR"
 has "reviewer: probes handoff line" '`probes: N run, K failed`' "$PR"
 has "reviewer: a dispute re-judge re-runs probes only for a probe issue" 'does not re-run probes unless the disputed issue came from a probe' "$PR"
-has "skill: Keep Fable does not change low" '`Keep Fable` does not change `low`' "$AS"
-has "code-review: Keep Fable does not change low" '`Keep Fable` does not change `low`' "$(cat "$ROOT/skills/code-review/SKILL.md")"
 has "reviewer: probes line is a 4th handoff bullet" 'plus `probes:` when your prompt says `risk: high`' "$OF"
 has "docs/hooks.md: risk-tier row" '| **`risk-tier.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
 has "readme: risk-tier example" 'bash hooks/risk-tier.sh' "$(cat "$ROOT/README.md")"
 has "CLAUDE.md: model routing names risk tiers" 'risk-tier.sh' "$(sed -n '/^## Model Routing/,$p' "$ROOT/CLAUDE.md")"
-has "usage-downgrade keeps its own pointer" 'usage-downgrade.md` before the first `reviewer` or `refactor-architect` spawn' "$(cat "$SK")"
 has "routing: developer spawn runs --paths on Affected Files" 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" --paths <plan Affected Files>' "$AS"
 has "routing: low plan → developer medium effort" '`low` → spawn `developer` with `effort: "medium"`' "$AS"
 has "routing: normal, high or failure → no developer override" '`normal`, `high` or a script failure → no override' "$AS"
@@ -2260,117 +2207,16 @@ has "readme: quick start row" '| `/audit-rules` |' "$(cat "$ROOT/README.md")"
 has "readme: check list line" 'bash hooks/audit-rules.sh' "$(cat "$ROOT/README.md")"
 has "changelog: audit-rules entry" 'hooks/audit-rules.sh' "$(sed -n '/^### Unreleased/,/^### v0\.7\.0/p' "$ROOT/CHANGELOG.md")"
 
-# --- strategy: per-repo file, /strategy, the gate before planning, recording ------------------
-sx() { "$@" >/dev/null 2>&1; echo $?; }
-sf() { (cd "$1" && shift && bash "$H/strategy-file.sh" "$@" 2>&1); }
-SR="$TMP/stratrepo"; new_repo "$SR"; mkdir -p "$SR/sub"
-SP=$(sf "$SR")
-case "$SP" in "$REVIEW_HARNESS_HOME/strategy/stratrepo-"????????????.md) OK=yes ;; *) OK="no: $SP" ;; esac
-eq "strategy-file: <home>/strategy/<repo-name>-<12 hex>.md" yes "$OK"
-case "$SP" in "$REVIEW_HARNESS_HOME"/*) ;; *) SP="$TMP/strategy-path-missing/x.md" ;; esac   # a broken script never writes outside $TMP
-eq "strategy-file: same path from a subdirectory" "$SP" "$(sf "$SR/sub")"
-git -C "$SR" worktree add -q -b strat-wt "$TMP/strat-wt" 2>/dev/null
-eq "strategy-file: a worktree shares the repo's file" "$SP" "$(sf "$TMP/strat-wt")"
-lacks "strategy-file: unlike the state dir, keyed on the common dir" "$(bash "$H/state-dir.sh" "$TMP/strat-wt")" "$(bash "$H/state-dir.sh" "$SR")"
-mkdir -p "$TMP/other"; new_repo "$TMP/other/stratrepo"
-lacks "strategy-file: same name, other repo → other file" "$SP" "$(sf "$TMP/other/stratrepo")"
-eq "strategy-file: --status with no file → none" none "$(sf "$SR" --status)"
-eq "strategy-file: never creates the folder" no "$([ -e "$REVIEW_HARNESS_HOME/strategy" ] && echo yes || echo no)"
-mkdir -p "$TMP/nogit"
-eq "strategy-file: outside git, --status → none" none "$(sf "$TMP/nogit" --status)"
-eq "strategy-file: outside git, --status exits 0" 0 "$(sx sf "$TMP/nogit" --status)"
-eq "strategy-file: outside git → exit 2" 2 "$(sx sf "$TMP/nogit")"
-eq "strategy-file: unknown argument → exit 2" 2 "$(sx sf "$SR" --create)"
-SCMD=$(sed -n 's/^- strategy: !`\(.*\)`$/\1/p' "$SK")
-eq "review-harness: injected strategy line, no file → none" none "$(cd "$SR" && CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$SCMD")"
-G90='Goal: raise the first-review PASS rate and cut tokens per run without losing caught defects, by far'
-mkdir -p "$(dirname "$SP")"; printf '# Strategy — x\n%s\nMetrics: m\n' "$G90" > "$SP"
-eq "strategy-file: --status → present + the first 80 chars of the Goal" \
-  "present · Goal: $(printf '%s' "${G90#Goal: }" | cut -c1-80)" "$(sf "$SR" --status)"
-eq "strategy-file: --status is one line" 1 "$(sf "$SR" --status | wc -l | tr -d ' ')"
-eq "review-harness: injected strategy line, file present" "$(sf "$SR" --status)" "$(cd "$TMP/strat-wt" && CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$SCMD")"
-# a multibyte Goal under the C locale: at most 80 bytes, whole characters only (79 bytes here, never a split one)
-printf '# Strategy\nGoal: a%s\n' "$(printf '가%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30)" > "$SP"
-OUT=$(cd "$SR" && LC_ALL=C bash "$H/strategy-file.sh" --status 2>&1)
-eq "strategy-file: multibyte Goal, C locale → whole characters" "present · Goal: a$(printf '가%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26)" "$OUT"
-eq "strategy-file: multibyte Goal, C locale → valid UTF-8" 0 "$(printf '%s' "$OUT" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; echo $?)"
-printf '# Strategy\nMetrics: m\n' > "$SP"
-eq "strategy-file: --status, no Goal line" "present · Goal: -" "$(sf "$SR" --status)"
-if [ "$(id -u)" != 0 ]; then
-  chmod 000 "$SP"; eq "strategy-file: unreadable file, --status → exit 2" 2 "$(sx sf "$SR" --status)"; chmod 644 "$SP"
-fi
-# run-state strategy: stored in run-state and in the run log, never read by check
-R="$SR"; SD=$(bash "$H/state-dir.sh" "$R")
-eq "run-state strategy: no active run → exit 1" 1 "$(sx rs strategy aligned)"
-rs start feature reviewer >/dev/null
-eq "run-state strategy: unknown value → exit 2" 2 "$(sx rs strategy maybe)"
-eq "run-state strategy: no value → exit 2" 2 "$(sx rs strategy)"
-lacks "run-state status: no strategy before it is recorded" "strategy" "$(rs status)"
-for v in aligned suggested-declined suggested-followed; do
-  rs strategy "$v" >/dev/null; eq "run-state strategy: $v stored" "$v" "$(jq -r .strategy "$SD/run-state.json")"
-done
-has "run-state status: shows the recorded strategy" " · strategy suggested-followed" "$(rs status)"
-C0=$(cd "$R" && bash "$H/run-state.sh" check 2>&1; echo "rc=$?")
-rs strategy aligned >/dev/null
-eq "run-state strategy: check unchanged (no verdict)" "$C0" "$(cd "$R" && bash "$H/run-state.sh" check 2>&1; echo "rc=$?")"
-rs verdict PASS --by reviewer >/dev/null; rs tests pass >/dev/null
-C0=$(cd "$R" && bash "$H/run-state.sh" check 2>&1; echo "rc=$?")
-rs strategy suggested-followed >/dev/null
-eq "run-state strategy: check unchanged (PASS)" "$C0" "$(cd "$R" && bash "$H/run-state.sh" check 2>&1; echo "rc=$?")"
-has "run-state strategy: PASS still passes" "rc=0" "$C0"
-rs done >/dev/null
-eq "run-state strategy: closed run → exit 1" 1 "$(sx rs strategy aligned)"
-eq "run log: strategy field" suggested-followed "$(tail -n 1 "$REVIEW_HARNESS_HOME/state/runs.jsonl" | jq -r .strategy)"
-rs start feature >/dev/null; rs done >/dev/null
-eq "run log: no strategy → no field" false "$(tail -n 1 "$REVIEW_HARNESS_HOME/state/runs.jsonl" | jq 'has("strategy")')"
-has "run-state: usage names strategy" "strategy" "$(rs bogus)"
+# --- run-stats: old run-log lines that still carry a removed strategy field are ignored ----
 STH="$TMP/strathome"; mkdir -p "$STH/state"
 cat > "$STH/state/runs.jsonl" <<'EOF'
 {"repo":"r-1","workflow":"feature","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done","strategy":"aligned"}
-{"repo":"r-1","workflow":"feature","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done","strategy":"suggested-followed"}
-{"repo":"r-1","workflow":"bugfix","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done","strategy":"suggested-declined"}
 {"repo":"r-1","workflow":"feature","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done"}
 EOF
-has "run-stats: strategy check line" "strategy check: 3 runs · suggested 2 · followed 1" "$(REVIEW_HARNESS_HOME="$STH" bash "$H/run-stats.sh")"
-lacks "run-stats: no strategy field → no strategy line" "strategy check" "$(REVIEW_HARNESS_HOME="$SH" bash "$H/run-stats.sh")"
-# docs and skills
-SG=$(cat "$SKD/strategy-gate.md" 2>/dev/null)
-has "skill: strategy pointer keyed on the injected line" '`strategy` is present and a `plan.md` will be written → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/strategy-gate.md` before writing the plan' "$(sed -n '/^### 6\. Plan Gate/,/^---$/p' "$SK")"
-for x in 'run-stats.sh --repo' '`Proceed as asked`' '`Do the alternative`' 'never blocks' 'run-state.sh strategy aligned' 'suggested-followed' 'suggested-declined' '`/strategy update' "user's yes" '## Why'; do
-  has "strategy-gate.md: $x" "$x" "$SG"
-done
-has "strategy-gate.md: asks at most once" 'AskUserQuestion' "$SG"
-has "strategy-gate.md: skipped when the run already recorded it" 'resumed run whose injected `run state` line shows `strategy`' "$SG"
-has "strategy-gate.md: the alternative is not re-checked" 'do not re-run this check on it, the outcome is `suggested-followed`' "$SG"
-has "strategy-gate.md: the alternative re-enters the Request Gate" 're-enters the Request Gate at step 2' "$SG"
-has "strategy-gate.md: a declined suggestion noted in ## Why" 'declined suggestion' "$SG"
-has "docs/hooks.md: strategy/ in the home layout" '├── strategy/' "$(cat "$ROOT/docs/hooks.md")"
-for f in docs/hooks.md CHANGELOG.md; do
-  has "$f: Goal cut in whole characters" 'at most 80 bytes, whole characters' "$(cat "$ROOT/$f")"
-done
-eq "plan-gate: ## Why right after ## Goal" '## Why' "$(sed -n '/^## Goal$/,/^## /p' "$SKD/plan-gate.md" | sed -n '$p')"
-has "plan-gate: Risk tier line under Affected Files" 'Risk tier: [' "$(sed -n '/^## Affected Files$/,/^$/p' "$SKD/plan-gate.md")"
-ST="$ROOT/skills/strategy/SKILL.md"; STS=$(cat "$ST" 2>/dev/null)
-has "strategy skill: name" "name: strategy" "$STS"
-has "strategy skill: not model-invoked" "disable-model-invocation: true" "$STS"
-has "strategy skill: locates the file with the script" 'hooks/strategy-file.sh"' "$STS"
-has "strategy skill: org overlay line" 'hooks/org-overlay.sh" skills strategy' "$STS"
-has "strategy skill: never runs git" "never runs git" "$STS"
-has "strategy skill: at most 3 questions" "at most 3 questions" "$STS"
-has "strategy skill: size cap" "1,000 bytes" "$STS"
-has "strategy skill: metric from run-stats" "run-stats.sh" "$STS"
-has "strategy skill: writes only on yes" "user's yes" "$STS"
-STB=$(awk '/^```!$/{f=1;next} /^```$/{if(f)exit} f' "$ST")
-has "strategy skill: injected block names the file" "file: $SP" "$(cd "$TMP/strat-wt" && CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$STB" 2>&1)"
-has "strategy skill: injected block outside git" "unavailable: " "$(cd "$TMP/nogit" && CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$STB" 2>&1)"
-has "readme: Strategy section" "## Strategy" "$(cat "$ROOT/README.md")"
-has "readme: quick start row" '| `/strategy` |' "$(cat "$ROOT/README.md")"
-has "docs/skills.md: strategy entry" '**`/strategy`**' "$(cat "$ROOT/docs/skills.md")"
-has "docs/skills.md: strategy-gate.md in the sibling list" 'strategy-gate.md' "$(cat "$ROOT/docs/skills.md")"
-has "docs/hooks.md: strategy-file row" '| **`strategy-file.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
-has "docs/hooks.md: run-state strategy" 'strategy aligned|suggested-followed|suggested-declined' "$(cat "$ROOT/docs/hooks.md")"
-has "CLAUDE.md: sibling list names strategy-gate.md" 'strategy-gate.md' "$(sed -n '/^## Where Consumer Rules Live/,/^## Repo Rules/p' "$ROOT/CLAUDE.md")"
-has "changelog: strategy entry" 'hooks/strategy-file.sh' "$(sed -n '/^### Unreleased/,/^### v0\.7\.0/p' "$ROOT/CHANGELOG.md")"
+OUT=$(REVIEW_HARNESS_HOME="$STH" bash "$H/run-stats.sh" 2>&1); RC=$?
+eq "run-stats: legacy strategy field → exit 0" 0 "$RC"
+has "run-stats: legacy strategy field → runs counted" "runs: 2 " "$OUT"
+lacks "run-stats: legacy strategy field → no strategy line" "strategy" "$OUT"
 
 # --- repo-rules: each touched repo's rule files and the docs they link to --------------------
 rr() { (cd "$1" && shift && bash "$H/repo-rules.sh" "$@" 2>&1); }

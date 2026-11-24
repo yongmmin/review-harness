@@ -24,8 +24,6 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || echo "de
 - register: !`[ -f "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh" 2>/dev/null)/register-declined" ] && echo declined || echo offer`
 - run state: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" status 2>/dev/null || echo none`
 - knowledge: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/knowledge-has-content.sh" 2>/dev/null && echo "has content" || echo "empty — skip search-knowledge"`
-- strategy: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/strategy-file.sh" --status 2>/dev/null || echo none`
-- 5h usage: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/usage-state.sh" 2>/dev/null || echo unknown`
 - git: branch !`git branch --show-current 2>/dev/null || echo "(no git)"` · uncommitted paths: !`git status --porcelain 2>/dev/null | wc -l | tr -d " "`
 
 Plugin root for every hook call below: `${CLAUDE_PLUGIN_ROOT}` (never a cwd-relative `hooks/…` path — cwd is the consumer repo, not the plugin).
@@ -127,12 +125,6 @@ UI work is `feature` work. A design URL in the request (e.g. a figma.com link) i
 
 If triggered, or the request carries a pasted `## Contract` block → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/api-spec.md` before recording `plan.md → Inputs.API`
 
-### 4.5. Web Guidance Search
-
-**Trigger**: a `plan.md` will be written (never on the Small change path or for `review`) AND `detect-profile.sh` on the planned Affected Files includes `web-frontend` AND the change adds or changes UI or client behaviour (markup, CSS/layout, forms, dialogs, tables, a11y, client-side JS such as dates or sanitization) — not 3D/canvas-only, styling-token-only or tooling.
-
-If triggered → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/web-guidance.md` before writing `plan.md`
-
 ### 5. Review Fast-Path
 
 Intent is exactly `review` → **skip the Plan Gate** (no `plan.md`, no approval wait) and spawn `reviewer` on the current changes. Its PASS/FAIL verdict is the final output; no commit or push follows.
@@ -140,8 +132,6 @@ Intent is exactly `review` → **skip the Plan Gate** (no `plan.md`, no approval
 ### 6. Plan Gate
 
 Create `plan.md`, then wait for explicit user approval before execution (Bugfix exception: Workflow Selection → Bugfix).
-
-`strategy` is present and a `plan.md` will be written → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/strategy-gate.md` before writing the plan
 
 Intent is `feature`, `bugfix` or `refactor` and the Small change path is not taken → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/plan-gate.md` before writing or updating `plan.md`
 
@@ -151,14 +141,9 @@ Intent is `feature`, `bugfix` or `refactor` and the Small change path is not tak
 
 Spawn specialists with the `Agent` tool. When installed as a plugin, the `subagent_type` is namespaced: `review-harness:developer`, `review-harness:reviewer`, etc. If the namespaced type is not listed (legacy `.claude/agents/` copy), fall back to the bare name. Never re-implement an agent's role inline because the type was not found — report it.
 
-**Usage downgrade**: the injected `5h usage` line reads `N% (resets HH:MM)` or `unknown`.
-
-- N is 80 or higher → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/usage-downgrade.md` before the first `reviewer` or `refactor-architect` spawn
-- If N is below 80 or the value is `unknown`, do not ask; pass no `model` so the frontmatter value applies
-
 **Developer effort**: before each `developer` spawn, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" --paths <plan Affected Files>`. `low` → spawn `developer` with `effort: "medium"`; `normal`, `high` or a script failure → no override. A `bugfix` plan never gets this override (root-cause work).
 
-**Risk tier**: before each `reviewer` spawn, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" [base]` (the base only when the change is committed) and put its output in the reviewer prompt as `risk: <tier>` plus its `reason:` lines; the script fails → `risk: normal`. `low` → spawn `reviewer` with `model: "opus"` and `effort: "medium"`; `normal` and `high` → no override (`high`: the reviewer runs probes). `Opus for this run` still sets `model: "opus"` on every tier; `Keep Fable` does not change `low`.
+**Risk tier**: before each `reviewer` spawn, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/risk-tier.sh" [base]` (the base only when the change is committed) and put its output in the reviewer prompt as `risk: <tier>` plus its `reason:` lines; the script fails → `risk: normal`. `low` → spawn `reviewer` with `model: "opus"` and `effort: "medium"`; `normal` and `high` → no override (`high`: the reviewer runs probes).
 
 ## Context Budget
 
@@ -186,10 +171,9 @@ Never inline full `constraints.md`, unrelated files or raw verbose logs.
 - assumptions: <what developer assumed where the plan was silent> (developer only)
 - root cause: <file:line — why the last change did not fix it> (developer, when the same test or issue fails again)
 - self-check: <rule hit → fixed>; … | clean (developer only)
-- guidance: <id> applied | <id> not applied — <reason> (developer only, when Inputs.Web guidance lists ids)
 ```
 
-Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:`, `root cause:`, `self-check:` and `guidance:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
+Rules: omit empty fields, max 6 bullets plus `red:` for bugfix, `assumptions:`, `root cause:` and `self-check:`, one line each, no prose, identifiers/paths/commands preferred. `plan_path` is always the absolute path — agents never look for `plan.md` in the repo.
 
 ---
 
@@ -221,7 +205,6 @@ with `<workflow>` = `small-change | feature | bugfix | refactor | review` and th
 
 - Skip `search-knowledge` when the injected `knowledge:` line says empty, or the knowledge is irrelevant
 - Pass `plan.md → Inputs.API` to `developer` only when the change touches data fetching/mutation
-- Pass the developer's `guidance:` line to `reviewer` when `Inputs.Web guidance` lists ids (any intent, like a bugfix's `red:`)
 - Skip `save-knowledge` if no durable learning
 
 ### Small change

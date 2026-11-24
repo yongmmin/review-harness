@@ -4,9 +4,6 @@
 ## Goal
 [what and why]
 
-## Why
-[one line: the strategy goal or metric this moves, or `no strategy file`]
-
 ## Done When
 - [observable outcome] — check: [test name, command, or manual step]
 
@@ -19,7 +16,6 @@
 ## Inputs
 - Design: [reference URL or none]
 - API: [spec, endpoint, or none]
-- Web guidance: [guide ids, none, or unavailable]
 
 ## Affected Files
 - path/to/file.tsx - [change]

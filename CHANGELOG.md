@@ -4,6 +4,11 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Removed**
+- Usage downgrade: `hooks/usage-state.sh`, `skills/review-harness/usage-downgrade.md` and the `5h usage` question in `/review-harness`, `/code-review` and `/refactor-scan` — inert unless a private status-line wrapper writes `usage-state.json`
+- Strategy check and `/strategy`: `hooks/strategy-file.sh`, `skills/strategy/`, `skills/review-harness/strategy-gate.md`, the `run-state.sh strategy` subcommand and its `status` / `runs.jsonl` field, the `run-stats.sh` `strategy check:` line and the plan template's `## Why` — advice on what to work on is outside the harness's job, and 0 suggestions were recorded
+- Web guidance: `skills/review-harness/web-guidance.md`, the `4.5. Web Guidance Search` step, the plan's `Web guidance:` input, the `guidance:` handoff line and the `web-frontend` profile's developer procedure and reviewer `legacy-scan` gate — its effect was never measured and it made a network call during planning
+
 **Run stats**
 - `run-stats.sh`: a `weighted cost per run (subagents only)` line after the tokens line — median of `in + cr×0.1 + cw×1.25 + out×5` per run, in input-equivalent tokens; the raw total is about 90% cache reads and overstates cost about threefold
 
