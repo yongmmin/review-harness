@@ -24,7 +24,6 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD" 2>/dev/null || echo "de
 - register: !`[ -f "$(bash "${CLAUDE_PLUGIN_ROOT}/hooks/state-dir.sh" 2>/dev/null)/register-declined" ] && echo declined || echo offer`
 - run state: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" status 2>/dev/null || echo none`
 - knowledge: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/knowledge-has-content.sh" 2>/dev/null && echo "has content" || echo "empty — skip search-knowledge"`
-- strategy: !`bash "${CLAUDE_PLUGIN_ROOT}/hooks/strategy-file.sh" --status 2>/dev/null || echo none`
 - git: branch !`git branch --show-current 2>/dev/null || echo "(no git)"` · uncommitted paths: !`git status --porcelain 2>/dev/null | wc -l | tr -d " "`
 
 Plugin root for every hook call below: `${CLAUDE_PLUGIN_ROOT}` (never a cwd-relative `hooks/…` path — cwd is the consumer repo, not the plugin).
@@ -139,8 +138,6 @@ Intent is exactly `review` → **skip the Plan Gate** (no `plan.md`, no approval
 ### 6. Plan Gate
 
 Create `plan.md`, then wait for explicit user approval before execution (Bugfix exception: Workflow Selection → Bugfix).
-
-`strategy` is present and a `plan.md` will be written → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/strategy-gate.md` before writing the plan
 
 Intent is `feature`, `bugfix` or `refactor` and the Small change path is not taken → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/plan-gate.md` before writing or updating `plan.md`
 

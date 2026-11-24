@@ -8,13 +8,13 @@ Detailed description moved out of the [README](../README.md). The reference docu
 2. **Active Repo Gate** — `hooks/detect-repo.sh` matches cwd → repo. If there is no registry (`~/.review-harness/knowledge/<org>/repos.md`) it proceeds with the generic rules; for code work in a repo that is not registered (or with no registry at all) it offers `/register-repo` once per work tree; choosing to continue records `register-declined` in the state dir so it is not asked again
 3. **Ambiguity Check** — up to 2 questions when ambiguous. Detects requests whose target is unclear, such as demonstratives ("that", "this"), and asks for clarification. The organisation overlay can add detection items
 4. **Web Guidance Search** — when a `plan.md` will be written for UI or client-behaviour work under the `web-frontend` profile, up to 3 `npx -y modern-web-guidance@1.0.1 search` calls (stopping at the first failure); the matching guide ids go to `plan.md → Inputs.Web guidance` (`none` or `unavailable` otherwise, never a question). The developer `retrieve`s those ids; the developer's self-check and the reviewer run `legacy-scan` on each changed UI file (at most 5) ([README](../README.md#modern-web-guidance))
-5. **Plan Gate** — when the repo has a strategy file (`/strategy`), first a strategy check: is the request the highest-leverage move for its goal? If not, one alternative and one question (`Proceed as asked` / `Do the alternative`), never a block; the outcome is recorded with `run-state.sh strategy`. Then it writes `plan.md` (with a `## Why` line) to `~/.review-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
+5. **Plan Gate** — writes `plan.md` to `~/.review-harness/state/<repo-id>/`, reports the full path, and waits for user approval (skipped on the Small change path)
 6. **Workflow execution** — a different chain per intent (feature/bugfix/refactor/review) or the Small change path. A bugfix reproduces the failure and records its cause before any fix, and never takes the Small change path. UI work is handled as feature
 7. **`[DONE]`** — automatic up to git-commit; after that it is in the user's hands
 
-The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `web-guidance.md` (step 4), `strategy-gate.md` (step 5, when a strategy file exists: the strategy check), `plan-gate.md` (step 5: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 6: Small change, Bugfix, retries after a failure), `git-ops.md` (branch, push or PR requests).
+The core `skills/review-harness/SKILL.md` keeps the gates, routing, agent spawning, handoff schema, run state and review gate. Each part only one path needs sits in a sibling file the core names in a `→ read` line, read only on that path: `register-offer.md` (step 2), `api-spec.md` (API Spec Check), `web-guidance.md` (step 4), `plan-gate.md` (step 5: plan template and its rules), `small-change.md`, `bugfix.md` and `retry.md` (step 6: Small change, Bugfix, retries after a failure), `git-ops.md` (branch, push or PR requests).
 
-## 13 Skills
+## 12 Skills
 
 The entry point + auxiliary commands. All can be called as `/<skill-name>`. Every skill has the organisation overlay injected at load via `hooks/org-overlay.sh skills <name>` (if absent, only the generic rules apply).
 
@@ -47,10 +47,9 @@ The entry point + auxiliary commands. All can be called as `/<skill-name>`. Ever
 - **`/git-commit`** — runs automatically when `run-state.sh check` passes (a reviewer PASS record for the current work tree and no failed or unconfirmed test result, or a recorded user override). Generates a Conventional Commit message, protects .npmrc/.env, forbids --no-verify
 - **`/git-pr`** — generates the title + body + `gh pr create` command + prefilled GitHub compare URL. **Never runs `gh`**
 
-### Plugin operations (3)
+### Plugin operations (2)
 
 - **`/audit-rules`** (`/review-harness:audit-rules`) — runs `hooks/audit-rules.sh` (stale registry versions, missing paths, version-bound overlay rules, duplicate rules, constraint budget, ledger size, age and missing heading), reads only the cited lines, judges `version-rule` and `duplicate` findings, and reads the org overlay and the profiles' `#review` sections once for rules that contradict each other — also when the script finds nothing. Proposes at most 10 numbered edits (file:line, old → new, or delete) and applies only the ones you approve, only under `~/.review-harness/` — never the plugin's files, never git. Ledger GC follows the `constraints.md` header rule
-- **`/strategy`** (`/review-harness:strategy`) — shows, sets (at most 3 questions: goal, metric, non-goals) or updates one field of the repo's strategy file, located by `hooks/strategy-file.sh` (`~/.review-harness/strategy/<repo>-<hash>.md`, shared by all worktrees, kept to about 1,000 bytes). Writes only on the user's yes, never a repo file, never runs git. `/review-harness` reads the file before planning
 - **`/rtk-toggle`** (`/review-harness:rtk-toggle`) — toggles the output compression mode of plugin-internal Bash calls (off/standard/aggressive/git-only). No effect on other projects (plugin-scoped)
 
 ## Git steps (user-triggered)

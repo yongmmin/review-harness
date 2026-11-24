@@ -534,7 +534,7 @@ for f in "$SKD"/*.md; do
   eq "skill split: one pointer to $b" 1 "$(grep -cF "$SKP$b\` before " "$SK")"
 done
 eq "skill split: one pointer line per situational file" "$SKN" "$(grep -cF "$SKP" "$SK")"
-eq "skill split: 9 situational files" 9 "$SKN"
+eq "skill split: 8 situational files" 8 "$SKN"
 SKX=$(for f in "$SKD"/*.md; do [ "$f" = "$SK" ] || cat "$f"; done | grep 'CLAUDE_PLUGIN_ROOT' | grep -v 'hooks/repo-rules.sh"')
 eq "skill split: hook calls stay in the core but the one Contract rules line (and repo-rules.sh)" 1 "$(printf '%s' "$SKX" | grep -c .)"
 has "skill split: that line is the Contract rules line" '**Contract rules**' "$(printf '%s\n' "$SKX" | head -n 1 | cut -c1-20)"
@@ -2257,117 +2257,16 @@ has "readme: quick start row" '| `/audit-rules` |' "$(cat "$ROOT/README.md")"
 has "readme: check list line" 'bash hooks/audit-rules.sh' "$(cat "$ROOT/README.md")"
 has "changelog: audit-rules entry" 'hooks/audit-rules.sh' "$(sed -n '/^### Unreleased/,/^### v0\.7\.0/p' "$ROOT/CHANGELOG.md")"
 
-# --- strategy: per-repo file, /strategy, the gate before planning, recording ------------------
-sx() { "$@" >/dev/null 2>&1; echo $?; }
-sf() { (cd "$1" && shift && bash "$H/strategy-file.sh" "$@" 2>&1); }
-SR="$TMP/stratrepo"; new_repo "$SR"; mkdir -p "$SR/sub"
-SP=$(sf "$SR")
-case "$SP" in "$REVIEW_HARNESS_HOME/strategy/stratrepo-"????????????.md) OK=yes ;; *) OK="no: $SP" ;; esac
-eq "strategy-file: <home>/strategy/<repo-name>-<12 hex>.md" yes "$OK"
-case "$SP" in "$REVIEW_HARNESS_HOME"/*) ;; *) SP="$TMP/strategy-path-missing/x.md" ;; esac   # a broken script never writes outside $TMP
-eq "strategy-file: same path from a subdirectory" "$SP" "$(sf "$SR/sub")"
-git -C "$SR" worktree add -q -b strat-wt "$TMP/strat-wt" 2>/dev/null
-eq "strategy-file: a worktree shares the repo's file" "$SP" "$(sf "$TMP/strat-wt")"
-lacks "strategy-file: unlike the state dir, keyed on the common dir" "$(bash "$H/state-dir.sh" "$TMP/strat-wt")" "$(bash "$H/state-dir.sh" "$SR")"
-mkdir -p "$TMP/other"; new_repo "$TMP/other/stratrepo"
-lacks "strategy-file: same name, other repo → other file" "$SP" "$(sf "$TMP/other/stratrepo")"
-eq "strategy-file: --status with no file → none" none "$(sf "$SR" --status)"
-eq "strategy-file: never creates the folder" no "$([ -e "$REVIEW_HARNESS_HOME/strategy" ] && echo yes || echo no)"
-mkdir -p "$TMP/nogit"
-eq "strategy-file: outside git, --status → none" none "$(sf "$TMP/nogit" --status)"
-eq "strategy-file: outside git, --status exits 0" 0 "$(sx sf "$TMP/nogit" --status)"
-eq "strategy-file: outside git → exit 2" 2 "$(sx sf "$TMP/nogit")"
-eq "strategy-file: unknown argument → exit 2" 2 "$(sx sf "$SR" --create)"
-SCMD=$(sed -n 's/^- strategy: !`\(.*\)`$/\1/p' "$SK")
-eq "review-harness: injected strategy line, no file → none" none "$(cd "$SR" && CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$SCMD")"
-G90='Goal: raise the first-review PASS rate and cut tokens per run without losing caught defects, by far'
-mkdir -p "$(dirname "$SP")"; printf '# Strategy — x\n%s\nMetrics: m\n' "$G90" > "$SP"
-eq "strategy-file: --status → present + the first 80 chars of the Goal" \
-  "present · Goal: $(printf '%s' "${G90#Goal: }" | cut -c1-80)" "$(sf "$SR" --status)"
-eq "strategy-file: --status is one line" 1 "$(sf "$SR" --status | wc -l | tr -d ' ')"
-eq "review-harness: injected strategy line, file present" "$(sf "$SR" --status)" "$(cd "$TMP/strat-wt" && CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$SCMD")"
-# a multibyte Goal under the C locale: at most 80 bytes, whole characters only (79 bytes here, never a split one)
-printf '# Strategy\nGoal: a%s\n' "$(printf '가%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30)" > "$SP"
-OUT=$(cd "$SR" && LC_ALL=C bash "$H/strategy-file.sh" --status 2>&1)
-eq "strategy-file: multibyte Goal, C locale → whole characters" "present · Goal: a$(printf '가%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26)" "$OUT"
-eq "strategy-file: multibyte Goal, C locale → valid UTF-8" 0 "$(printf '%s' "$OUT" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; echo $?)"
-printf '# Strategy\nMetrics: m\n' > "$SP"
-eq "strategy-file: --status, no Goal line" "present · Goal: -" "$(sf "$SR" --status)"
-if [ "$(id -u)" != 0 ]; then
-  chmod 000 "$SP"; eq "strategy-file: unreadable file, --status → exit 2" 2 "$(sx sf "$SR" --status)"; chmod 644 "$SP"
-fi
-# run-state strategy: stored in run-state and in the run log, never read by check
-R="$SR"; SD=$(bash "$H/state-dir.sh" "$R")
-eq "run-state strategy: no active run → exit 1" 1 "$(sx rs strategy aligned)"
-rs start feature reviewer >/dev/null
-eq "run-state strategy: unknown value → exit 2" 2 "$(sx rs strategy maybe)"
-eq "run-state strategy: no value → exit 2" 2 "$(sx rs strategy)"
-lacks "run-state status: no strategy before it is recorded" "strategy" "$(rs status)"
-for v in aligned suggested-declined suggested-followed; do
-  rs strategy "$v" >/dev/null; eq "run-state strategy: $v stored" "$v" "$(jq -r .strategy "$SD/run-state.json")"
-done
-has "run-state status: shows the recorded strategy" " · strategy suggested-followed" "$(rs status)"
-C0=$(cd "$R" && bash "$H/run-state.sh" check 2>&1; echo "rc=$?")
-rs strategy aligned >/dev/null
-eq "run-state strategy: check unchanged (no verdict)" "$C0" "$(cd "$R" && bash "$H/run-state.sh" check 2>&1; echo "rc=$?")"
-rs verdict PASS --by reviewer >/dev/null; rs tests pass >/dev/null
-C0=$(cd "$R" && bash "$H/run-state.sh" check 2>&1; echo "rc=$?")
-rs strategy suggested-followed >/dev/null
-eq "run-state strategy: check unchanged (PASS)" "$C0" "$(cd "$R" && bash "$H/run-state.sh" check 2>&1; echo "rc=$?")"
-has "run-state strategy: PASS still passes" "rc=0" "$C0"
-rs done >/dev/null
-eq "run-state strategy: closed run → exit 1" 1 "$(sx rs strategy aligned)"
-eq "run log: strategy field" suggested-followed "$(tail -n 1 "$REVIEW_HARNESS_HOME/state/runs.jsonl" | jq -r .strategy)"
-rs start feature >/dev/null; rs done >/dev/null
-eq "run log: no strategy → no field" false "$(tail -n 1 "$REVIEW_HARNESS_HOME/state/runs.jsonl" | jq 'has("strategy")')"
-has "run-state: usage names strategy" "strategy" "$(rs bogus)"
+# --- run-stats: old run-log lines that still carry a removed strategy field are ignored ----
 STH="$TMP/strathome"; mkdir -p "$STH/state"
 cat > "$STH/state/runs.jsonl" <<'EOF'
 {"repo":"r-1","workflow":"feature","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done","strategy":"aligned"}
-{"repo":"r-1","workflow":"feature","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done","strategy":"suggested-followed"}
-{"repo":"r-1","workflow":"bugfix","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done","strategy":"suggested-declined"}
 {"repo":"r-1","workflow":"feature","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done"}
 EOF
-has "run-stats: strategy check line" "strategy check: 3 runs · suggested 2 · followed 1" "$(REVIEW_HARNESS_HOME="$STH" bash "$H/run-stats.sh")"
-lacks "run-stats: no strategy field → no strategy line" "strategy check" "$(REVIEW_HARNESS_HOME="$SH" bash "$H/run-stats.sh")"
-# docs and skills
-SG=$(cat "$SKD/strategy-gate.md" 2>/dev/null)
-has "skill: strategy pointer keyed on the injected line" '`strategy` is present and a `plan.md` will be written → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/strategy-gate.md` before writing the plan' "$(sed -n '/^### 6\. Plan Gate/,/^---$/p' "$SK")"
-for x in 'run-stats.sh --repo' '`Proceed as asked`' '`Do the alternative`' 'never blocks' 'run-state.sh strategy aligned' 'suggested-followed' 'suggested-declined' '`/strategy update' "user's yes" '## Why'; do
-  has "strategy-gate.md: $x" "$x" "$SG"
-done
-has "strategy-gate.md: asks at most once" 'AskUserQuestion' "$SG"
-has "strategy-gate.md: skipped when the run already recorded it" 'resumed run whose injected `run state` line shows `strategy`' "$SG"
-has "strategy-gate.md: the alternative is not re-checked" 'do not re-run this check on it, the outcome is `suggested-followed`' "$SG"
-has "strategy-gate.md: the alternative re-enters the Request Gate" 're-enters the Request Gate at step 2' "$SG"
-has "strategy-gate.md: a declined suggestion noted in ## Why" 'declined suggestion' "$SG"
-has "docs/hooks.md: strategy/ in the home layout" '├── strategy/' "$(cat "$ROOT/docs/hooks.md")"
-for f in docs/hooks.md CHANGELOG.md; do
-  has "$f: Goal cut in whole characters" 'at most 80 bytes, whole characters' "$(cat "$ROOT/$f")"
-done
-eq "plan-gate: ## Why right after ## Goal" '## Why' "$(sed -n '/^## Goal$/,/^## /p' "$SKD/plan-gate.md" | sed -n '$p')"
-has "plan-gate: Risk tier line under Affected Files" 'Risk tier: [' "$(sed -n '/^## Affected Files$/,/^$/p' "$SKD/plan-gate.md")"
-ST="$ROOT/skills/strategy/SKILL.md"; STS=$(cat "$ST" 2>/dev/null)
-has "strategy skill: name" "name: strategy" "$STS"
-has "strategy skill: not model-invoked" "disable-model-invocation: true" "$STS"
-has "strategy skill: locates the file with the script" 'hooks/strategy-file.sh"' "$STS"
-has "strategy skill: org overlay line" 'hooks/org-overlay.sh" skills strategy' "$STS"
-has "strategy skill: never runs git" "never runs git" "$STS"
-has "strategy skill: at most 3 questions" "at most 3 questions" "$STS"
-has "strategy skill: size cap" "1,000 bytes" "$STS"
-has "strategy skill: metric from run-stats" "run-stats.sh" "$STS"
-has "strategy skill: writes only on yes" "user's yes" "$STS"
-STB=$(awk '/^```!$/{f=1;next} /^```$/{if(f)exit} f' "$ST")
-has "strategy skill: injected block names the file" "file: $SP" "$(cd "$TMP/strat-wt" && CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$STB" 2>&1)"
-has "strategy skill: injected block outside git" "unavailable: " "$(cd "$TMP/nogit" && CLAUDE_PLUGIN_ROOT="$ROOT" bash -c "$STB" 2>&1)"
-has "readme: Strategy section" "## Strategy" "$(cat "$ROOT/README.md")"
-has "readme: quick start row" '| `/strategy` |' "$(cat "$ROOT/README.md")"
-has "docs/skills.md: strategy entry" '**`/strategy`**' "$(cat "$ROOT/docs/skills.md")"
-has "docs/skills.md: strategy-gate.md in the sibling list" 'strategy-gate.md' "$(cat "$ROOT/docs/skills.md")"
-has "docs/hooks.md: strategy-file row" '| **`strategy-file.sh`** |' "$(cat "$ROOT/docs/hooks.md")"
-has "docs/hooks.md: run-state strategy" 'strategy aligned|suggested-followed|suggested-declined' "$(cat "$ROOT/docs/hooks.md")"
-has "CLAUDE.md: sibling list names strategy-gate.md" 'strategy-gate.md' "$(sed -n '/^## Where Consumer Rules Live/,/^## Repo Rules/p' "$ROOT/CLAUDE.md")"
-has "changelog: strategy entry" 'hooks/strategy-file.sh' "$(sed -n '/^### Unreleased/,/^### v0\.7\.0/p' "$ROOT/CHANGELOG.md")"
+OUT=$(REVIEW_HARNESS_HOME="$STH" bash "$H/run-stats.sh" 2>&1); RC=$?
+eq "run-stats: legacy strategy field → exit 0" 0 "$RC"
+has "run-stats: legacy strategy field → runs counted" "runs: 2 " "$OUT"
+lacks "run-stats: legacy strategy field → no strategy line" "strategy" "$OUT"
 
 # --- repo-rules: each touched repo's rule files and the docs they link to --------------------
 rr() { (cd "$1" && shift && bash "$H/repo-rules.sh" "$@" 2>&1); }

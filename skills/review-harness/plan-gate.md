@@ -4,9 +4,6 @@
 ## Goal
 [what and why]
 
-## Why
-[one line: the strategy goal or metric this moves, or `no strategy file`]
-
 ## Done When
 - [observable outcome] — check: [test name, command, or manual step]
 
