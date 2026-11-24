@@ -144,6 +144,32 @@ Reading:
 - **What the plan and the new gates change is the footing of the FAIL, not detection.** With the plan, the reviewer cites Done When / Callers and uses the intended category 3 of 3 (`current`) against 1 of 3 (`pre-stage4`). Without the plan, the unwired-feature FAIL rests on a design judgement ("no production caller"), and the review offers "or drop the files from this change" as an equal fix; in its reply outside the review block, that reviewer added that the verdict would flip to PASS if the wiring were deliberately a later change — a FAIL a developer could argue away.
 - The larger effect — whether the plan makes the developer wire it in the first place — needs the developer-side bench below.
 
+### Run 4 (after thinning the reviewer rules)
+
+Model: Fable (production reviewer model) · Date: 2026-11-24 · Plugin HEAD: `4c6a187` · **Three runs per cell** · Empty home · Opaque fixture dirs (one per run) and prompt names · `current` arm only; the plan-based cases with their plan
+
+This run checks one thing: did cutting the rule text lose a catch? Between run 3 and this revision `agents/reviewer.md` went from 10.5 to 8.0 KB, `constraints.md` from 4.6 to 2.5 KB and the three profiles from 13.6 to 6.5 KB. The rules named for three of the cases are gone from the profiles: effect without cleanup, not-found as 500, floating promise.
+
+| Case | caught | Rule still in the profile | FAIL category (3 runs) |
+|------|--------|---------------------------|------------------------|
+| `fe-effect-cleanup` | 3/3 | removed | `[correctness]` ×3 |
+| `fe-zustand-whole-store` | 3/3 | kept | `[state-mgmt]` ×3 |
+| `api-notfound-500` | 3/3 | removed | `[correctness]` ×3 |
+| `api-unawaited` | 3/3 | removed | `[correctness]` ×3 |
+| `api-no-owner` | 3/3 | kept | `[security]` ×3 |
+| `x-removed-field` | 3/3 | kept | `[contract]` ×3 (run 1 also `[correctness]` for the stale consumer) |
+| `goal-not-wired` | 3/3 | plan gate | `[goal]` ×3 |
+| `bug-cause-elsewhere` | 3/3 | plan gate | `[correctness]` + `[scope]` ×3 |
+| `contract-caller-missed` | 3/3 | plan gate | `[contract]` ×3 |
+
+Reading:
+- **Detection: 27 of 27.** Nothing was lost, including the three cases whose rule was deleted. As in runs 1–3 this shows no loss; it cannot show a gain.
+- **Footing kept:** the plan-based cases carry the intended category 9 of 9.
+- **Extra findings:** every `patch` issue was about the planted problem (two issues where it has two sites: read and write without an owner predicate; the rename and its stale consumer). `score.sh` counted one extra finding (`bug-cause-elsewhere`, run 2); read by hand it is the planted problem's `[scope]` half. Other observations came as `defer` notes (15 over 27 runs, e.g. no test for the new path, a read-then-update race), which never make a FAIL.
+- Each run took about 75K tokens and 15–30 seconds.
+
+Departures from the recipe: `prompt.sh` writes its temp home as `rh-bench.*`, so the `ledger:` path in every prompt held the word `bench`; it was replaced with a neutral path before the agents ran. The reviewer file's evidence scripts could not run in most cells (`CLAUDE_PLUGIN_ROOT` is unset in a bare prompt), so the reviews rest on the diff and files; one agent reported running `static-gates.sh` and `repo-rules.sh`, which it can only have found in an installed copy of the plugin. Nine outputs (run 1 of each case) were read by hand; the other eighteen were scored by `score.sh` plus an extraction of categories and routes.
+
 ## Developer-side bench
 
 The cases above measure only the reviewer. A developer-side case measures the whole loop: `claude -p` gets an issue

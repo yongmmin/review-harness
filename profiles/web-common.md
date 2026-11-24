@@ -12,7 +12,6 @@
 Static review gates (frontend + API in one change) — FAIL if any:
 
 **Contract**
-- Consumer of a route, event or field renamed, removed or made nullable in the same change set is not updated → FAIL `[contract]`
 - Frontend request adds a custom header or `withCredentials` that the API's CORS config (allowed headers, credentials) does not allow → FAIL `[contract]`
 - Frontend branches on an exact status code for an endpoint whose status mapping changes in the same diff → FAIL `[contract]`
 
