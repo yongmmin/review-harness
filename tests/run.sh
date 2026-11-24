@@ -1098,6 +1098,14 @@ has "run-stats: median tokens per run" "tokens per run (subagents only): median 
 has "run-stats: median active minutes per run" "active minutes per run (subagents only): median 16" "$OUT"
 has "run-stats: per-agent share and median seconds" "per agent (subagents only): developer 97% of tokens, median 900s · reviewer 3% of tokens, median 120s" "$OUT"
 has "run-stats: old lines unchanged with agent data" "limit reached: 0" "$OUT"
+mkdir -p "$TMP/wchome/state"
+# per run in + cr/10 + cw*1.25 + out*5: 100+100+50+50 = 300; 600+3 = 603 → median 451.5 → 452
+cat > "$TMP/wchome/state/runs.jsonl" <<'EOF'
+{"repo":"r-1","workflow":"feature","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done","agents":[{"type":"developer","n":1,"s":60,"in":100,"out":10,"cr":1000,"cw":40}]}
+{"repo":"r-1","workflow":"feature","attempts":0,"verdicts":[{"v":"PASS"}],"end":"done","agents":[{"type":"developer","n":1,"s":60,"in":200,"out":20,"cr":2000,"cw":80},{"type":"reviewer","n":1,"s":60,"in":3}]}
+EOF
+has "run-stats: weighted cost per run" "weighted cost per run (subagents only): median 452 input-equivalent tokens (cache read x0.1, cache write x1.25, output x5)" "$(REVIEW_HARNESS_HOME="$TMP/wchome" bash "$H/run-stats.sh")"
+lacks "run-stats: no agent data → no weighted cost line" "weighted cost" "$(st)"
 
 # --- agent usage (SubagentStart / SubagentStop) --------------------------------------------
 R="$TMP/agentrepo"; new_repo "$R"; SD=$(bash "$H/state-dir.sh" "$R"); AF="$SD/run-state.json"; AG="$SD/agents.jsonl"; ALOG="$REVIEW_HARNESS_HOME/state/runs.jsonl"

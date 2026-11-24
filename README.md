@@ -206,7 +206,8 @@ The output covers:
 - the number of runs and the **first-review PASS rate** (runs whose first verdict was PASS);
 - retries before PASS, the share of runs with a FAIL, and FAIL categories;
 - the override rate and how many runs hit the limit;
-- median tokens and active minutes per run, and each agent's share of tokens. These come from the `SubagentStart`/`SubagentStop` hook and cover subagents only; they start with the first session opened after installing or updating.
+- median tokens and active minutes per run, and each agent's share of tokens;
+- median weighted cost per run in input-equivalent tokens (cache read x0.1, cache write x1.25, output x5), since the raw total is mostly cheap cache reads. These come from the `SubagentStart`/`SubagentStop` hook and cover subagents only; they start with the first session opened after installing or updating.
 - when runs recorded it, the [strategy check](#strategy): runs checked, how many got a suggestion, and how many followed it.
 
 Use it to check whether a rule change, a profile or an overlay actually helps.
