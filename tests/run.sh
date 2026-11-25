@@ -1566,21 +1566,21 @@ OUT=$(sg); RC=$(sgx)
 eq "static-gates: real index untouched" "$IX0" "$(cksum < "$R/.git/index")"
 eq "static-gates: git status unchanged" "$ST0" "$(git -C "$R" status --porcelain)"
 eq "static-gates: hard hit → exit 1" 1 "$RC"
-has "static-gates: console.log on its new line number" "hard [ops] src/a.ts:3 — no console.log in production code" "$OUT"
+has "static-gates: console.log on its new line number" "note [ops] src/a.ts:3 — console.log added" "$OUT"
 eq "static-gates: removed line not reported (one hit in src/a.ts, on its new line)" \
-  "hard [ops] src/a.ts:3 — no console.log in production code" "$(printf '%s\n' "$OUT" | grep ' src/a.ts:')"
+  "note [ops] src/a.ts:3 — console.log added" "$(printf '%s\n' "$OUT" | grep ' src/a.ts:')"
 lacks "static-gates: unchanged file not reported" "kept.ts" "$OUT"
-has "static-gates: context lines from diff.interHunkContext count" "hard [ops] src/ctx.ts:5 — no console.log" "$OUT"
-has "static-gates: a file named - does not swallow the untracked files after it" "hard [ops] src/plus.ts:2" "$OUT"
+has "static-gates: context lines from diff.interHunkContext count" "note [ops] src/ctx.ts:5 — console.log added" "$OUT"
+has "static-gates: a file named - does not swallow the untracked files after it" "note [ops] src/plus.ts:2" "$OUT"
 lacks "static-gates: a nested repo is skipped" "nested" "$OUT"
 lacks "static-gates: deleted file not reported" "gone.ts" "$OUT"
 lacks "static-gates: deleted .env not reported" ".env.prod" "$OUT"
-has "static-gates: tracked path with spaces" "hard [ops] sp ace/f s.ts:2 — no console.log" "$OUT"
-has "static-gates: untracked path with spaces" "hard [ops] sp ace/new one.ts:1 — no console.log" "$OUT"
+has "static-gates: tracked path with spaces" "note [ops] sp ace/f s.ts:2 — console.log added" "$OUT"
+has "static-gates: untracked path with spaces" "note [ops] sp ace/new one.ts:1 — console.log added" "$OUT"
 for f in src/__tests__/t.ts src/b.test.ts src/b.spec.tsx tests/x.js test/y.js notes.md bin.js tracked.bin.js; do
   lacks "static-gates: no console.log hit in $f" "$f:" "$OUT"
 done
-has "static-gates: an added line starting with ++ is still an added line" "hard [ops] src/plus.ts:2 — no console.log" "$OUT"
+has "static-gates: an added line starting with ++ is still an added line" "note [ops] src/plus.ts:2 — console.log added" "$OUT"
 has "static-gates: untracked .env.local" "hard [security] .env.local:1 — .env file in the change" "$OUT"
 has "static-gates: .env by basename" "hard [security] config/.env:1 — .env file in the change" "$OUT"
 for f in .env.example .env.sample .env.template .env.test.development.example; do lacks "static-gates: $f passes" "$f" "$OUT"; done
@@ -1612,8 +1612,8 @@ eq "static-gates: every line is a hit line" 0 \
   "$(printf '%s\n' "$OUT" | grep -cvE '^(hard|note) \[[a-z]+\] .+:[0-9]+ — ')"
 eq "static-gates: same output from a subdirectory" "$OUT" "$(cd "$R/src" && bash "$H/static-gates.sh" 2>&1)"
 OUTB=$(sg "$SGBASE")
-has "static-gates: base → commits since the base" "hard [ops] src/late.ts:1 — no console.log" "$OUTB"
-has "static-gates: base → plus the working tree" "hard [ops] src/a.ts:3 — no console.log" "$OUTB"
+has "static-gates: base → commits since the base" "note [ops] src/late.ts:1 — console.log added" "$OUTB"
+has "static-gates: base → plus the working tree" "note [ops] src/a.ts:3 — console.log added" "$OUTB"
 has "static-gates: base → plus untracked" "hard [security] .env.local:1" "$OUTB"
 lacks "static-gates: base → nothing before the base" "kept.ts" "$OUTB"
 R="$TMP/sg-notes"; new_repo "$R"; printf 'const %s = 1\n' 'TO''DO' > "$R/notes-only.ts"
@@ -1624,9 +1624,9 @@ eq "static-gates: two arguments → exit 2" 2 "$(sgx a b)"
 eq "static-gates: unknown base → exit 2" 2 "$(sgx no-such-ref)"
 eq "static-gates: option-like base → exit 2" 2 "$(sgx --help)"
 mkdir -p "$TMP/sg-nogit"; eq "static-gates: outside a git repo → exit 2" 2 "$(cd "$TMP/sg-nogit" && GIT_CEILING_DIRECTORIES="$TMP" bash "$H/static-gates.sh" >/dev/null 2>&1; echo $?)"
-R="$TMP/sg-nonutf"; new_repo "$R"; printf 'const s = "\377"\nconsole.log(1)\n' > "$R/n.ts"
+R="$TMP/sg-nonutf"; new_repo "$R"; printf 'const s = "\377"\nconsole.log(1)\nconst k = process.env.API_KEY || "x"\n' > "$R/n.ts"
 OUT=$(cd "$R" && LC_ALL=C.UTF-8 bash "$H/static-gates.sh" 2>&1); RC=$?
-has "static-gates: a non-UTF-8 byte does not end the parse" "hard [ops] n.ts:2 — no console.log" "$OUT"
+has "static-gates: a non-UTF-8 byte does not end the parse" "note [ops] n.ts:2 — console.log added" "$OUT"
 eq "static-gates: a non-UTF-8 byte → still exit 1" 1 "$RC"
 R="$TMP/sg-clean"; new_repo "$R"; cm clean
 eq "static-gates: success → nothing on stderr (git's add -N chatter is kept back)" "" "$(cd "$R" && bash "$H/static-gates.sh" 2>&1 >/dev/null)"
@@ -1649,18 +1649,18 @@ fi
 chmod 644 "$R/u.ts"
 R="$TMP/sg-sparse"; mkdir -p "$R/in" "$R/out"; git -C "$R" init -q; echo a > "$R/in/a.txt"; echo b > "$R/out/b.txt"; cm init
 git -C "$R" sparse-checkout set --cone in
-mkdir -p "$R/out"; printf 'x\n' > "$R/out/new.txt"; printf 'console.log(1)\n' > "$R/in/x.ts"
+mkdir -p "$R/out"; printf 'x\n' > "$R/out/new.txt"; printf 'console.log(1)\nconst k = process.env.API_KEY || "x"\n' > "$R/in/x.ts"
 OUT=$(sg); RC=$(sgx)
 eq "static-gates: sparse checkout, untracked file outside the cone → no exit 2" 1 "$RC"
-has "static-gates: sparse checkout → in-cone hard hit reported" "hard [ops] in/x.ts:1 — no console.log" "$OUT"
+has "static-gates: sparse checkout → in-cone hit reported" "note [ops] in/x.ts:1 — console.log added" "$OUT"
 eq "static-gates: umask 077 for its temp files" 1 "$(grep -c '^umask 077' "$H/static-gates.sh")"
 for f in README.md profiles/web-frontend.md; do lacks "$f: no 'each changed UI file'" "each changed UI file" "$(cat "$ROOT/$f")"; done
 R="$TMP/sg-nohead"; mkdir -p "$R"; git -C "$R" init -q
 printf 'console.log(1)\n' > "$R/staged.ts"; git -C "$R" add staged.ts
-printf 'x\nconsole.log(2)\n' > "$R/loose file.ts"
+printf 'x\nconsole.log(2)\nconst k = process.env.API_KEY || "x"\n' > "$R/loose file.ts"
 OUT=$(sg)
-has "static-gates: no HEAD → tracked file counts as added" "hard [ops] staged.ts:1 — no console.log" "$OUT"
-has "static-gates: no HEAD → untracked file counts as added" "hard [ops] loose file.ts:2 — no console.log" "$OUT"
+has "static-gates: no HEAD → tracked file counts as added" "note [ops] staged.ts:1 — console.log added" "$OUT"
+has "static-gates: no HEAD → untracked file counts as added" "note [ops] loose file.ts:2 — console.log added" "$OUT"
 eq "static-gates: no HEAD → exit 1" 1 "$(sgx)"
 eq "static-gates: no HEAD with a base → exit 2" 2 "$(sgx main)"
 lacks "static-gates: never runs npx" "npx" "$(grep -v '^#' "$H/static-gates.sh")"

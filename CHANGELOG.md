@@ -4,6 +4,9 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**`console.log` is a note, not a hard hit**
+- `static-gates.sh` reports an added `console.log(` as `note [ops]` instead of `hard [ops]`: the pattern cannot tell a leftover debug line from a CLI script printing its result, and in 12 runs on a CLI repo every hit (up to 14 per review) was waved through by the reviewer. A repo or organisation rule that forbids `console.log` still FAILs it: the reviewer checks each note against those rules
+
 **Thinner main skill**
 - `skills/review-harness/SKILL.md` 18.2 → 14.2 KB (19.9 KB at 0.7.0). Gone: the keyword table for intent classification (four intents with a one-line "when" each), the ambiguity checklist (ask when what or where is unclear, at most 2 questions), the keyword trigger for the API spec question, the RTK mode gate (the wrapper already resolves the mode; an inline `--rtk=` is still persisted), the skip-rules list, and the repeated statements of the review gate and of "never branch, push or open a PR". Every run-state line, the unfinished-run gate, the test baseline, the manual confirmation for repos without tests, the spawn recipe and the risk-tier rules are unchanged
 - `plan-gate.md` 5.2 → 4.4 KB: `Commit Units`, `Only When Relevant` and the free-form `Execution Steps` leave the template (`## Branch` stays: `/git-branch` reads it). `Design Check` requires `Reuse`, `Callers/Consumers` and `Repo rules`; `Responsibility`, `Risk`, `Pattern` and `Tests` are marked optional and written only when they change what the developer does. A migration, upgrade or performance goal states its check in `Done When`
