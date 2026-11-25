@@ -4,7 +4,6 @@
 #   With base: everything since the merge base of <base> and HEAD (commits, staged, unstaged) plus untracked files.
 #   Without: staged, unstaged and untracked against HEAD; with no HEAD, every tracked or untracked file is added.
 # One line per hit, `<hard|note> [category] path:line — rule`, nothing else (a path hit uses line 1):
-#   hard [ops]      console.log( in a JS/TS/Vue/Svelte file that is not a test
 #   hard [security] a .env / .env.* file (names ending in .example/.sample/.template pass)
 #   hard [security] process.env.NAME || or ?? followed by a non-empty string literal, NAME secret-like: a segment
 #                   (split on `_`, and on camelCase when NAME has lower case) is [API]KEY, or ends in SECRET, TOKEN,
@@ -12,6 +11,7 @@
 #                   digits (any case: APIKEY, API_KEYS, X_API_KEY2, AUTH_TOKENS hard; HOTKEY, KEYCLOAK, TOKENIZER
 #                   not); other names → note. Every fallback on a line counts; one hit per line, hard when any is
 #                   secret-like
+#   note [ops]      console.log( in a JS/TS/Vue/Svelte file that is not a test (a note: a CLI prints on purpose)
 #   note [goal]     TODO, FIXME or XXX (whole word)
 #   note [goal]     a new export whose name no other tracked or untracked file mentions (whole word)
 # Deleted files, removed lines, binary files and nested repos are never reported. Reads only; no network;
@@ -89,7 +89,7 @@ done < <(LC_ALL=C awk -v sq="'" '
     t = substr($0, 2)
     js = f ~ /\.(js|jsx|ts|tsx|mjs|cjs|vue|svelte)$/
     test = f ~ /\.(test|spec)\./ || f ~ /(^|\/)(__tests__|test|tests)\//
-    if (js && !test && index(t, "console.log(")) print "hard [ops] " f ":" n sep "no console.log in production code"
+    if (js && !test && index(t, "console.log(")) print "note [ops] " f ":" n sep "console.log added"
     found = hard = 0; r = t
     while (match(r, fallback)) {
       found = 1; name = substr(r, RSTART + 12); r = substr(r, RSTART + RLENGTH)
