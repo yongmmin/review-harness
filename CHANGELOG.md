@@ -4,6 +4,12 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Agent replies stay in their format**
+- `agents/reviewer.md`: the reply is the verdict block and nothing else. In 12 real runs reviewers added "what passed", "checks done" and probe tables, several times the length of the format
+- `agents/refactor-architect.md`: a `Reply Format` (plan path, proposals, characterization tests, open decision; at most 8 lines, never the plan's content). The steps "request user re-approval" and "hand off to developer" are gone: a subagent can do neither, the orchestrator does both
+- `agents/test-runner.md`: a failure excerpt is at most 3 lines, never the command's full output
+- `constraints.md` `#filesystem`: `.env` files are under the same approval gate as the other config files (the hook), not "hard blocked by settings.json" — the plugin ships no settings file, and only `install.sh` adds that deny. The rule now also says not to write these files through Bash, which the hook does not see
+
 **`console.log` is a note, not a hard hit**
 - `static-gates.sh` reports an added `console.log(` as `note [ops]` instead of `hard [ops]`: the pattern cannot tell a leftover debug line from a CLI script printing its result, and in 12 runs on a CLI repo every hit (up to 14 per review) was waved through by the reviewer. A repo or organisation rule that forbids `console.log` still FAILs it: the reviewer checks each note against those rules
 

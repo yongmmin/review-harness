@@ -24,8 +24,8 @@
 
 ## #filesystem
 
-- `.env*` — HARD BLOCKED (settings.json deny)
-- `package.json`, lock files, `next.config.{js,ts,mjs}`, `tsconfig.json`, `tsconfig.*.json` — require explicit user approval (PreToolUse DENIES until `bash "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.sh" --approve <path>` is run after the user says yes; 30-min TTL)
+- `.env`, `.env.*` (except `.env.example`, `.env.sample`, `.env.template`), `package.json`, lock files, `next.config.{js,ts,mjs}`, `tsconfig.json`, `tsconfig.*.json` — require explicit user approval (PreToolUse DENIES until `bash "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.sh" --approve <path>` is run after the user says yes; 30-min TTL)
+- The hook sees Write and Edit only: never write those files through Bash instead. A user who ran `install.sh` also has a settings deny on `.env*`, which no approval lifts
 - Plugin working files (`plan.md`, run state, approvals, caches) live in `~/.review-harness/state/<repo-id>/` — never create them inside the repo
 - Do not modify code outside request scope
 
