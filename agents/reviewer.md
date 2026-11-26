@@ -65,6 +65,7 @@ Rules:
 - List every `patch` / `replan` issue; at most 5 `defer` issues. On PASS, `Issues` holds only `defer` issues (omit it when none)
 - `[category]`: `correctness | performance | design | scope | goal | security | contract | ops | state-mgmt | convention`
 - Max 3 handoff bullets, plus `probes:` when your prompt says `risk: high`
+- Your reply is this block and nothing else: no list of what passed, no list of checks you ran, no probe table, no answer section outside `Issues`. A point your prompt asked you to judge is an issue line (with its route) when it needs action, and is left out when it does not
 
 ## Record the Verdict
 
