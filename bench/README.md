@@ -243,6 +243,24 @@ call's `modelUsage`, subagents included) and `turns` (driver outputs), `wall_s`,
 **Solved** = every hidden test passes, no regression, not aborted, a harness run not ended at `limit` or
 `abandoned`, not contaminated.
 
+### Summary
+
+```bash
+bash bench/dev-summary.sh <results>     # scores every run in <results>/map.tsv; one table row per case and arm
+```
+
+| Metric | Meaning |
+|--------|---------|
+| Finished | runs not aborted and, for the harness, with an end in the run log. A harness run that stopped earlier (for example waiting for plan approval) is not finished and stays out of the medians |
+| Solved | solved runs / all runs of that arm: the solve rate |
+| Regressions, Tests edited | runs with a failing base test; runs that deleted or cut a base test |
+| First-review PASS | harness runs whose first reviewer verdict was PASS / runs with a verdict |
+| Median cost, wall, replies | over the finished runs |
+| harness / plain | ratio of the two medians of cost and of wall time, printed with the number of runs behind each |
+
+Read a solve-rate difference only with 3 or more finished runs per arm, and a ratio as the price of the harness on
+that case, not as a general figure.
+
 ### Spike
 
 Answered by Run 1:
@@ -267,6 +285,15 @@ resumed session; whether anything calls `npx`.
 | plain ×3 | all solved (hidden tests 4/4, trap avoided) | $0.20–0.22 | 26–35 s | 0–1 |
 | harness #1 | solved (reviewer PASS on the first review, 4/4) | $1.63 (main model $1.25, reviewer model $0.39) | 287 s | 2 |
 | harness #2, #3 | **void**: stopped at plan approval, hidden tests 2/4 (the base state) | $0.35–0.36 | 45–51 s | 0 |
+
+As `dev-summary.sh` prints it:
+
+| Case | Arm | Runs | Finished | Solved | Regressions | Tests edited | First-review PASS | Median cost | Median wall | Median replies |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `dev-unwired` | harness | 3 | 1 | 1/3 | 0 | 0 | 1/1 | $1.63 | 287 s | 2 |
+| `dev-unwired` | plain | 3 | 3 | 3/3 | 0 | 0 | - | $0.21 | 33 s | 0 |
+
+`dev-unwired`: harness / plain — cost ×7.78, wall time ×8.7 (medians of 1 and 3 finished runs)
 
 - Harness #2 and #3 are void because of the driver, not the harness: their plan messages ended "Approve the plan
   and I'll start." and "Please review the plan. Approve it and I will execute.", and the driver then answered only a

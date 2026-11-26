@@ -8,6 +8,8 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 - `bench/dev-run.sh` answers an approval request that has no `?` ("Approve the plan and I'll start."): the last 400 characters are matched for `?` or the whole words `approve`, `approval`, `confirm`, `go ahead`, `shall I`, `should I`, `let me know`. Two of three harness runs had stopped at plan approval because of the driver
 - Cost is the session's running total: `total_cost_usd` of a `--resume` call already holds the earlier calls, so the driver's budget and `dev-score.sh`'s `cost_usd` take the latest value instead of adding the calls up (a 3-call run read $3.47 for $1.63). Tokens come from the last call's `modelUsage`, which includes subagents
 - `bench/dev-score.sh` exits 2 with one stderr line without Node 20+ or when the hidden tests report 0 tests; it used to print `accept: "0/0"`, unsolved
+- New `bench/dev-summary.sh <results-dir>`: scores every run in `map.tsv` and prints one table row per case and arm — finished runs, solve rate, regressions, edited base tests, first-review PASS rate, median cost / wall time / replies — and the harness-to-plain ratios of cost and wall time with their n
+- `bench/dev-run.sh`: the time cap marks the run before it kills the call; a mark written after the kill was sometimes lost and the run read as finished (a flaky test on macOS CI)
 - `bench/README.md`: Run 1 of the developer-side bench (the case is too easy to show a difference; one valid harness run), the answered Spike questions, the `CLAUDE_CODE_OAUTH_TOKEN` and Node 20 requirements
 
 **`console.log` is a note, not a hard hit**

@@ -1280,6 +1280,23 @@ has "bench dev-score: node 18 → exit 2, version named" "(found: v18.19.0); loa
 mkdir -p "$TMP/notap"; printf '#!/bin/bash\n[ "$1" = --version ] && echo v20.0.0\nexit 0\n' > "$TMP/notap/node"; chmod +x "$TMP/notap/node"
 has "bench dev-score: hidden tests report 0 tests → exit 2, not a score" "not a score"$'\n'" exit=2" \
   "$(TMPDIR="$TMP" nscore "$TMP/notap:$PATH")"
+# dev-summary.sh: 2 plain runs (solution, trap) and 2 harness runs (finished with a first-review PASS; stopped before its end)
+SM="$TMP/sm"; mkdir -p "$SM"
+smrun() { # smrun <name> <patch> <arm> <cost>
+  dout "$SM/$1" "$(cat "$TMP/dfx-dev-unwired-$2")" "$3"; mkdir -p "$SM/$1/driver"
+  jq -nc --argjson c "$4" '{total_cost_usd: $c, num_turns: 1}' > "$SM/$1/driver/01.json"; printf '%s\tdev-unwired\t%s\n' "$1" "$3" >> "$SM/map.tsv"
+}
+smrun s1 solution plain 0.5; smrun s2 trap plain 0.5; smrun s3 solution harness 2; smrun s4 trap harness 0.3
+printf '%s\n' '{"attempts":1,"verdicts":[{"v":"PASS"}],"end":"done"}' > "$SM/s3/runs.jsonl"
+OUT=$(TMPDIR="$TMP" bash "$B/dev-summary.sh" "$SM" 2>&1); eq "bench dev-summary: exit 0" 0 "$?"
+has "bench dev-summary: plain row" '| `dev-unwired` | plain | 2 | 2 | 1/2 | 0 | 0 | - | $0.5 | 7 s | 1 |' "$OUT"
+has "bench dev-summary: harness row — a run with no end is not finished and not in the medians" \
+  '| `dev-unwired` | harness | 2 | 1 | 1/2 | 0 | 0 | 1/1 | $2 | 7 s | 1 |' "$OUT"
+has "bench dev-summary: ratios with their n" 'harness / plain — cost ×4, wall time ×1 (medians of 1 and 2 finished runs)' "$OUT"
+eq "bench dev-summary: no map.tsv → usage" 2 "$(bash "$B/dev-summary.sh" "$TMP/nope" >/dev/null 2>&1; echo $?)"
+printf 'gone\tdev-unwired\tplain\n' >> "$SM/map.tsv"
+has "bench dev-summary: a run that cannot be scored → exit 2, named" "dev-summary: cannot score gone"$'\n'" exit=2" \
+  "$(TMPDIR="$TMP" bash "$B/dev-summary.sh" "$SM" 2>&1 >/dev/null | tail -1; echo " exit=${PIPESTATUS[0]}")"
 # dev-run.sh with a stub claude first on PATH: STUB_ASK = calls 1..N end with STUB_ASK_TEXT (default: a "?" question),
 # later calls with STUB_DONE; STUB_COST per call (total_cost_usd is the running total, as on --resume), STUB_SLEEP seconds
 mkdir -p "$TMP/bin" "$TMP/dr/t"
