@@ -66,10 +66,15 @@ while :; do
   wait "$pid" || true; pid=""
   kill -- "-$dog" 2>/dev/null || true; wait "$dog" 2>/dev/null || true; dog=""
   [ ! -f "$W/timed-out" ] || { ABORTED='"time"'; break; }
-  COST=$(awk -v a="$COST" -v b="$(jq -r '.total_cost_usd // 0' "$F" 2>/dev/null || echo 0)" 'BEGIN { print a + b }')
+  # total_cost_usd of a resumed call already holds the earlier calls of the session (subagents included), so the
+  # latest value is the run's cost; adding the calls up counted call 1 three times in a 3-call run.
+  C=$(jq -r '.total_cost_usd // empty' "$F" 2>/dev/null || true); [ -z "$C" ] || COST=$C
   SID=$(jq -r '.session_id // empty' "$F" 2>/dev/null || true)
   if awk -v c="$COST" -v b="$BUDGET" 'BEGIN { exit !(c >= b) }'; then ABORTED='"cost"'; break; fi
-  ASKS=$(jq -r '(.result // "") | .[-400:] | contains("?")' "$F" 2>/dev/null || echo false)
+  # A question or an approval request ("Approve the plan and I'll start."); "approved" / "confirmed" in a final
+  # summary are not cues.
+  ASKS=$(jq -r '(.result // "") | .[-400:]
+    | test("\\?|\\b(approve|approval|confirm|go ahead|shall i|should i|let me know)\\b"; "i")' "$F" 2>/dev/null || echo false)
   [ "$ASKS" = true ] && [ "$REPLIES" -lt 4 ] && [ -n "$SID" ] || break
   REPLIES=$((REPLIES + 1))
   if [ "$REPLIES" = 1 ]; then PROMPT='Approved. Go ahead.'

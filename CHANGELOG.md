@@ -4,6 +4,12 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Developer-side bench: driver and scorer fixes from the first real run**
+- `bench/dev-run.sh` answers an approval request that has no `?` ("Approve the plan and I'll start."): the last 400 characters are matched for `?` or the whole words `approve`, `approval`, `confirm`, `go ahead`, `shall I`, `should I`, `let me know`. Two of three harness runs had stopped at plan approval because of the driver
+- Cost is the session's running total: `total_cost_usd` of a `--resume` call already holds the earlier calls, so the driver's budget and `dev-score.sh`'s `cost_usd` take the latest value instead of adding the calls up (a 3-call run read $3.47 for $1.63). Tokens come from the last call's `modelUsage`, which includes subagents
+- `bench/dev-score.sh` exits 2 with one stderr line without Node 20+ or when the hidden tests report 0 tests; it used to print `accept: "0/0"`, unsolved
+- `bench/README.md`: Run 1 of the developer-side bench (the case is too easy to show a difference; one valid harness run), the answered Spike questions, the `CLAUDE_CODE_OAUTH_TOKEN` and Node 20 requirements
+
 **`console.log` is a note, not a hard hit**
 - `static-gates.sh` reports an added `console.log(` as `note [ops]` instead of `hard [ops]`: the pattern cannot tell a leftover debug line from a CLI script printing its result, and in 12 runs on a CLI repo every hit (up to 14 per review) was waved through by the reviewer. A repo or organisation rule that forbids `console.log` still FAILs it: the reviewer checks each note against those rules
 

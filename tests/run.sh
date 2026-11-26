@@ -1252,12 +1252,17 @@ dout "$TMP/ds-cut" "$WK" plain
 eq "bench dev-score: removed lines in a base test → touched" 1 "$(dscore "$TMP/ds-cut" | jq -r .tests_touched)"
 dout "$TMP/ds-h" "$(cat "$TMP/dfx-dev-unwired-solution")" harness
 mkdir -p "$TMP/ds-h/driver" "$TMP/ds-h/transcripts/p"
-for n in 01 02; do jq -nc '{session_id: "s", total_cost_usd: 1.25, num_turns: 4, usage: {input_tokens: 10, output_tokens: 3, cache_read_input_tokens: 100}}' > "$TMP/ds-h/driver/$n.json"; done
+# total_cost_usd is the session's running total, as a resumed `claude -p` call reports it
+for n in 01 02; do jq -nc --argjson n "$n" '{session_id: "s", total_cost_usd: (1.25 * $n), num_turns: 4, usage: {input_tokens: 10, output_tokens: 3, cache_read_input_tokens: 100}}' > "$TMP/ds-h/driver/$n.json"; done
 printf '%s\n' '{"attempts":2,"verdicts":[{"v":"FAIL"},{"v":"PASS"}],"end":"done","override":null}' > "$TMP/ds-h/runs.jsonl"
 printf '%s\n' '## Done When' '- GET works — check: test' '## Design Check' '- Callers/Consumers: src/routes/index.js' '## Bug' '' > "$TMP/ds-h/plan.md"
 jq -nc '{message: {content: [{type: "tool_use", name: "Bash", input: {command: "node --test test/x.test.js"}}, {type: "tool_use", name: "Bash", input: {command: "ls"}}]}}' > "$TMP/ds-h/transcripts/p/s.jsonl"
 OUT=$(dscore "$TMP/ds-h")
-eq "bench dev-score: driver sums" "2.5 20 6 200 8" "$(printf '%s' "$OUT" | jq -r '"\(.cost_usd) \(.input_tokens) \(.output_tokens) \(.cache_read_tokens) \(.turns)"')"
+DSUM='"\(.cost_usd) \(.input_tokens) \(.output_tokens) \(.cache_read_tokens) \(.turns)"'
+eq "bench dev-score: cost is the running total, not the calls added up; own usage summed" "2.5 20 6 200 8" "$(printf '%s' "$OUT" | jq -r "$DSUM")"
+jq -c '.modelUsage = {a: {inputTokens: 30, outputTokens: 9, cacheReadInputTokens: 500, costUSD: 2}, b: {inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 3, costUSD: 0.5}}' \
+  "$TMP/ds-h/driver/02.json" > "$TMP/ds-h/driver/02.tmp" && mv "$TMP/ds-h/driver/02.tmp" "$TMP/ds-h/driver/02.json"
+eq "bench dev-score: tokens from the last call's modelUsage (subagents included)" "2.5 31 11 503 8" "$(dscore "$TMP/ds-h" | jq -r "$DSUM")"
 eq "bench dev-score: harness run log and plan" "2 FAIL,PASS done 1 1 0" \
   "$(printf '%s' "$OUT" | jq -r '"\(.attempts) \(.verdicts | join(",")) \(.end) \(.plan_done_when) \(.plan_callers) \(.plan_bug)"')"
 eq "bench dev-score: test runs from transcripts, clean → solved" "1 0 true" "$(printf '%s' "$OUT" | jq -r '"\(.test_runs) \(.contaminated) \(.solved)"')"
@@ -1267,7 +1272,16 @@ sed -i.orig '$d' "$TMP/ds-h/runs.jsonl"; rm "$TMP/ds-h/runs.jsonl.orig"
 echo '{"message":"cat bench/cases-dev/x/solution.patch"}' >> "$TMP/ds-h/transcripts/p/s.jsonl"
 eq "bench dev-score: transcript names hidden files → contaminated, not solved" "1 false" "$(dscore "$TMP/ds-h" | jq -r '"\(.contaminated) \(.solved)"')"
 eq "bench dev-score: no out-dir → usage" 2 "$(bash "$B/dev-score.sh" "$CD" "$TMP/nope" >/dev/null 2>&1; echo $?)"
-# dev-run.sh with a stub claude first on PATH: STUB_ASK = calls 1..N end with "?", STUB_COST per call, STUB_SLEEP seconds
+mkdir -p "$TMP/nonode" "$TMP/oldnode"; printf '#!/bin/bash\necho v18.19.0\n' > "$TMP/oldnode/node"; chmod +x "$TMP/oldnode/node"
+nscore() { PATH="$1" "$BASH" "$B/dev-score.sh" "$CD" "$TMP/ds-sol" 2>&1 >/dev/null; echo " exit=$?"; }   # stderr + exit code
+has "bench dev-score: no node on PATH → exit 2" " exit=2" "$(nscore "$TMP/nonode")"
+has "bench dev-score: no node on PATH → message" "node 20+ is needed to run the tests (found: none)" "$(nscore "$TMP/nonode")"
+has "bench dev-score: node 18 → exit 2, version named" "(found: v18.19.0); load it in this shell first"$'\n'" exit=2" "$(nscore "$TMP/oldnode")"
+mkdir -p "$TMP/notap"; printf '#!/bin/bash\n[ "$1" = --version ] && echo v20.0.0\nexit 0\n' > "$TMP/notap/node"; chmod +x "$TMP/notap/node"
+has "bench dev-score: hidden tests report 0 tests → exit 2, not a score" "not a score"$'\n'" exit=2" \
+  "$(TMPDIR="$TMP" nscore "$TMP/notap:$PATH")"
+# dev-run.sh with a stub claude first on PATH: STUB_ASK = calls 1..N end with STUB_ASK_TEXT (default: a "?" question),
+# later calls with STUB_DONE; STUB_COST per call (total_cost_usd is the running total, as on --resume), STUB_SLEEP seconds
 mkdir -p "$TMP/bin" "$TMP/dr/t"
 cat > "$TMP/bin/claude" <<'EOF'
 #!/bin/bash
@@ -1280,8 +1294,8 @@ sleep "${STUB_SLEEP:-0}"
 mkdir -p "$CLAUDE_CONFIG_DIR/projects/p" "$REVIEW_HARNESS_HOME/state/x"
 echo '{"message":{}}' >> "$CLAUDE_CONFIG_DIR/projects/p/s.jsonl"
 echo '## Done When' > "$REVIEW_HARNESS_HOME/state/x/plan.md"; echo '{"end":"done"}' >> "$REVIEW_HARNESS_HOME/state/runs.jsonl"
-r="Done."; [ "$n" -gt "${STUB_ASK:-0}" ] || r="Shall I go ahead?"
-jq -nc --arg r "$r" --argjson c "${STUB_COST:-0.5}" '{session_id: "sess-1", total_cost_usd: $c, num_turns: 2, result: $r}'
+r="${STUB_DONE:-Done.}"; [ "$n" -gt "${STUB_ASK:-0}" ] || r="${STUB_ASK_TEXT:-Shall I go ahead?}"
+jq -nc --arg r "$r" --argjson c "${STUB_COST:-0.5}" --argjson n "$n" '{session_id: "sess-1", total_cost_usd: ($c * $n), num_turns: 2, result: $r}'
 EOF
 chmod +x "$TMP/bin/claude"
 drun() { # drun <name> <arm> [VAR=value ...] — exit code of dev-run.sh into $TMP/dr/<name>; the stub logs to $TMP/dr/s-<name>/log
@@ -1321,10 +1335,19 @@ eq "bench dev-run: '?' → one reply" "2 1 null" "$(drun a1 plain STUB_ASK=1 >/d
 L=$(cat "$TMP/dr/s-a1/log")
 has "bench dev-run: the reply resumes the session" "arg --resume"$'\n'"arg sess-1" "$(printf '%s\n' "$L" | sed -n '/^call 2$/,$p')"
 has "bench dev-run: first reply approves" "arg -p"$'\n'"arg Approved. Go ahead." "$L"
+eq "bench dev-run: an approval request without '?' → one reply" "2 1" \
+  "$(drun a3 plain STUB_ASK=1 STUB_ASK_TEXT="Approve the plan and I'll start." >/dev/null; rj a3 '"\(.calls) \(.user_replies)"')"
+has "bench dev-run: the approval request is approved" "arg -p"$'\n'"arg Approved. Go ahead." "$(cat "$TMP/dr/s-a3/log")"
+eq "bench dev-run: 'Please review the plan. Approve it and I will execute.' → one reply" "2 1" \
+  "$(drun a4 plain STUB_ASK=1 STUB_ASK_TEXT="Please review the plan. Approve it and I will execute." >/dev/null; rj a4 '"\(.calls) \(.user_replies)"')"
+eq "bench dev-run: a final summary with no cue is not answered" "1 0" \
+  "$(drun a5 plain STUB_DONE="The status filter is wired into the route. I confirmed all 4 tests pass and the approved plan is done." >/dev/null; rj a5 '"\(.calls) \(.user_replies)"')"
 eq "bench dev-run: replies stop at 4" "5 4" "$(drun a2 plain STUB_ASK=9 >/dev/null; rj a2 '"\(.calls) \(.user_replies)"')"
 has "bench dev-run: later replies say no more answers" "arg I can't answer more questions" "$(cat "$TMP/dr/s-a2/log")"
 eq "bench dev-run: cost cap" '2 "cost"' "$(drun c1 plain STUB_ASK=9 STUB_COST=6 DEV_BENCH_BUDGET_USD=10 >/dev/null; rj c1 '"\(.calls) \(.aborted | tojson)"')"
 has "bench dev-run: budget left goes to the next call" "arg --max-budget-usd"$'\n'"arg 4.00" "$(cat "$TMP/dr/s-c1/log")"
+eq "bench dev-run: the cost cap reads the running total, not the calls added up" '4 "cost"' \
+  "$(drun c2 plain STUB_ASK=9 STUB_COST=3 DEV_BENCH_BUDGET_USD=10 >/dev/null; rj c2 '"\(.calls) \(.aborted | tojson)"')"
 eq "bench dev-run: time cap kills the call" '1 "time" true' \
   "$(drun t1 plain STUB_SLEEP=5 DEV_BENCH_TIME_S=1 >/dev/null; rj t1 '"\(.calls) \(.aborted | tojson) \(.wall_s < 5)"')"
 drun b1 plain DEV_BENCH_BARE=1 >/dev/null; ARGS=$(sed -n 's/^arg //p' "$TMP/dr/s-b1/log" | tr '\n' ' ')

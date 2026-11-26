@@ -202,9 +202,15 @@ export TMPDIR=<scratch dir>/w        # a neutral path: dev-run.sh refuses one na
 bash bench/dev-run.sh <plain|harness> bench/cases-dev/<id> <results>/<opaque name>
 ```
 
+Needs `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) in the environment: the run uses its own
+`CLAUDE_CONFIG_DIR`, so a normal login is not visible to it.
+
 Every call is `--model opus --output-format json --permission-mode bypassPermissions --disallowedTools
-AskUserQuestion --max-budget-usd <budget left>`. A reply whose last 400 characters hold a `?` gets a user-proxy
-answer through `--resume` ("Approved. Go ahead.", then "use your best judgement"), at most 4 replies.
+AskUserQuestion --max-budget-usd <budget left>`. A reply whose last 400 characters hold a `?` or an approval cue
+(`approve`, `approval`, `confirm`, `go ahead`, `shall I`, `should I`, `let me know`, as whole words in any case) gets
+a user-proxy answer through `--resume` ("Approved. Go ahead.", then "use your best judgement"), at most 4 replies.
+`total_cost_usd` of a resumed call is the session's running total, so the budget left is the budget minus the
+latest value.
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
@@ -225,9 +231,13 @@ opaque name to the case and arm.
 bash bench/dev-score.sh bench/cases-dev/<id> <results>/<opaque name>    # one JSON line
 ```
 
+The shell needs Node 20+: without it, or when the hidden tests report 0 tests, the script exits 2 with one stderr
+line instead of printing a score.
+
 Base test files changed (deleted, or lines removed) count as `tests_touched` and are put back before the tests run.
 Then `accept` (`pass/tests` of the hidden tests, copied to `test/accept/`), `regressions` (failing base tests),
-`cost_usd`, tokens and `turns` (driver outputs), `wall_s`, `user_replies`, `aborted`, the harness run log
+`cost_usd` (the largest `total_cost_usd` of the calls, which is the session's running total), tokens (the last
+call's `modelUsage`, subagents included) and `turns` (driver outputs), `wall_s`, `user_replies`, `aborted`, the harness run log
 (`attempts`, `verdicts`, `end`, `override`) and plan (`plan_callers`, `plan_done_when`, `plan_bug`), `test_runs`
 (test commands in the transcripts) and `contaminated` (a transcript names this repo or the case's hidden files).
 **Solved** = every hidden test passes, no regression, not aborted, a harness run not ended at `limit` or
@@ -235,9 +245,41 @@ Then `accept` (`pass/tests` of the hidden tests, copied to `test/accept/`), `reg
 
 ### Spike
 
-Pending — needs a model run. It will answer: does `--bare` keep `--plugin-dir` hooks; do `--max-budget-usd` and
-`total_cost_usd` include subagents; does `/review-harness:review-harness` run under `-p`; how the harness behaves with
-`AskUserQuestion` disallowed; whether anything calls `npx`.
+Answered by Run 1:
+- `/review-harness:review-harness` runs under `-p` with `--plugin-dir`: the run log, the plan and a reviewer PASS
+  were written.
+- `total_cost_usd` includes subagents: the harness call's `modelUsage` lists the reviewer's model next to the main
+  one, and the per-model costs add up to `total_cost_usd`. The top-level `usage` holds the main loop of that call
+  only.
+- `total_cost_usd` and `modelUsage` of a `--resume` call are running totals of the session; `usage` and `num_turns`
+  are that call's own.
+- With `AskUserQuestion` disallowed the harness asks for plan approval in plain text, often with no `?`.
+
+Still open: does `--bare` keep `--plugin-dir` hooks; does `--max-budget-usd` count subagents and earlier calls of a
+resumed session; whether anything calls `npx`.
+
+### Results
+
+#### Run 1 (2026-11-26, plugin rev `86e88d3`, Opus, `dev-unwired`, 3 runs per arm)
+
+| Run | Result | Cost | Wall time | Replies |
+|-----|--------|------|-----------|---------|
+| plain ×3 | all solved (hidden tests 4/4, trap avoided) | $0.20–0.22 | 26–35 s | 0–1 |
+| harness #1 | solved (reviewer PASS on the first review, 4/4) | $1.63 (main model $1.25, reviewer model $0.39) | 287 s | 2 |
+| harness #2, #3 | **void**: stopped at plan approval, hidden tests 2/4 (the base state) | $0.35–0.36 | 45–51 s | 0 |
+
+- Harness #2 and #3 are void because of the driver, not the harness: their plan messages ended "Approve the plan
+  and I'll start." and "Please review the plan. Approve it and I will execute.", and the driver then answered only a
+  `?`. It answers approval cues now.
+- As first recorded, the costs read $0.20–0.41 (plain) and $3.47 (harness #1): the driver and the scorer added up
+  the calls' `total_cost_usd`, which on a resumed call is already the running total. The table holds the re-scored
+  values; the one harness run that finished cost about 8× and took about 9× a plain run.
+- The first scoring pass printed `accept: "0/0"` for every run, because that shell had no Node 20. The scorer exits
+  2 in that case now.
+- **The case is too easy.** Plain Opus avoided the allowlist trap 3 times out of 3, so `dev-unwired` cannot show what
+  the harness adds. A harder case, or the "A/B on real tasks" protocol below, is needed before any solve-rate claim.
+- n = 1 valid harness run: no solve-rate or cost claim follows from this run. Next: rerun the harness arm 2–3 times
+  with the fixed driver.
 
 ## A/B on real tasks
 
