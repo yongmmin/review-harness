@@ -4,6 +4,11 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Agent replies stay in their format**
+- `agents/reviewer.md`: the reply is the verdict block and nothing else. In 12 real runs reviewers added "what passed", "checks done" and probe tables, several times the length of the format
+- `agents/refactor-architect.md`: a `Reply Format` (plan path, proposals, characterization tests, open decision; at most 8 lines, never the plan's content). The steps "request user re-approval" and "hand off to developer" are gone: a subagent can do neither, the orchestrator does both
+- `agents/test-runner.md`: a failure excerpt is at most 3 lines, never the command's full output
+- `constraints.md` `#filesystem`: `.env` files are under the same approval gate as the other config files (the hook), not "hard blocked by settings.json" — the plugin ships no settings file, and only `install.sh` adds that deny. The rule now also says not to write these files through Bash, which the hook does not see
 **Developer-side bench: driver and scorer fixes from the first real run**
 - `bench/dev-run.sh` answers an approval request that has no `?` ("Approve the plan and I'll start."): the last 400 characters are matched for `?` or the whole words `approve`, `approval`, `confirm`, `go ahead`, `shall I`, `should I`, `let me know`. Two of three harness runs had stopped at plan approval because of the driver
 - Cost is the session's running total: `total_cost_usd` of a `--resume` call already holds the earlier calls, so the driver's budget and `dev-score.sh`'s `cost_usd` take the latest value instead of adding the calls up (a 3-call run read $3.47 for $1.63). Tokens come from the last call's `modelUsage`, which includes subagents

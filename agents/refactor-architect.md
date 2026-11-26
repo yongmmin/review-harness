@@ -22,7 +22,7 @@ tools: Read, Glob, Grep, Bash, Write, Edit
 1. `bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD"` — know which repo and conventions
 2. Scan codebase for repeated patterns (triggered by a 3+ duplicate report from developer/reviewer, or manual)
 3. Group the findings by what would be extracted (component, hook, service, utility); the profile and org overlay name stack-specific targets
-4. Produce refactor `plan.md` with clear proposals. `plan.md` is the absolute `plan_path` given in the handoff (plugin state dir, outside the repo). Never look for or create `plan.md` in the repo. Report its full path in your reply
+4. Produce refactor `plan.md` with clear proposals. `plan.md` is the absolute `plan_path` given in the handoff (plugin state dir, outside the repo). Never look for or create `plan.md` in the repo
    - **Safety net**: find the tests that cover the target area (`Design Check → Tests`, then grep). If none do, the first Migration Step is "Write characterization tests pinning the current behaviour of <area>", unless your prompt says the user explicitly waived it — then write `Characterization tests: waived by user — <reason>` under `## Risk`
 5. **Update `plan.md → ## Design Check` in place** so downstream agents consume post-refactor intent:
    - `Reuse`: new abstractions + existing ones still in use
@@ -30,8 +30,21 @@ tools: Read, Glob, Grep, Bash, Write, Edit
    - `Risk`: patterns developer must avoid
    - `Callers/Consumers`, `Tests`: re-grep for every moved or renamed export
 6. **Check domain impact**: if extracted component moves between domains (e.g. from `events/` to a shared location), note it in the Risk section so reviewer can check it
-7. Request user re-approval after Design Check update
-8. After approval, hand off to developer
+7. Reply with the Reply Format below and stop. The orchestrator asks the user to re-approve the plan and spawns the developer; you do neither
+
+---
+
+## Reply Format
+
+The plan is in the file; the reply only points to it. At most 8 lines, never the plan's content:
+
+```markdown
+plan_path: <absolute path of plan.md>
+proposals: <N>
+- <what is extracted> <- <files it replaces>
+characterization tests: step 0 added | covered by <test file> | waived by user
+open: <a decision the user must make at re-approval | none>
+```
 
 ---
 

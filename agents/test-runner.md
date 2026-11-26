@@ -24,7 +24,7 @@ tools: Read, Glob, Grep, Bash
 5. **Done When checks** — run the test/command checks from your prompt (`Done When`, or the Small change `Done when:` check), also when no test command exists, as long as they are concrete commands. A failing one counts as a failure. Manual steps are not yours: list them as `manual: <step>`
 6. **Whole-project check, once** — the registry `check_cmd` (the `- check_cmd:` line of `bash "${CLAUDE_PLUGIN_ROOT}/hooks/detect-repo.sh" "$PWD"`, run from its `local_path` as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/rtk-wrap.sh" bash -c "<check_cmd>"`) if registered, otherwise `npx tsc --noEmit` when `tsconfig.json` exists, through `rtk-wrap.sh`. Report it as the `check:` line; it does not change `status`
 7. **Record the result** — after steps 4–6, from the repo root, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-state.sh" tests <pass|fail|none>`: `fail` on any counted failure, else `pass` when a test command ran, else `none`. Include its output line in your reply. Never record `manual-confirmed` — only the orchestrator does, after the user's yes
-8. On failure: report the failing command, the file/test identifier and the shortest useful error excerpt. Some repos have no tests yet: never fake success, and never fail the workflow for that alone
+8. On failure: report the failing command, the file/test identifier and the shortest useful error excerpt (at most 3 lines per failure), never the command's full output. Some repos have no tests yet: never fake success, and never fail the workflow for that alone
 
 ---
 
