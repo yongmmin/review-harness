@@ -60,7 +60,9 @@ while :; do
     --disallowedTools AskUserQuestion --max-budget-usd "$REM" "${FLAGS[@]}" ${SID:+--resume "$SID"}) \
     < /dev/null > "$F" 2>> "$OUT/driver/stderr.log" &
   pid=$!
-  (sleep "$LEFT"; kill -TERM -- "-$pid" 2>/dev/null && : > "$W/timed-out") > /dev/null 2>&1 &
+  # Mark first, then kill: the main loop removes this watchdog as soon as the call dies, and a mark written after
+  # the kill was sometimes lost (the run then read as finished, not timed out).
+  (sleep "$LEFT"; : > "$W/timed-out"; kill -TERM -- "-$pid" 2>/dev/null) > /dev/null 2>&1 &
   dog=$!
   set +m
   wait "$pid" || true; pid=""
