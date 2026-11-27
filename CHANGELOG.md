@@ -4,6 +4,9 @@ This plugin is a rebuild that carries over the Harness Engineering principles of
 
 ### Unreleased
 
+**Expected time at plan approval**
+- `run-stats.sh --estimate <workflow>` prints one line: the median and the middle half of the wall time of finished runs of that workflow (`estimate: about 21 min, usually 18-33 min (wall time of 9 finished feature runs, this repo; includes waiting for your answers)`). It uses this repo's runs when there are 5 or more, all repos' otherwise, and prints nothing when neither has 5
+- `skills/review-harness/SKILL.md` → Plan Gate: the line goes under the approval request; with no line the session says nothing about time. The Small change path shows no estimate
 **Agent replies stay in their format**
 - `agents/reviewer.md`: the reply is the verdict block and nothing else. In 12 real runs reviewers added "what passed", "checks done" and probe tables, several times the length of the format
 - `agents/refactor-architect.md`: a `Reply Format` (plan path, proposals, characterization tests, open decision; at most 8 lines, never the plan's content). The steps "request user re-approval" and "hand off to developer" are gone: a subagent can do neither, the orchestrator does both

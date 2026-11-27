@@ -84,6 +84,8 @@ Intent is `feature`, `bugfix` or `refactor` and the Small change path is not tak
 
 Create `plan.md`, then wait for explicit user approval before execution (Bugfix exception: Workflow Selection → Bugfix).
 
+**Expected time**: before asking for approval, run `bash "${CLAUDE_PLUGIN_ROOT}/hooks/run-stats.sh" --estimate <intent>`. It prints one `estimate:` line from past runs, or nothing when there are too few. Put the line under the approval request as it is; when it prints nothing, say nothing about time — never estimate from your own judgement.
+
 The change calls an API whose request/response shape you do not have, or the request carries a pasted `## Contract` block → read `${CLAUDE_PLUGIN_ROOT}/skills/review-harness/api-spec.md` before recording `plan.md → Inputs.API`
 
 ---

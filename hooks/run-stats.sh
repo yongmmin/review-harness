@@ -3,20 +3,39 @@
 # categories, overrides, limit hits; when runs carry agent data, median tokens and active minutes per run and a
 # per-agent split — subagents only) of the run log that run-state.sh appends to
 # ~/.review-harness/state/runs.jsonl (one line per finished run, all repos). Reads only.
+# run-stats.sh --estimate <workflow> [--repo <id|name>] — one line with the expected wall time of a run of
+# that workflow, from finished (`done`) runs: this repo's (default: the current work tree) when it has 5 or
+# more, else all repos'; fewer than 5 either way → prints nothing (exit 0), never a made-up number.
 #   --repo   a repo id (<name>-<hash>, the state folder name) or just the work-tree name
 #   --since  only runs that ended in the last <days> days
 set -u
-usage() { echo "usage: run-stats.sh [--repo <id|name>] [--since <days>]" >&2; exit 2; }
-REPO=""; SINCE=""
+usage() { echo "usage: run-stats.sh [--repo <id|name>] [--since <days>] | --estimate <workflow> [--repo <id|name>]" >&2; exit 2; }
+REPO=""; SINCE=""; EST=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo) [ -n "${2:-}" ] || usage; REPO="$2"; shift 2 ;;
+    --estimate) [ -n "${2:-}" ] || usage; EST="$2"; shift 2 ;;
     --since) case "${2:-}" in ''|*[!0-9]*) usage ;; esac; SINCE="$2"; shift 2 ;;
     *) usage ;;
   esac
 done
 command -v jq >/dev/null 2>&1 || { echo "run-stats: jq is required (install it, e.g. brew install jq or apt-get install jq)" >&2; exit 3; }
 LOG="${REVIEW_HARNESS_HOME:-$HOME/.review-harness}/state/runs.jsonl"
+if [ -n "$EST" ]; then
+  [ -s "$LOG" ] || exit 0
+  [ -n "$REPO" ] || REPO=$(basename "$(bash "$(dirname "$0")/state-dir.sh" 2>/dev/null)")
+  # Wall time includes the waits for the user's answers; the quartiles keep one overnight run from moving it.
+  jq -Rnr --arg repo "$REPO" --arg wf "$EST" '
+    def mins: . / 60 + 0.5 | floor | if . < 1 then 1 else . end;
+    def line($where): sort as $s | ($s | length) as $n
+      | "estimate: about \($s[($n - 1) / 2 | floor] | mins) min, usually \($s[($n - 1) / 4 | floor] | mins)-\($s[($n - 1) * 3 / 4 | ceil] | mins) min (wall time of \($n) finished \($wf) runs, \($where); includes waiting for your answers)";
+    [inputs | fromjson? | objects | select(.workflow == $wf and .end == "done" and ((.duration_s // 0) > 0))] as $all
+    | [$all[] | select(.repo == $repo or ((.repo // "") | sub("-[^-]*$"; "")) == $repo) | .duration_s] as $mine
+    | if ($mine | length) >= 5 then $mine | line("this repo")
+      elif ($all | length) >= 5 then $all | map(.duration_s) | line("all repos")
+      else empty end' "$LOG"
+  exit $?
+fi
 [ -s "$LOG" ] || { echo "run-stats: no runs recorded yet ($LOG)"; exit 0; }
 
 # A torn or hand-edited line is skipped, not fatal.

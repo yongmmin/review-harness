@@ -1022,6 +1022,22 @@ cat > "$TMP/wchome/state/runs.jsonl" <<'EOF'
 EOF
 has "run-stats: weighted cost per run" "weighted cost per run (subagents only): median 452 input-equivalent tokens (cache read x0.1, cache write x1.25, output x5)" "$(REVIEW_HARNESS_HOME="$TMP/wchome" bash "$H/run-stats.sh")"
 lacks "run-stats: no agent data → no weighted cost line" "weighted cost" "$(st)"
+# --estimate: wall time of finished runs of one workflow, this repo first, all repos as fallback
+EH="$TMP/esthome"; mkdir -p "$EH/state"
+{ for d in 3000 600 2400 1200 1800; do echo "{\"repo\":\"web-aaaaaaaaaaaa\",\"workflow\":\"feature\",\"duration_s\":$d,\"end\":\"done\"}"; done
+  echo '{"repo":"web-aaaaaaaaaaaa","workflow":"feature","duration_s":90000,"end":"abandoned"}'
+  echo '{"repo":"web-aaaaaaaaaaaa","workflow":"feature","duration_s":90000,"end":"limit"}'
+  echo '{"repo":"api-bbbbbbbbbbbb","workflow":"feature","duration_s":6000,"end":"done"}'
+  echo '{"repo":"api-bbbbbbbbbbbb","workflow":"bugfix","duration_s":20,"end":"done"}'
+  echo '{"repo":"torn'; } > "$EH/state/runs.jsonl"
+est() { REVIEW_HARNESS_HOME="$EH" bash "$H/run-stats.sh" --estimate "$@" 2>&1; }
+eq "run-stats --estimate: this repo's finished runs only" "estimate: about 30 min, usually 20-40 min (wall time of 5 finished feature runs, this repo; includes waiting for your answers)" "$(est feature --repo web)"
+eq "run-stats --estimate: fewer than 5 in the repo → all repos" "estimate: about 30 min, usually 20-50 min (wall time of 6 finished feature runs, all repos; includes waiting for your answers)" "$(est feature --repo api)"
+eq "run-stats --estimate: no --repo → current work tree, falls back to all repos" "estimate: about 30 min, usually 20-50 min (wall time of 6 finished feature runs, all repos; includes waiting for your answers)" "$(est feature)"
+eq "run-stats --estimate: fewer than 5 anywhere → no output" "" "$(est bugfix --repo api)"
+eq "run-stats --estimate: fewer than 5 anywhere → exit 0" 0 "$(rc est bugfix --repo api)"
+eq "run-stats --estimate: no log → no output" "" "$(REVIEW_HARNESS_HOME="$TMP/nolog" bash "$H/run-stats.sh" --estimate feature 2>&1)"
+eq "run-stats --estimate: no workflow → exit 2" 2 "$(rc est)"
 
 # --- agent usage (SubagentStart / SubagentStop) --------------------------------------------
 R="$TMP/agentrepo"; new_repo "$R"; SD=$(bash "$H/state-dir.sh" "$R"); AF="$SD/run-state.json"; AG="$SD/agents.jsonl"; ALOG="$REVIEW_HARNESS_HOME/state/runs.jsonl"
