@@ -195,6 +195,8 @@ The output covers:
 
 Use it to check whether a rule change, a profile or an overlay actually helps.
 
+At plan approval the harness also shows an expected time, from the same log: `run-stats.sh --estimate <workflow>` prints the median and the middle half of the wall time of finished runs of that workflow (this repo's when it has 5 or more, all repos' otherwise). With fewer than 5 runs it shows nothing.
+
 ## Where state is stored
 
 The plugin never creates files inside the repo you are working in. Run state lives in `~/.review-harness/state/<repo-id>/`. `<repo-id>` is the work-tree name plus a hash of its absolute path, so each git worktree gets its own.
